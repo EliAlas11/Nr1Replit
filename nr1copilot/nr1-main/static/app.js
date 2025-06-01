@@ -1,4 +1,3 @@
-
 /**
  * ViralClip Pro - Frontend Application
  * Netflix-level user experience with real-time updates
@@ -21,14 +20,14 @@ class ViralClipApp {
         this.sessionId = null;
         this.taskId = null;
         this.selectedClips = [];
-        
+
         // UI state
         this.isDragging = false;
         this.isUploading = false;
         this.isProcessing = false;
         this.uploadProgress = 0;
         this.processingProgress = 0;
-        
+
         // Performance tracking
         this.performanceMetrics = {
             startTime: Date.now(),
@@ -36,12 +35,12 @@ class ViralClipApp {
             processingStartTime: null,
             lastActivity: Date.now()
         };
-        
+
         // Error tracking
         this.errorCount = 0;
         this.lastError = null;
         this.retryAttempts = {};
-        
+
         // Configuration
         this.config = {
             maxRetries: 3,
@@ -51,7 +50,7 @@ class ViralClipApp {
             allowedFileTypes: ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'],
             websocketReconnectDelay: 5000
         };
-        
+
         // Initialize application
         this.init();
     }
@@ -59,33 +58,33 @@ class ViralClipApp {
     async init() {
         try {
             console.log('🚀 Initializing ViralClip Pro v2.0...');
-            
+
             // Check browser compatibility
             this.checkBrowserCompatibility();
-            
+
             // Setup core features
             this.setupEventListeners();
             this.setupDragAndDrop();
             this.setupMobileOptimizations();
             this.setupErrorHandling();
             this.setupPerformanceMonitoring();
-            
+
             // Initialize offline support
             this.setupOfflineSupport();
-            
+
             // Start monitoring systems
             this.startHeartbeat();
             this.startActivityTracking();
-            
+
             // Show initial step
             this.showStep('upload');
-            
+
             // Show loading complete
             this.hideLoadingSplash();
-            
+
             console.log('✅ ViralClip Pro initialized successfully');
             this.trackEvent('app_initialized', { timestamp: Date.now() });
-            
+
         } catch (error) {
             console.error('❌ Failed to initialize ViralClip Pro:', error);
             this.showCriticalError('Failed to initialize application', error);
@@ -100,17 +99,17 @@ class ViralClipApp {
             'fetch',
             'Promise'
         ];
-        
+
         const missingFeatures = requiredFeatures.filter(feature => !(feature in window));
-        
+
         if (missingFeatures.length > 0) {
             throw new Error(`Browser missing required features: ${missingFeatures.join(', ')}`);
         }
-        
+
         // Check for recommended features
         const recommendedFeatures = ['serviceWorker', 'localStorage', 'sessionStorage'];
         const missingRecommended = recommendedFeatures.filter(feature => !(feature in window));
-        
+
         if (missingRecommended.length > 0) {
             console.warn('⚠️ Browser missing recommended features:', missingRecommended);
         }
@@ -121,18 +120,18 @@ class ViralClipApp {
         window.addEventListener('error', (event) => {
             this.handleGlobalError('JavaScript Error', event.error);
         });
-        
+
         // Unhandled promise rejections
         window.addEventListener('unhandledrejection', (event) => {
             this.handleGlobalError('Unhandled Promise Rejection', event.reason);
             event.preventDefault(); // Prevent console error
         });
-        
+
         // Network error detection
         window.addEventListener('online', () => {
             this.handleNetworkChange(true);
         });
-        
+
         window.addEventListener('offline', () => {
             this.handleNetworkChange(false);
         });
@@ -149,7 +148,7 @@ class ViralClipApp {
                     console.warn('📱 Service Worker registration failed:', error);
                 });
         }
-        
+
         // Show offline indicator if needed
         if (!navigator.onLine) {
             this.showOfflineIndicator();
@@ -273,7 +272,7 @@ class ViralClipApp {
             const vh = window.innerHeight * 0.01;
             document.documentElement.style.setProperty('--vh', `${vh}px`);
         };
-        
+
         setVH();
         window.addEventListener('resize', setVH);
         window.addEventListener('orientationchange', setVH);
@@ -323,7 +322,7 @@ class ViralClipApp {
     handleDrop(e) {
         this.isDragging = false;
         this.hideDragOverlay();
-        
+
         const uploadArea = document.getElementById('upload-area');
         if (uploadArea) {
             uploadArea.classList.remove('drag-over');
@@ -358,14 +357,14 @@ class ViralClipApp {
 
     async processFiles(files) {
         const file = files[0];
-        
+
         if (!this.validateFile(file)) {
             return;
         }
 
         // Show instant preview
         await this.showInstantPreview(file);
-        
+
         // Start upload after preview
         setTimeout(() => {
             this.uploadFile(file);
@@ -398,9 +397,9 @@ class ViralClipApp {
                 </div>
             </div>
         `;
-        
+
         uploadArea.appendChild(preview);
-        
+
         // Animate in
         setTimeout(() => {
             preview.classList.add('show');
@@ -451,7 +450,7 @@ class ViralClipApp {
         e.preventDefault();
         const fileInput = document.getElementById('file-input');
         const files = fileInput.files;
-        
+
         if (files.length === 0) {
             this.showError('Please select a file to upload.');
             return;
@@ -463,13 +462,13 @@ class ViralClipApp {
     async uploadFile(file) {
         try {
             this.uploadId = this.generateId();
-            
+
             // Connect to upload WebSocket first
             await this.connectUploadWebSocket();
-            
+
             // Update instant preview to show upload starting
             this.updateInstantPreviewProgress(0, 'Starting upload...');
-            
+
             // Prepare form data
             const formData = new FormData();
             formData.append('file', file);
@@ -477,13 +476,13 @@ class ViralClipApp {
 
             // Upload with progress tracking
             const response = await this.uploadWithProgress(formData);
-            
+
             if (response.success) {
                 this.sessionId = response.session_id;
-                
+
                 // Update preview to show analysis
                 this.updateInstantPreviewProgress(100, 'Analysis complete!');
-                
+
                 // Show success animation
                 setTimeout(() => {
                     this.hideInstantPreview();
@@ -493,7 +492,7 @@ class ViralClipApp {
             } else {
                 throw new Error(response.error || 'Upload failed');
             }
-            
+
         } catch (error) {
             console.error('Upload error:', error);
             this.showError(`Upload failed: ${error.message}`);
@@ -507,11 +506,11 @@ class ViralClipApp {
 
         const progressFill = preview.querySelector('.progress-fill-mini');
         const fileStats = preview.querySelector('.file-stats');
-        
+
         if (progressFill) {
             progressFill.style.width = `${progress}%`;
         }
-        
+
         if (fileStats && message) {
             const lastSpan = fileStats.querySelector('span:last-child');
             if (lastSpan) {
@@ -538,7 +537,7 @@ class ViralClipApp {
     async uploadWithProgress(formData) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            
+
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
                     const progress = Math.round((e.loaded / e.total) * 100);
@@ -572,7 +571,7 @@ class ViralClipApp {
         e.preventDefault();
         const urlInput = document.getElementById('url-input');
         const url = urlInput.value.trim();
-        
+
         if (!url) {
             this.showError('Please enter a video URL.');
             return;
@@ -585,7 +584,7 @@ class ViralClipApp {
 
         try {
             this.showAnalysisProgress();
-            
+
             const response = await fetch('/api/v2/analyze-video', {
                 method: 'POST',
                 headers: {
@@ -595,7 +594,7 @@ class ViralClipApp {
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
                 this.sessionId = data.session_id;
                 this.hideAnalysisProgress();
@@ -604,7 +603,7 @@ class ViralClipApp {
             } else {
                 throw new Error(data.error || 'Analysis failed');
             }
-            
+
         } catch (error) {
             console.error('Analysis error:', error);
             this.showError(`Analysis failed: ${error.message}`);
@@ -618,7 +617,7 @@ class ViralClipApp {
             /^https?:\/\/(www\.)?tiktok\.com/,
             /^https?:\/\/(www\.)?instagram\.com/
         ];
-        
+
         return patterns.some(pattern => pattern.test(url));
     }
 
@@ -696,7 +695,7 @@ class ViralClipApp {
                         <span class="label">Viral Score</span>
                     </div>
                 </div>
-                
+
                 <div class="clip-timeline">
                     <div class="timeline-bar">
                         <div class="timeline-segment" 
@@ -733,7 +732,7 @@ class ViralClipApp {
     setupClipSelection() {
         const checkboxes = document.querySelectorAll('.clip-checkbox input[type="checkbox"]');
         const processButton = document.getElementById('process-clips-btn');
-        
+
         checkboxes.forEach(checkbox => {
             checkbox.addEventListener('change', () => {
                 this.updateSelectedClips();
@@ -751,7 +750,7 @@ class ViralClipApp {
 
     async handleProcessing(e) {
         e.preventDefault();
-        
+
         if (this.selectedClips.length === 0) {
             this.showError('Please select at least one clip to process.');
             return;
@@ -759,13 +758,13 @@ class ViralClipApp {
 
         try {
             this.taskId = this.generateId();
-            
+
             // Connect to processing WebSocket
             await this.connectProcessingWebSocket();
-            
+
             // Show processing step
             this.showStep('processing');
-            
+
             // Start processing
             const formData = new FormData();
             formData.append('session_id', this.sessionId);
@@ -783,14 +782,14 @@ class ViralClipApp {
             });
 
             const data = await response.json();
-            
+
             if (data.success) {
                 this.taskId = data.task_id;
                 this.showProcessingProgress();
             } else {
                 throw new Error(data.error || 'Processing failed to start');
             }
-            
+
         } catch (error) {
             console.error('Processing error:', error);
             this.showError(`Processing failed: ${error.message}`);
@@ -804,13 +803,13 @@ class ViralClipApp {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/v2/upload-progress/${this.uploadId}`;
-        
+
         this.uploadConnection = new WebSocket(wsUrl);
-        
+
         this.uploadConnection.onopen = () => {
             console.log('📡 Upload WebSocket connected');
         };
-        
+
         this.uploadConnection.onmessage = (event) => {
             try {
                 const message = JSON.parse(event.data);
@@ -819,11 +818,11 @@ class ViralClipApp {
                 console.error('Upload WebSocket message error:', error);
             }
         };
-        
+
         this.uploadConnection.onerror = (error) => {
             console.error('Upload WebSocket error:', error);
         };
-        
+
         this.uploadConnection.onclose = () => {
             console.log('📡 Upload WebSocket disconnected');
         };
@@ -843,13 +842,13 @@ class ViralClipApp {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/v2/ws/${this.taskId}`;
-        
+
         this.processingConnection = new WebSocket(wsUrl);
-        
+
         this.processingConnection.onopen = () => {
             console.log('📡 Processing WebSocket connected');
         };
-        
+
         this.processingConnection.onmessage = (event) => {
             try {
                 const message = JSON.parse(event.data);
@@ -858,11 +857,11 @@ class ViralClipApp {
                 console.error('Processing WebSocket message error:', error);
             }
         };
-        
+
         this.processingConnection.onerror = (error) => {
             console.error('Processing WebSocket error:', error);
         };
-        
+
         this.processingConnection.onclose = () => {
             console.log('📡 Processing WebSocket disconnected');
         };
@@ -945,7 +944,7 @@ class ViralClipApp {
                 </div>
             </div>
         `;
-        
+
         container.insertAdjacentHTML('beforeend', feedHTML);
     }
 
@@ -959,15 +958,15 @@ class ViralClipApp {
                 <span class="update-message">${data.message}</span>
             </div>
         `;
-        
+
         feed.insertAdjacentHTML('beforeend', updateHTML);
-        
+
         // Keep only last 5 updates
         const updates = feed.querySelectorAll('.update-item');
         if (updates.length > 5) {
             updates[0].remove();
         }
-        
+
         // Scroll to bottom
         feed.scrollTop = feed.scrollHeight;
     }
@@ -977,15 +976,15 @@ class ViralClipApp {
         document.querySelectorAll('.step').forEach(el => {
             el.style.display = 'none';
         });
-        
+
         // Show target step
         const targetStep = document.getElementById(`step-${step}`);
         if (targetStep) {
             targetStep.style.display = 'block';
         }
-        
+
         this.currentStep = step;
-        
+
         // Update progress indicators
         this.updateStepProgress(step);
     }
@@ -993,7 +992,7 @@ class ViralClipApp {
     updateStepProgress(currentStep) {
         const steps = ['upload', 'analysis', 'processing', 'results'];
         const currentIndex = steps.indexOf(currentStep);
-        
+
         steps.forEach((step, index) => {
             const indicator = document.querySelector(`[data-step="${step}"]`);
             if (indicator) {
@@ -1024,11 +1023,11 @@ class ViralClipApp {
     updateUploadProgress(progress) {
         const progressBar = document.querySelector('#upload-progress-modal .progress-fill');
         const progressText = document.querySelector('#upload-progress-modal .progress-percentage');
-        
+
         if (progressBar) {
             progressBar.style.width = `${progress}%`;
         }
-        
+
         if (progressText) {
             progressText.textContent = `${progress}%`;
         }
@@ -1052,7 +1051,7 @@ class ViralClipApp {
                 `;
             }
         }
-        
+
         setTimeout(() => {
             this.hideUploadProgress();
         }, 2000);
@@ -1071,7 +1070,7 @@ class ViralClipApp {
                 </div>
             `;
         }
-    }
+    }The code is updated with new helper functions.```text
 
     hideAnalysisProgress() {
         const button = document.querySelector('#url-form button');
@@ -1090,7 +1089,7 @@ class ViralClipApp {
                     <h3>🎬 Creating Your Viral Clips</h3>
                     <p>Our AI is working hard to create amazing clips from your video...</p>
                 </div>
-                
+
                 <div class="processing-progress">
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: 0%"></div>
@@ -1100,7 +1099,7 @@ class ViralClipApp {
                         <span class="progress-status">Initializing...</span>
                     </div>
                 </div>
-                
+
                 <div class="processing-stats">
                     <div class="stat">
                         <span class="stat-label">Clips to Process</span>
@@ -1119,15 +1118,15 @@ class ViralClipApp {
         const progressBar = document.querySelector('#processing-status .progress-fill');
         const progressPercentage = document.querySelector('#processing-status .progress-percentage');
         const progressStatus = document.querySelector('#processing-status .progress-status');
-        
+
         if (progressBar) {
             progressBar.style.width = `${data.percentage}%`;
         }
-        
+
         if (progressPercentage) {
             progressPercentage.textContent = `${Math.round(data.percentage)}%`;
         }
-        
+
         if (progressStatus) {
             progressStatus.textContent = data.message || data.stage;
         }
@@ -1147,7 +1146,7 @@ class ViralClipApp {
                 <h3>🎉 Your Viral Clips Are Ready!</h3>
                 <p>Successfully processed ${results.length} viral clips</p>
             </div>
-            
+
             <div class="results-grid">
                 ${results.map((result, index) => this.renderResultCard(result, index)).join('')}
             </div>
@@ -1164,19 +1163,19 @@ class ViralClipApp {
                         <span class="label">Viral Potential</span>
                     </div>
                 </div>
-                
+
                 <div class="result-thumbnail">
                     <img src="${result.thumbnail_path}" alt="${result.title}" 
                          onerror="this.src='/public/placeholder-thumb.jpg'">
                     <div class="play-overlay">▶️</div>
                 </div>
-                
+
                 <div class="result-stats">
                     <span>⏱️ ${this.formatDuration(result.duration)}</span>
                     <span>📦 ${this.formatBytes(result.file_size)}</span>
                     <span>📊 ${result.performance_prediction?.estimated_views}</span>
                 </div>
-                
+
                 <div class="result-actions">
                     <button class="btn btn-primary" onclick="app.downloadClip('${this.taskId}', ${index})">
                         📥 Download
@@ -1227,7 +1226,7 @@ class ViralClipApp {
         this.sessionId = null;
         this.taskId = null;
         this.selectedClips = [];
-        
+
         // Close WebSocket connections
         if (this.uploadConnection) {
             this.uploadConnection.close();
@@ -1235,10 +1234,10 @@ class ViralClipApp {
         if (this.processingConnection) {
             this.processingConnection.close();
         }
-        
+
         // Show upload step
         this.showStep('upload');
-        
+
         // Reset forms
         document.querySelectorAll('form').forEach(form => form.reset());
     }
@@ -1270,13 +1269,13 @@ class ViralClipApp {
                 <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
             </div>
         `;
-        
+
         // Add to page
         document.body.appendChild(toast);
-        
+
         // Show toast
         setTimeout(() => toast.classList.add('show'), 100);
-        
+
         // Auto remove after 5 seconds
         setTimeout(() => {
             toast.classList.remove('show');
@@ -1295,7 +1294,7 @@ class ViralClipApp {
                 <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
             </div>
         `;
-        
+
         document.body.appendChild(toast);
         setTimeout(() => toast.classList.add('show'), 100);
         setTimeout(() => {
@@ -1330,38 +1329,85 @@ class ViralClipApp {
         });
     }
 
-    // Utility functions
-    generateId() {
-        return 'id_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-    }
-
-    formatDuration(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    formatTime(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    formatNumber(num) {
-        if (num >= 1000000) {
-            return (num / 1000000).toFixed(1) + 'M';
-        } else if (num >= 1000) {
-            return (num / 1000).toFixed(1) + 'K';
+    sendHeartbeat() {
+        // Send heartbeat to active connections
+        if (this.uploadConnection?.readyState === WebSocket.OPEN) {
+            this.uploadConnection.send(JSON.stringify({ type: 'ping' }));
         }
-        return num.toString();
+        if (this.processingConnection?.readyState === WebSocket.OPEN) {
+            this.processingConnection.send(JSON.stringify({ type: 'ping' }));
+        }
+    }
+
+    trackEvent(eventName, data = {}) {
+        // Track events for analytics
+        if (this.config.enableAnalytics) {
+            console.log(`📊 Event: ${eventName}`, data);
+        }
+    }
+
+    handleGlobalError(type, error) {
+        this.errorCount++;
+        this.lastError = { type, error, timestamp: Date.now() };
+
+        logger.error(`🚨 Global Error [${type}]:`, error);
+
+        // Show user-friendly error message
+        if (this.errorCount <= 3) { // Don't spam errors
+            this.showError(`Something went wrong. Please try again.`);
+        }
+    }
+
+    handleNetworkChange(isOnline) {
+        if (isOnline) {
+            this.hideOfflineIndicator();
+            this.reconnectWebSockets();
+            this.showSuccess('Connection restored');
+        } else {
+            this.showOfflineIndicator();
+            this.showError('Connection lost. Working offline.');
+        }
+    }
+
+    showOfflineIndicator() {
+        let indicator = document.getElementById('offline-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'offline-indicator';
+            indicator.className = 'offline-indicator';
+            indicator.innerHTML = '📶 Offline - Limited functionality';
+            document.body.appendChild(indicator);
+        }
+        indicator.classList.add('show');
+    }
+
+    hideOfflineIndicator() {
+        const indicator = document.getElementById('offline-indicator');
+        if (indicator) {
+            indicator.classList.remove('show');
+            setTimeout(() => indicator.remove(), 300);
+        }
+    }
+
+    showCriticalError(message, error) {
+        const errorModal = document.createElement('div');
+        errorModal.className = 'critical-error-modal';
+        errorModal.innerHTML = `
+            <div class="error-content">
+                <h3>🚨 Critical Error</h3>
+                <p>${message}</p>
+                <details>
+                    <summary>Technical Details</summary>
+                    <pre>${error.stack || error.message || error}</pre>
+                </details>
+                <div class="error-actions">
+                    <button onclick="location.reload()" class="btn btn-primary">
+                        Reload Page
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(errorModal);
     }
 }
 

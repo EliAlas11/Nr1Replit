@@ -201,3 +201,32 @@ def log_security_event(event_type: str, details: Dict[str, Any], severity: str =
     security_logger = logging.getLogger('security')
     level = getattr(logging, severity.upper(), logging.WARNING)
     security_logger.log(level, f"Security Event: {event_type}", extra=details)
+"""
+Logging configuration for ViralClip Pro
+"""
+
+import logging
+import sys
+from pathlib import Path
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get configured logger instance"""
+    logger = logging.getLogger(name)
+    
+    if not logger.handlers:
+        # Create handler
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.INFO)
+        
+        # Create formatter
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        
+        # Add handler to logger
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    
+    return logger
