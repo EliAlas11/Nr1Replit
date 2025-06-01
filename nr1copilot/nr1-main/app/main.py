@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro - Netflix-Level AI Video Processor
 The most advanced video clip generator that destroys SendShort.ai
@@ -31,6 +30,7 @@ import yt_dlp
 import shutil
 import hashlib
 
+import PyJWT as jwt
 # Make Redis optional
 try:
     import redis.asyncio as redis
@@ -110,7 +110,7 @@ class VideoProcessRequest(BaseModel):
     language: str = Field(default="en", regex="^[a-z]{2}$")
     priority: str = Field(default="normal", regex="^(low|normal|high|urgent)$")
     webhook_url: Optional[str] = Field(None, description="Callback URL for completion")
-    
+
     @field_validator('url')
     @classmethod
     def validate_url(cls, v):
@@ -124,7 +124,7 @@ class ClipSettings(BaseModel):
     title: str = Field(default="", max_length=100)
     description: str = Field(default="", max_length=500)
     tags: List[str] = Field(default=[])
-    
+
     @field_validator('end_time')
     @classmethod
     def validate_end_time(cls, v, info):
@@ -152,10 +152,10 @@ class AnalysisResponse(BaseModel):
 async def lifespan(app: FastAPI):
     """Netflix-level application lifespan management"""
     logger.info("🚀 Starting ViralClip Pro - Netflix-Level Video Processor")
-    
+
     global redis_client, metrics_collector, rate_limiter, cache_manager, security_manager
     settings = get_settings()
-    
+
     try:
         # Initialize Redis connection (optional)
         if Redis:
@@ -169,13 +169,13 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning("Redis library not available, running without cache")
             redis_client = None
-        
+
         # Initialize components
         metrics_collector = MetricsCollector()
         rate_limiter = RateLimiter(redis_client)
         cache_manager = CacheManager(redis_client)
         security_manager = SecurityManager()
-        
+
         # Create directories with proper permissions
         for directory in [settings.upload_path, settings.video_storage_path, settings.temp_path, "output", "logs"]:
             try:
@@ -183,36 +183,36 @@ async def lifespan(app: FastAPI):
                 os.chmod(directory, 0o755)
             except Exception as e:
                 logger.warning(f"Could not create directory {directory}: {e}")
-        
+
         # Initialize video processor
         global video_processor, ai_analyzer, cloud_processor
         video_processor = VideoProcessor()
         ai_analyzer = AIVideoAnalyzer()
         cloud_processor = CloudVideoProcessor()
-        
+
         # Start background tasks
         asyncio.create_task(cleanup_old_files())
         asyncio.create_task(process_queue_monitor())
         asyncio.create_task(metrics_reporter())
-        
+
         logger.info("🎬 ViralClip Pro initialized successfully - Ready to dominate SendShort.ai!")
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to initialize application: {e}")
         raise
-    
+
     yield
-    
+
     # Cleanup
     logger.info("🔄 Shutting down ViralClip Pro gracefully...")
     try:
         if redis_client:
             await redis_client.close()
-        
+
         # Cleanup temp files
         if os.path.exists(settings.temp_path):
             shutil.rmtree(settings.temp_path)
-            
+
         logger.info("✅ Shutdown complete")
     except Exception as e:
         logger.error(f"❌ Error during shutdown: {e}")
@@ -269,7 +269,7 @@ async def performance_middleware(request: Request, call_next):
     start_time = time.time()
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
-    
+
     # Rate limiting
     if rate_limiter:
         is_allowed, remaining = await rate_limiter.check_rate_limit(
@@ -283,15 +283,15 @@ async def performance_middleware(request: Request, call_next):
                 detail="Rate limit exceeded. Please try again later.",
                 headers={"Retry-After": "60", "X-RateLimit-Remaining": "0"}
             )
-    
+
     response = await call_next(request)
-    
+
     # Add performance headers
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Powered-By"] = "ViralClip Pro - SendShort.ai Killer"
-    
+
     # Metrics collection
     if metrics_collector:
         await metrics_collector.record_request(
@@ -300,7 +300,7 @@ async def performance_middleware(request: Request, call_next):
             status_code=response.status_code,
             duration=process_time
         )
-    
+
     return response
 
 # Exception handlers with Netflix-level error reporting
@@ -383,7 +383,7 @@ async def get_metrics():
     """Netflix-level metrics endpoint"""
     if not metrics_collector:
         raise HTTPException(status_code=503, detail="Metrics not available")
-    
+
     return await metrics_collector.get_metrics()
 
 # Video processing endpoints - Netflix-level implementation
@@ -393,20 +393,20 @@ async def analyze_video_v2(request: VideoProcessRequest, background_tasks: Backg
     try:
         start_time = time.time()
         session_id = str(uuid.uuid4())
-        
+
         # Check cache first
         cache_key = f"analysis:{hashlib.md5(request.url.encode()).hexdigest()}"
         cached_result = None
-        
+
         if cache_manager:
             cached_result = await cache_manager.get(cache_key)
-        
+
         if cached_result:
             logger.info(f"Cache hit for video analysis: {session_id}")
             cached_result["session_id"] = session_id
             cached_result["cache_hit"] = True
             return AnalysisResponse(**cached_result)
-        
+
         # Advanced yt-dlp configuration for Netflix-level performance
         ydl_opts = {
             'quiet': True,
@@ -418,17 +418,17 @@ async def analyze_video_v2(request: VideoProcessRequest, background_tasks: Backg
             'writeautomaticsub': True,
             'subtitleslangs': ['en', 'es', 'fr', 'de', 'it'],
         }
-        
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(request.url, download=False)
-        
+
         # AI-powered analysis with multiple models
         ai_insights = await ai_analyzer.analyze_video_advanced(
             video_info=info,
             language=request.language,
             viral_optimization=request.viral_optimization
         )
-        
+
         # Enhanced analysis
         analysis = {
             "success": True,
@@ -464,7 +464,7 @@ async def analyze_video_v2(request: VideoProcessRequest, background_tasks: Backg
             "processing_time": time.time() - start_time,
             "cache_hit": False
         }
-        
+
         # Store session data
         user_sessions[session_id] = {
             "url": request.url,
@@ -473,13 +473,13 @@ async def analyze_video_v2(request: VideoProcessRequest, background_tasks: Backg
             "created_at": datetime.now(),
             "request_params": request.dict()
         }
-        
+
         # Cache the result
         if cache_manager:
             await cache_manager.set(cache_key, analysis, ttl=settings.cache_ttl)
-        
+
         return AnalysisResponse(**analysis)
-        
+
     except Exception as e:
         logger.error(f"Video analysis error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Analysis failed: {str(e)}")
@@ -495,10 +495,10 @@ async def process_video_v2(
     try:
         if session_id not in user_sessions:
             raise HTTPException(status_code=404, detail="Session not found or expired")
-        
+
         session_data = user_sessions[session_id]
         clip_settings = json.loads(clips)
-        
+
         # Validate clip settings
         validated_clips = []
         for clip_data in clip_settings:
@@ -507,16 +507,16 @@ async def process_video_v2(
                 validated_clips.append(clip)
             except Exception as e:
                 raise HTTPException(status_code=422, detail=f"Invalid clip settings: {e}")
-        
+
         task_id = str(uuid.uuid4())
-        
+
         # Calculate priority score
         priority_scores = {"low": 1, "normal": 2, "high": 3, "urgent": 4}
         priority_score = priority_scores.get(priority, 2)
-        
+
         # Queue management
         queue_position = len([t for t in processing_queue.values() if t["status"] in ["queued", "processing"]])
-        
+
         processing_queue[task_id] = {
             "status": "queued",
             "progress": 0,
@@ -529,7 +529,7 @@ async def process_video_v2(
             "results": [],
             "error": None
         }
-        
+
         # Start background processing with priority
         background_tasks.add_task(
             process_video_background_v2, 
@@ -538,7 +538,7 @@ async def process_video_v2(
             validated_clips,
             priority_score
         )
-        
+
         return ProcessingResponse(
             success=True,
             task_id=task_id,
@@ -547,7 +547,7 @@ async def process_video_v2(
             priority=priority,
             position_in_queue=queue_position + 1
         )
-        
+
     except json.JSONDecodeError:
         raise HTTPException(status_code=422, detail="Invalid JSON in clips parameter")
     except Exception as e:
@@ -559,9 +559,9 @@ async def get_processing_status_v2(task_id: str):
     """Netflix-level processing status with detailed information"""
     if task_id not in processing_queue:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     task = processing_queue[task_id]
-    
+
     # Add queue position for queued tasks
     if task["status"] == "queued":
         queue_position = len([
@@ -570,7 +570,7 @@ async def get_processing_status_v2(task_id: str):
             and t["created_at"] <= task["created_at"]
         ])
         task["queue_position"] = queue_position
-    
+
     return {"success": True, "data": task}
 
 @app.websocket("/api/v2/ws/{task_id}")
@@ -578,7 +578,7 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
     """Real-time WebSocket updates for processing tasks"""
     try:
         await connection_manager.connect(websocket, task_id)
-        
+
         # Send initial status
         if task_id in processing_queue:
             task = processing_queue[task_id]
@@ -591,13 +591,13 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
                     "message": "WebSocket connected successfully"
                 }
             )
-        
+
         # Keep connection alive and handle messages
         while True:
             try:
                 # Wait for messages from client (heartbeat, etc.)
                 data = await websocket.receive_text()
-                
+
                 # Handle client messages if needed
                 try:
                     message = json.loads(data)
@@ -605,13 +605,13 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
                         await connection_manager.send_message(task_id, {"type": "pong"})
                 except json.JSONDecodeError:
                     pass
-                    
+
             except WebSocketDisconnect:
                 break
             except Exception as e:
                 logger.error(f"WebSocket error for task {task_id}: {e}")
                 break
-                
+
     except Exception as e:
         logger.error(f"WebSocket connection error: {e}")
     finally:
@@ -622,24 +622,24 @@ async def download_clip_v2(task_id: str, clip_index: int):
     """Netflix-level file download with streaming"""
     if task_id not in processing_queue:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     task = processing_queue[task_id]
     if task["status"] != "completed":
         raise HTTPException(status_code=400, detail="Processing not completed")
-    
+
     if clip_index >= len(task["results"]):
         raise HTTPException(status_code=404, detail="Clip not found")
-    
+
     clip_result = task["results"][clip_index]
     clip_path = clip_result["file_path"]
-    
+
     if not os.path.exists(clip_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
-    
+
     # Get file info
     file_size = os.path.getsize(clip_path)
     filename = f"viralclip_pro_{clip_index + 1}_{int(time.time())}.mp4"
-    
+
     return FileResponse(
         path=clip_path,
         filename=filename,
@@ -658,12 +658,12 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
         task = processing_queue[task_id]
         task["status"] = "processing"
         task["started_at"] = datetime.now()
-        
+
         video_url = session_data["url"]
         video_info = session_data["video_info"]
-        
+
         logger.info(f"Starting processing for task {task_id} with priority {priority_score}")
-        
+
         # Send WebSocket update
         await connection_manager.broadcast_to_task(
             task_id, 
@@ -674,11 +674,11 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                 "message": "Processing started"
             }
         )
-        
+
         # Download video with Netflix-level optimizations
         task["progress"] = 10
         task["current_step"] = "downloading"
-        
+
         await connection_manager.broadcast_to_task(
             task_id, 
             "progress_update", 
@@ -688,9 +688,9 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                 "message": "Downloading video..."
             }
         )
-        
+
         download_path = f"{settings.temp_path}/{task_id}_video.%(ext)s"
-        
+
         ydl_opts = {
             'outtmpl': download_path,
             'format': 'best[height<=1080]/best',
@@ -698,20 +698,20 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
             'writeautomaticsub': True,
             'extract_flat': False,
         }
-        
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
-        
+
         # Find downloaded file
         import glob
         downloaded_files = glob.glob(f"{settings.temp_path}/{task_id}_video.*")
         if not downloaded_files:
             raise Exception("Download failed - no files found")
-        
+
         input_file = downloaded_files[0]
         task["progress"] = 30
         task["current_step"] = "ai_analysis"
-        
+
         await connection_manager.broadcast_to_task(
             task_id, 
             "progress_update", 
@@ -721,16 +721,16 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                 "message": "AI analyzing content..."
             }
         )
-        
+
         # Process each clip with AI enhancement
         results = []
         total_clips = len(clip_settings)
-        
+
         for i, clip in enumerate(clip_settings):
             progress = 30 + (i / total_clips) * 60
             task["progress"] = progress
             task["current_step"] = f"processing_clip_{i+1}"
-            
+
             await connection_manager.broadcast_to_task(
                 task_id, 
                 "progress_update", 
@@ -740,9 +740,9 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                     "message": f"Processing clip {i+1} of {total_clips}..."
                 }
             )
-            
+
             output_path = f"output/{task_id}_clip_{i}_{int(time.time())}.mp4"
-            
+
             # Advanced video processing with AI
             clip_result = await cloud_processor.process_clip_advanced(
                 input_path=input_file,
@@ -755,7 +755,7 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                 ai_enhancement=True,
                 viral_optimization=True
             )
-            
+
             if clip_result["success"]:
                 results.append({
                     "clip_index": i,
@@ -770,14 +770,14 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                 })
             else:
                 raise Exception(f"Clip {i+1} processing failed: {clip_result.get('error', 'Unknown error')}")
-        
+
         task["status"] = "completed"
         task["progress"] = 100
         task["current_step"] = "completed"
         task["results"] = results
         task["completed_at"] = datetime.now()
         task["total_processing_time"] = (task["completed_at"] - task["started_at"]).total_seconds()
-        
+
         # Send completion notification
         await connection_manager.broadcast_to_task(
             task_id, 
@@ -790,19 +790,19 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
                 "message": f"All {len(results)} clips processed successfully!"
             }
         )
-        
+
         # Cleanup input file
         if os.path.exists(input_file):
             os.remove(input_file)
-        
+
         logger.info(f"Task {task_id} completed successfully in {task['total_processing_time']:.2f}s")
-        
+
     except Exception as e:
         logger.error(f"Background processing error for task {task_id}: {str(e)}")
         task["status"] = "failed"
         task["error"] = str(e)
         task["failed_at"] = datetime.now()
-        
+
         # Send error notification
         await connection_manager.broadcast_to_task(
             task_id, 
@@ -821,7 +821,7 @@ async def cleanup_old_files():
         try:
             now = datetime.now()
             cutoff = now - timedelta(hours=24)  # Clean files older than 24 hours
-            
+
             for directory in [settings.temp_path, "output"]:
                 if os.path.exists(directory):
                     for filename in os.listdir(directory):
@@ -831,20 +831,20 @@ async def cleanup_old_files():
                             if file_time < cutoff:
                                 os.remove(filepath)
                                 logger.info(f"Cleaned up old file: {filepath}")
-            
+
             # Clean up old sessions
             sessions_to_remove = []
             for session_id, session_data in user_sessions.items():
                 if session_data["created_at"] < cutoff:
                     sessions_to_remove.append(session_id)
-            
+
             for session_id in sessions_to_remove:
                 del user_sessions[session_id]
                 logger.info(f"Cleaned up old session: {session_id}")
-            
+
         except Exception as e:
             logger.error(f"Error in cleanup task: {e}")
-        
+
         await asyncio.sleep(3600)  # Run every hour
 
 async def process_queue_monitor():
@@ -854,19 +854,19 @@ async def process_queue_monitor():
             # Remove completed tasks older than 1 hour
             cutoff = datetime.now() - timedelta(hours=1)
             tasks_to_remove = []
-            
+
             for task_id, task in processing_queue.items():
-                if (task["status"] in ["completed", "failed"] and 
+                if(task["status"] in ["completed", "failed"] and 
                     task.get("completed_at", task.get("failed_at", datetime.now())) < cutoff):
                     tasks_to_remove.append(task_id)
-            
+
             for task_id in tasks_to_remove:
                 del processing_queue[task_id]
                 logger.info(f"Removed completed task from queue: {task_id}")
-            
+
         except Exception as e:
             logger.error(f"Error in queue monitor: {e}")
-        
+
         await asyncio.sleep(300)  # Run every 5 minutes
 
 async def metrics_reporter():
@@ -878,7 +878,7 @@ async def metrics_reporter():
                 logger.info(f"Metrics: {json.dumps(metrics, indent=2)}")
         except Exception as e:
             logger.error(f"Error in metrics reporter: {e}")
-        
+
         await asyncio.sleep(60)  # Report every minute
 
 # Run the application
