@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "npm run dev"]
 
 [workflows]
-runButton = "ViralClip Pro Server"
+runButton = "Development Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"

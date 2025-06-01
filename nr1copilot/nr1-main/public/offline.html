@@ -4,135 +4,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Offline - ViralClip Pro</title>
+    <title>ViralClip Pro - Offline</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
             color: #ffffff;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            padding: 2rem;
+            padding: 1rem;
         }
-        
+
         .offline-container {
+            text-align: center;
             max-width: 500px;
-            background: rgba(26, 26, 26, 0.9);
-            border: 1px solid #333333;
-            border-radius: 16px;
-            padding: 3rem 2rem;
-            backdrop-filter: blur(10px);
+            animation: fadeInUp 0.8s ease;
         }
-        
+
         .offline-icon {
             font-size: 4rem;
-            margin-bottom: 1.5rem;
-            opacity: 0.7;
+            margin-bottom: 2rem;
+            opacity: 0.8;
         }
-        
+
         .offline-title {
             font-size: 2rem;
-            font-weight: 700;
             margin-bottom: 1rem;
-            background: linear-gradient(135deg, #e50914 0%, #f40612 100%);
+            background: linear-gradient(135deg, #6366f1, #10b981);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
+
         .offline-message {
-            color: #b3b3b3;
-            margin-bottom: 2rem;
+            font-size: 1.125rem;
+            color: #a3a3a3;
             line-height: 1.6;
+            margin-bottom: 2rem;
         }
-        
-        .retry-button {
-            background: linear-gradient(135deg, #e50914 0%, #f40612 100%);
+
+        .offline-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            background: #6366f1;
             color: white;
             border: none;
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
             cursor: pointer;
-            transition: transform 0.2s ease;
-            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
         }
-        
-        .retry-button:hover {
+
+        .btn:hover {
+            background: #4f46e5;
             transform: translateY(-2px);
         }
-        
-        .offline-features {
+
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid #6366f1;
+            color: #6366f1;
+        }
+
+        .btn-secondary:hover {
+            background: #6366f1;
+            color: white;
+        }
+
+        .network-status {
             margin-top: 2rem;
-            text-align: left;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            color: #a3a3a3;
         }
-        
-        .offline-features h3 {
-            margin-bottom: 1rem;
-            color: #ffffff;
-            font-size: 1.2rem;
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
         }
-        
-        .offline-features ul {
-            list-style: none;
-            padding: 0;
+
+        .status-offline {
+            background: #ef4444;
         }
-        
-        .offline-features li {
-            margin: 0.5rem 0;
-            color: #b3b3b3;
-            padding-left: 1.5rem;
-            position: relative;
+
+        .status-online {
+            background: #10b981;
         }
-        
-        .offline-features li::before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: #e50914;
-            font-weight: bold;
-        }
-        
-        .connection-status {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-        
-        .connection-status.offline {
-            background: rgba(220, 53, 69, 0.2);
-            border: 1px solid #dc3545;
-            color: #dc3545;
-        }
-        
-        .connection-status.online {
-            background: rgba(70, 211, 105, 0.2);
-            border: 1px solid #46d369;
-            color: #46d369;
-        }
-        
-        @media (max-width: 480px) {
-            .offline-container {
-                padding: 2rem 1rem;
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
             }
-            
-            .offline-title {
-                font-size: 1.5rem;
+            to {
+                opacity: 1;
+                transform: translateY(0);
             }
-            
-            .offline-icon {
-                font-size: 3rem;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
             }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .checking {
+            animation: pulse 1.5s infinite;
         }
     </style>
 </head>
@@ -141,92 +143,102 @@
         <div class="offline-icon">📡</div>
         <h1 class="offline-title">You're Offline</h1>
         <p class="offline-message">
-            No internet connection detected. ViralClip Pro requires an internet connection to process videos and analyze content.
+            It looks like you've lost your internet connection. 
+            Don't worry - we'll automatically reconnect you when your connection is restored.
         </p>
         
-        <button class="retry-button" onclick="checkConnection()">
-            Check Connection
-        </button>
-        
-        <div id="connection-status" class="connection-status offline">
-            ⚠️ No internet connection
+        <div class="offline-actions">
+            <button class="btn" onclick="checkConnection()">
+                Check Connection
+            </button>
+            <a href="/" class="btn btn-secondary">
+                Try Again
+            </a>
         </div>
-        
-        <div class="offline-features">
-            <h3>What you can do when back online:</h3>
-            <ul>
-                <li>Process YouTube videos with AI analysis</li>
-                <li>Create viral clips optimized for social media</li>
-                <li>Use Netflix-level video processing</li>
-                <li>Access real-time progress updates</li>
-                <li>Download professionally edited clips</li>
-            </ul>
+
+        <div class="network-status">
+            <span class="status-indicator status-offline" id="statusIndicator"></span>
+            <span id="statusText">Connection lost - checking...</span>
         </div>
     </div>
 
     <script>
+        let isOnline = false;
+        let checkInterval;
+
+        // Check connection status
         function checkConnection() {
-            const statusElement = document.getElementById('connection-status');
-            const retryButton = document.querySelector('.retry-button');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
             
-            retryButton.textContent = 'Checking...';
-            retryButton.disabled = true;
-            
-            // Check if we're online
-            if (navigator.onLine) {
-                // Try to fetch a small resource to verify connection
-                fetch('/', { method: 'HEAD', mode: 'no-cors' })
-                    .then(() => {
-                        statusElement.textContent = '✅ Connection restored!';
-                        statusElement.className = 'connection-status online';
-                        
-                        setTimeout(() => {
-                            window.location.href = '/';
-                        }, 1500);
-                    })
-                    .catch(() => {
-                        statusElement.textContent = '⚠️ Still offline';
-                        statusElement.className = 'connection-status offline';
-                        retryButton.textContent = 'Check Connection';
-                        retryButton.disabled = false;
-                    });
-            } else {
-                statusElement.textContent = '⚠️ No internet connection';
-                statusElement.className = 'connection-status offline';
-                retryButton.textContent = 'Check Connection';
-                retryButton.disabled = false;
-            }
+            statusIndicator.className = 'status-indicator checking';
+            statusText.textContent = 'Checking connection...';
+
+            // Try to fetch a small resource
+            fetch('/', { 
+                method: 'HEAD',
+                cache: 'no-cache',
+                mode: 'no-cors'
+            })
+            .then(() => {
+                // Connection successful
+                isOnline = true;
+                statusIndicator.className = 'status-indicator status-online';
+                statusText.textContent = 'Connection restored! Redirecting...';
+                
+                // Redirect to main app after a short delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            })
+            .catch(() => {
+                // Still offline
+                isOnline = false;
+                statusIndicator.className = 'status-indicator status-offline';
+                statusText.textContent = 'Still offline - will keep checking...';
+            });
         }
-        
+
+        // Auto-check connection every 10 seconds
+        function startAutoCheck() {
+            checkInterval = setInterval(checkConnection, 10000);
+        }
+
         // Listen for online/offline events
         window.addEventListener('online', () => {
-            const statusElement = document.getElementById('connection-status');
-            statusElement.textContent = '✅ Connection restored!';
-            statusElement.className = 'connection-status online';
+            isOnline = true;
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            statusIndicator.className = 'status-indicator status-online';
+            statusText.textContent = 'Connection restored! Redirecting...';
             
             setTimeout(() => {
                 window.location.href = '/';
-            }, 1500);
+            }, 1000);
         });
-        
+
         window.addEventListener('offline', () => {
-            const statusElement = document.getElementById('connection-status');
-            statusElement.textContent = '⚠️ Connection lost';
-            statusElement.className = 'connection-status offline';
+            isOnline = false;
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            statusIndicator.className = 'status-indicator status-offline';
+            statusText.textContent = 'Connection lost - checking...';
         });
-        
-        // Automatically check connection every 30 seconds
-        setInterval(() => {
-            if (navigator.onLine) {
-                fetch('/', { method: 'HEAD', mode: 'no-cors' })
-                    .then(() => {
-                        window.location.href = '/';
-                    })
-                    .catch(() => {
-                        // Still offline
-                    });
+
+        // Start checking when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            checkConnection();
+            startAutoCheck();
+        });
+
+        // Cleanup interval when page unloads
+        window.addEventListener('beforeunload', () => {
+            if (checkInterval) {
+                clearInterval(checkInterval);
             }
-        }, 30000);
+        });
     </script>
 </body>
 </html>

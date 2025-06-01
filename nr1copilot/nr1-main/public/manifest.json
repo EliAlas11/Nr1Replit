@@ -1,37 +1,106 @@
+
 {
-  "name": "Viral Clip Generator",
-  "short_name": "ViralClip",
-  "description": "Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.",
-  "start_url": "/?source=pwa",
+  "name": "ViralClip Pro - AI Video Creator",
+  "short_name": "ViralClip Pro",
+  "description": "Transform videos into viral clips with AI. 10x faster than SendShort.ai",
+  "version": "2.1.0",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#667eea",
-  "theme_color": "#667eea",
-  "orientation": "portrait",
+  "background_color": "#0f0f0f",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
   "scope": "/",
+  "lang": "en-US",
+  "categories": ["entertainment", "video", "productivity"],
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "48x48 64x64 96x96 128x128 256x256 512x512",
-      "type": "image/x-icon"
+      "src": "/public/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/public/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
     }
   ],
   "shortcuts": [
     {
-      "name": "Create Viral Clip",
-      "short_name": "Create",
-      "description": "Start a new viral clip conversion",
-      "url": "/",
-      "icons": [{ "src": "/favicon.ico", "sizes": "96x96", "type": "image/x-icon" }]
+      "name": "Upload Video",
+      "short_name": "Upload",
+      "description": "Upload a video file for processing",
+      "url": "/?action=upload",
+      "icons": [
+        {
+          "src": "/public/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "description": "View analytics dashboard",
-      "url": "/#dashboardSection",
-      "icons": [{ "src": "/favicon.ico", "sizes": "96x96", "type": "image/x-icon" }]
+      "name": "Analyze URL",
+      "short_name": "Analyze",
+      "description": "Analyze video from URL",
+      "url": "/?action=analyze",
+      "icons": [
+        {
+          "src": "/public/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
-  "screenshots": [{ "src": "/public/screenshot1.png", "sizes": "600x800", "type": "image/png" }]
+  "screenshots": [
+    {
+      "src": "/public/screenshot-mobile.png",
+      "sizes": "360x640",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/public/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "prefer_related_applications": false
 }
-
-// All backend logic, video processing, and API endpoints are implemented in Python using FastAPI. This manifest is for the frontend PWA only.
