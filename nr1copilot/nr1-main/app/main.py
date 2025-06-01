@@ -1,3 +1,4 @@
+
 """
 ViralClip Pro - Netflix-Level FastAPI Application
 Production-ready video processing platform with real-time features
@@ -7,6 +8,8 @@ import asyncio
 import json
 import logging
 import os
+import time
+import traceback
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -135,13 +138,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Process-Time", "X-Request-ID"]
 )
-
-# Initialize Netflix-level components
-realtime_engine = RealtimeEngine()
-security_manager = SecurityManager()
-rate_limiter = RateLimiter()
-cache_manager = CacheManager()
-health_checker = HealthChecker()
 
 # Static file serving
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -396,35 +392,6 @@ async def add_process_time_header(request: Request, call_next):
             status_code=500
         )
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Custom HTTP exception handler"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": exc.detail,
-            "status_code": exc.status_code,
-            "path": str(request.url.path),
-            "timestamp": time.time()
-        }
-    )
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """Global exception handler for production reliability"""
-    error_id = f"err_{int(time.time() * 1000)}_{os.urandom(4).hex()}"
-    logger.error(f"Unhandled exception {error_id}: {exc}\n{traceback.format_exc()}")
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
-            "error_id": error_id,
-            "message": "An unexpected error occurred. Please try again.",
-            "timestamp": time.time()
-        }
-    )
-
 # Health check with real-time metrics
 @app.get("/api/v3/health")
 async def health_check_enhanced():
@@ -469,12 +436,16 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}")
+    error_id = f"err_{int(time.time() * 1000)}_{os.urandom(4).hex()}"
+    logger.error(f"Unhandled exception {error_id}: {exc}\n{traceback.format_exc()}")
+
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
             "error": "Internal server error",
+            "error_id": error_id,
+            "message": "An unexpected error occurred. Please try again.",
             "timestamp": datetime.now().isoformat()
         }
     )

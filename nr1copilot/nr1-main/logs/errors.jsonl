@@ -1,0 +1,1 @@
+{"timestamp": "2025-06-01T12:47:30.312470", "level": "ERROR", "logger": "app.main", "message": "Health check error: 'HealthChecker' object has no attribute 'comprehensive_check'", "module": "main", "function": "health_check_enhanced", "line": 417, "thread": 140071920401984, "process": 4115}

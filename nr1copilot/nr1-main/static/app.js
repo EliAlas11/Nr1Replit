@@ -1,581 +1,872 @@
+
 /**
- * ViralClip Pro v4.0 - Netflix-Level Frontend Architecture
- * Enterprise-grade real-time viral video processor
+ * ViralClip Pro - Netflix-Level Frontend Application
+ * Production-ready with comprehensive error handling and real-time features
  */
 
 class ViralClipApp {
     constructor() {
         this.config = {
-            api: {
-                base: '/api/v1',
-                websocket: `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`,
-                timeout: 30000,
-                retries: 3
-            },
-            upload: {
-                maxSize: 500 * 1024 * 1024, // 500MB
-                allowedTypes: ['video/mp4', 'video/mov', 'video/avi', 'video/mkv'],
-                chunkSize: 1024 * 1024 // 1MB chunks
-            },
-            ui: {
-                animations: {
-                    fast: 150,
-                    normal: 300,
-                    slow: 500
-                },
-                breakpoints: {
-                    mobile: 768,
-                    tablet: 1024,
-                    desktop: 1200
-                }
+            apiBase: window.location.origin,
+            wsBase: window.location.origin.replace('http', 'ws'),
+            version: '3.0.0',
+            features: {
+                realtime: true,
+                websockets: true,
+                preview: true,
+                analytics: true
             }
         };
-
+        
         this.state = {
-            isProcessing: false,
-            currentFile: null,
-            uploadProgress: 0,
-            processingProgress: 0,
-            websocket: null,
-            retryCount: 0,
             currentSession: null,
-            realtimeData: {},
-            viralScores: [],
-            timeline: {
-                duration: 0,
-                currentTime: 0,
-                segments: []
-            }
+            uploadProgress: 0,
+            processingStatus: 'idle',
+            isConnected: false,
+            errors: [],
+            metrics: {},
+            timeline: null
         };
-
-        this.eventEmitter = new EventTarget();
-        this.init();
+        
+        this.websockets = new Map();
+        this.eventListeners = new Map();
+        this.uploadQueue = [];
+        this.retryAttempts = 0;
+        this.maxRetries = 3;
+        
+        this.initializeApp();
     }
 
-    async init() {
+    async initializeApp() {
         try {
-            console.log('🚀 Initializing ViralClip Pro v4.0 with Netflix-level architecture...');
-
-            await this.setupUI();
-            await this.setupWebSocket();
-            await this.registerServiceWorker();
+            console.log('🚀 Initializing ViralClip Pro v3.0 with real-time features...');
+            
+            // Initialize core components
+            await this.setupEventListeners();
+            await this.initializeUI();
+            await this.setupWebSockets();
             await this.loadUserPreferences();
-
-            this.trackEvent('app_initialized_v4');
-            console.log('✅ ViralClip Pro v4.0 initialized successfully');
+            
+            // Performance monitoring
+            this.startPerformanceMonitoring();
+            
+            // Health check
+            await this.performHealthCheck();
+            
+            this.logEvent('app_initialized_v3', {
+                version: this.config.version,
+                features: this.config.features,
+                timestamp: Date.now()
+            });
+            
+            console.log('✅ ViralClip Pro v3.0 initialized successfully');
+            
         } catch (error) {
-            console.error('❌ Initialization failed:', error);
-            this.showError('Failed to initialize application. Please refresh the page.');
+            this.handleError('App initialization failed', error);
         }
     }
 
-    async setupUI() {
-        this.bindEvents();
-        this.setupDragDrop();
-        this.setupResponsiveDesign();
-        this.initializeComponents();
-        this.measurePerformance();
-    }
-
-    bindEvents() {
-        // Upload triggers
-        document.getElementById('fileInput')?.addEventListener('change', this.handleFileSelect.bind(this));
-        document.getElementById('uploadButton')?.addEventListener('click', this.triggerFileSelect.bind(this));
-
+    async setupEventListeners() {
+        // File upload events
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        
+        if (uploadArea) {
+            uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
+            uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
+            uploadArea.addEventListener('drop', this.handleFileDrop.bind(this));
+            uploadArea.addEventListener('click', () => fileInput?.click());
+        }
+        
+        if (fileInput) {
+            fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+        }
+        
         // Processing controls
-        document.getElementById('processButton')?.addEventListener('click', this.startProcessing.bind(this));
-        document.getElementById('cancelButton')?.addEventListener('click', this.cancelProcessing.bind(this));
-
-        // Timeline interactions
-        document.getElementById('timeline')?.addEventListener('click', this.handleTimelineClick.bind(this));
-        document.getElementById('playButton')?.addEventListener('click', this.togglePlayback.bind(this));
-
-        // Quality controls
-        document.querySelectorAll('input[name="quality"]').forEach(radio => {
-            radio.addEventListener('change', this.handleQualityChange.bind(this));
-        });
-
-        // Mobile-specific events
-        if (this.isMobile()) {
-            this.setupMobileEvents();
-        }
+        document.addEventListener('click', this.handleButtonClick.bind(this));
+        
+        // Window events
+        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+        window.addEventListener('online', this.handleOnline.bind(this));
+        window.addEventListener('offline', this.handleOffline.bind(this));
+        
+        // Error handling
+        window.addEventListener('error', this.handleGlobalError.bind(this));
+        window.addEventListener('unhandledrejection', this.handleUnhandledRejection.bind(this));
     }
 
-    setupDragDrop() {
-        const dropZone = document.getElementById('dropZone');
-        if (!dropZone) return;
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, this.preventDefaults.bind(this), false);
-        });
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => this.addDropHighlight(dropZone), false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => this.removeDropHighlight(dropZone), false);
-        });
-
-        dropZone.addEventListener('drop', this.handleDrop.bind(this), false);
+    async initializeUI() {
+        // Update UI with current state
+        this.updateUploadUI();
+        this.updateProcessingUI();
+        this.updateConnectionStatus();
+        
+        // Initialize tooltips and interactive elements
+        this.initializeTooltips();
+        this.initializeProgressBars();
+        this.initializeTimeline();
     }
 
-    setupResponsiveDesign() {
-        const mediaQuery = window.matchMedia(`(max-width: ${this.config.ui.breakpoints.mobile}px)`);
-        mediaQuery.addEventListener('change', this.handleScreenSizeChange.bind(this));
-        this.handleScreenSizeChange(mediaQuery);
-    }
-
-    setupMobileEvents() {
-        // Touch-specific optimizations
-        document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
-        document.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
-        document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
-    }
-
-    async setupWebSocket() {
+    async setupWebSockets() {
         try {
-            this.state.websocket = new WebSocket(this.config.api.websocket);
-
-            this.state.websocket.onopen = () => {
-                console.log('🔌 WebSocket connected');
-                this.state.retryCount = 0;
-            };
-
-            this.state.websocket.onmessage = (event) => {
-                this.handleWebSocketMessage(JSON.parse(event.data));
-            };
-
-            this.state.websocket.onclose = () => {
-                console.log('🔌 WebSocket disconnected');
-                this.scheduleWebSocketReconnect();
-            };
-
-            this.state.websocket.onerror = (error) => {
-                console.error('🔌 WebSocket error:', error);
-            };
+            // Main application WebSocket
+            await this.connectWebSocket('main', '/api/v3/ws/app');
+            
+            this.state.isConnected = true;
+            this.updateConnectionStatus();
+            
         } catch (error) {
-            console.error('Failed to setup WebSocket:', error);
+            console.warn('WebSocket setup failed:', error);
+            this.state.isConnected = false;
+            this.updateConnectionStatus();
         }
     }
 
-    handleWebSocketMessage(data) {
-        switch (data.type) {
-            case 'progress':
-                this.updateProgress(data.progress);
-                break;
-            case 'viral_score':
-                this.updateViralScore(data.score, data.timestamp);
-                break;
-            case 'segment_analysis':
-                this.updateSegmentAnalysis(data.segments);
-                break;
-            case 'processing_complete':
-                this.handleProcessingComplete(data.result);
-                break;
-            case 'error':
-                this.handleProcessingError(data.error);
-                break;
-            case 'realtime_preview':
-                this.updateRealtimePreview(data.preview);
-                break;
+    async connectWebSocket(type, endpoint) {
+        try {
+            const wsUrl = `${this.config.wsBase}${endpoint}`;
+            const ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log(`✅ WebSocket connected: ${type}`);
+                this.websockets.set(type, ws);
+            };
+            
+            ws.onmessage = (event) => {
+                this.handleWebSocketMessage(type, event);
+            };
+            
+            ws.onclose = () => {
+                console.log(`🔌 WebSocket disconnected: ${type}`);
+                this.websockets.delete(type);
+                this.scheduleReconnect(type, endpoint);
+            };
+            
+            ws.onerror = (error) => {
+                console.error(`❌ WebSocket error (${type}):`, error);
+                this.handleWebSocketError(type, error);
+            };
+            
+        } catch (error) {
+            console.error(`Failed to connect WebSocket (${type}):`, error);
+            throw error;
         }
+    }
+
+    handleWebSocketMessage(type, event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            switch (data.type) {
+                case 'upload_progress':
+                    this.updateUploadProgress(data.progress);
+                    break;
+                case 'processing_status':
+                    this.updateProcessingStatus(data);
+                    break;
+                case 'viral_score_update':
+                    this.updateViralScore(data);
+                    break;
+                case 'timeline_update':
+                    this.updateTimeline(data);
+                    break;
+                case 'preview_ready':
+                    this.handlePreviewReady(data);
+                    break;
+                case 'error':
+                    this.handleError('WebSocket error', data.error);
+                    break;
+                default:
+                    console.log(`Unhandled WebSocket message: ${data.type}`);
+            }
+            
+        } catch (error) {
+            console.error('Failed to parse WebSocket message:', error);
+        }
+    }
+
+    async handleFileDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea?.classList.remove('drag-over');
+        
+        const files = Array.from(event.dataTransfer.files);
+        await this.processFileUpload(files);
     }
 
     async handleFileSelect(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+        const files = Array.from(event.target.files);
+        await this.processFileUpload(files);
+    }
 
+    async processFileUpload(files) {
         try {
-            await this.validateFile(file);
-            this.state.currentFile = file;
-            await this.previewFile(file);
-            this.updateUI('file-selected');
-        } catch (error) {
-            this.showError(error.message);
-        }
-    }
-
-    async validateFile(file) {
-        if (!this.config.upload.allowedTypes.includes(file.type)) {
-            throw new Error(`Unsupported file type. Please use: ${this.config.upload.allowedTypes.join(', ')}`);
-        }
-
-        if (file.size > this.config.upload.maxSize) {
-            throw new Error(`File too large. Maximum size: ${this.formatFileSize(this.config.upload.maxSize)}`);
-        }
-
-        // Additional validation for video files
-        return new Promise((resolve, reject) => {
-            const video = document.createElement('video');
-            video.preload = 'metadata';
-
-            video.onloadedmetadata = () => {
-                if (video.duration > 600) { // 10 minutes max
-                    reject(new Error('Video too long. Maximum duration: 10 minutes'));
-                } else {
-                    resolve();
-                }
-            };
-
-            video.onerror = () => reject(new Error('Invalid video file'));
-            video.src = URL.createObjectURL(file);
-        });
-    }
-
-    async previewFile(file) {
-        const preview = document.getElementById('videoPreview');
-        if (!preview) return;
-
-        const url = URL.createObjectURL(file);
-        preview.src = url;
-        preview.style.display = 'block';
-
-        // Initialize timeline
-        preview.onloadedmetadata = () => {
-            this.state.timeline.duration = preview.duration;
-            this.initializeTimeline(preview.duration);
-        };
-    }
-
-    initializeTimeline(duration) {
-        const timeline = document.getElementById('timeline');
-        if (!timeline) return;
-
-        timeline.innerHTML = '';
-        timeline.className = 'timeline-container';
-
-        // Create timeline segments for viral score visualization
-        const segmentCount = Math.min(Math.ceil(duration / 5), 20); // Max 20 segments
-
-        for (let i = 0; i < segmentCount; i++) {
-            const segment = document.createElement('div');
-            segment.className = 'timeline-segment';
-            segment.dataset.segment = i;
-            segment.style.width = `${100 / segmentCount}%`;
-
-            const scoreBar = document.createElement('div');
-            scoreBar.className = 'viral-score-bar';
-            segment.appendChild(scoreBar);
-
-            timeline.appendChild(segment);
-        }
-    }
-
-    async startProcessing() {
-        if (!this.state.currentFile) {
-            this.showError('Please select a video file first');
-            return;
-        }
-
-        try {
-            this.state.isProcessing = true;
-            this.updateUI('processing-start');
-
-            // Generate session ID
-            this.state.currentSession = this.generateSessionId();
-
-            // Start file upload with progress
-            await this.uploadFile(this.state.currentFile);
-
-            // Start real-time analysis
-            await this.startRealtimeAnalysis();
-
-        } catch (error) {
-            console.error('Processing failed:', error);
-            this.showError(error.message);
-            this.resetProcessing();
-        }
-    }
-
-    async uploadFile(file) {
-        const formData = new FormData();
-        formData.append('video', file);
-        formData.append('session_id', this.state.currentSession);
-
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-
-            xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    this.state.uploadProgress = (event.loaded / event.total) * 100;
-                    this.updateProgressBar('upload', this.state.uploadProgress);
-                }
-            };
-
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    resolve(JSON.parse(xhr.responseText));
-                } else {
-                    reject(new Error(`Upload failed: ${xhr.statusText}`));
-                }
-            };
-
-            xhr.onerror = () => reject(new Error('Upload failed'));
-
-            xhr.open('POST', `${this.config.api.base}/upload`);
-            xhr.send(formData);
-        });
-    }
-
-    async startRealtimeAnalysis() {
-        if (!this.state.websocket || this.state.websocket.readyState !== WebSocket.OPEN) {
-            throw new Error('WebSocket not connected');
-        }
-
-        this.state.websocket.send(JSON.stringify({
-            type: 'start_analysis',
-            session_id: this.state.currentSession,
-            options: {
-                realtime_preview: true,
-                viral_scoring: true,
-                segment_analysis: true
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            
+            // Validate file
+            const validation = this.validateFile(file);
+            if (!validation.valid) {
+                this.showError(validation.error);
+                return;
             }
-        }));
-    }
-
-    updateProgress(progress) {
-        this.state.processingProgress = progress.percentage;
-        this.updateProgressBar('processing', progress.percentage);
-
-        if (progress.stage) {
-            this.updateProcessingStage(progress.stage);
-        }
-
-        if (progress.eta) {
-            this.updateETA(progress.eta);
+            
+            // Show upload UI
+            this.showUploadUI();
+            
+            // Start upload with real-time progress
+            const uploadId = this.generateUploadId();
+            await this.uploadFileWithProgress(file, uploadId);
+            
+        } catch (error) {
+            this.handleError('File upload failed', error);
         }
     }
 
-    updateViralScore(score, timestamp) {
-        this.state.viralScores.push({ score, timestamp });
-        this.visualizeViralScore(score, timestamp);
-        this.updateOverallViralScore();
+    validateFile(file) {
+        const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
+        const allowedTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/webm'];
+        
+        if (!file) {
+            return { valid: false, error: 'No file selected' };
+        }
+        
+        if (file.size > maxSize) {
+            return { valid: false, error: 'File too large (max 2GB)' };
+        }
+        
+        if (!allowedTypes.includes(file.type)) {
+            return { valid: false, error: 'Unsupported file type' };
+        }
+        
+        return { valid: true };
     }
 
-    visualizeViralScore(score, timestamp) {
-        const timeline = document.getElementById('timeline');
-        if (!timeline) return;
-
-        const segmentIndex = Math.floor((timestamp / this.state.timeline.duration) * timeline.children.length);
-        const segment = timeline.children[segmentIndex];
-
-        if (segment) {
-            const scoreBar = segment.querySelector('.viral-score-bar');
-            scoreBar.style.height = `${score}%`;
-            scoreBar.className = `viral-score-bar ${this.getScoreClass(score)}`;
+    async uploadFileWithProgress(file, uploadId) {
+        try {
+            // Connect upload WebSocket
+            await this.connectWebSocket('upload', `/api/v3/ws/upload/${uploadId}`);
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_id', uploadId);
+            
+            const response = await fetch('/api/v3/upload-video', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.state.currentSession = result.session_id;
+                this.handleUploadSuccess(result);
+            } else {
+                throw new Error(result.error || 'Upload failed');
+            }
+            
+        } catch (error) {
+            this.handleError('Upload failed', error);
         }
+    }
+
+    handleUploadSuccess(result) {
+        console.log('Upload successful:', result);
+        
+        // Update UI
+        this.hideUploadUI();
+        this.showTimelineUI(result);
+        
+        // Connect additional WebSockets
+        this.connectViralScoreWebSocket(result.session_id);
+        this.connectTimelineWebSocket(result.session_id);
+        
+        // Show success message
+        this.showSuccess('Video uploaded successfully! Analyzing for viral potential...');
+    }
+
+    async connectViralScoreWebSocket(sessionId) {
+        await this.connectWebSocket('viral_scores', `/api/v3/ws/viral-scores/${sessionId}`);
+    }
+
+    async connectTimelineWebSocket(sessionId) {
+        await this.connectWebSocket('timeline', `/api/v3/ws/timeline/${sessionId}`);
+    }
+
+    updateUploadProgress(progress) {
+        const progressBar = document.getElementById('uploadProgress');
+        const progressText = document.getElementById('uploadProgressText');
+        
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+        
+        if (progressText) {
+            progressText.textContent = `${Math.round(progress)}%`;
+        }
+        
+        this.state.uploadProgress = progress;
+    }
+
+    updateProcessingStatus(data) {
+        const statusElement = document.getElementById('processingStatus');
+        const messageElement = document.getElementById('processingMessage');
+        
+        if (statusElement) {
+            statusElement.textContent = data.stage;
+        }
+        
+        if (messageElement) {
+            messageElement.textContent = data.message;
+        }
+        
+        if (data.entertaining_fact) {
+            this.showEntertainingFact(data.entertaining_fact);
+        }
+        
+        this.state.processingStatus = data.stage;
+    }
+
+    updateViralScore(data) {
+        const scoreElement = document.getElementById('viralScore');
+        const confidenceElement = document.getElementById('confidence');
+        
+        if (scoreElement) {
+            scoreElement.textContent = data.viral_score;
+            scoreElement.className = this.getScoreClass(data.viral_score);
+        }
+        
+        if (confidenceElement) {
+            confidenceElement.textContent = `${Math.round(data.confidence * 100)}%`;
+        }
+        
+        // Update factors list
+        this.updateFactorsList(data.factors);
+    }
+
+    updateTimeline(data) {
+        const timelineContainer = document.getElementById('timelineContainer');
+        if (!timelineContainer) return;
+        
+        // Render interactive timeline
+        this.renderTimeline(data);
+        this.state.timeline = data;
+    }
+
+    renderTimeline(data) {
+        const container = document.getElementById('timelineVisualization');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        // Create timeline SVG
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100');
+        svg.setAttribute('viewBox', '0 0 1000 100');
+        
+        // Draw viral score heatmap
+        if (data.viral_heatmap) {
+            this.drawViralHeatmap(svg, data.viral_heatmap);
+        }
+        
+        // Draw key moments
+        if (data.key_moments) {
+            this.drawKeyMoments(svg, data.key_moments);
+        }
+        
+        container.appendChild(svg);
+    }
+
+    drawViralHeatmap(svg, heatmap) {
+        heatmap.forEach((score, index) => {
+            const x = (index / heatmap.length) * 1000;
+            const height = (score / 100) * 80;
+            const color = this.getHeatmapColor(score);
+            
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', 100 - height);
+            rect.setAttribute('width', 1000 / heatmap.length);
+            rect.setAttribute('height', height);
+            rect.setAttribute('fill', color);
+            rect.setAttribute('opacity', '0.7');
+            
+            svg.appendChild(rect);
+        });
+    }
+
+    drawKeyMoments(svg, moments) {
+        moments.forEach(moment => {
+            const x = (moment.timestamp / moment.duration) * 1000;
+            
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x);
+            line.setAttribute('y1', 0);
+            line.setAttribute('x2', x);
+            line.setAttribute('y2', 100);
+            line.setAttribute('stroke', '#ff6b6b');
+            line.setAttribute('stroke-width', '2');
+            line.setAttribute('stroke-dasharray', '5,5');
+            
+            svg.appendChild(line);
+        });
+    }
+
+    getHeatmapColor(score) {
+        if (score >= 80) return '#4ecdc4';
+        if (score >= 60) return '#45b7aa';
+        if (score >= 40) return '#f9ca24';
+        if (score >= 20) return '#f0932b';
+        return '#eb4d4b';
     }
 
     getScoreClass(score) {
-        if (score >= 80) return 'viral-high';
-        if (score >= 60) return 'viral-medium';
-        return 'viral-low';
+        if (score >= 80) return 'score-excellent';
+        if (score >= 60) return 'score-good';
+        if (score >= 40) return 'score-average';
+        return 'score-poor';
     }
 
-    updateOverallViralScore() {
-        if (this.state.viralScores.length === 0) return;
-
-        const avgScore = this.state.viralScores.reduce((sum, item) => sum + item.score, 0) / this.state.viralScores.length;
-        const scoreElement = document.getElementById('overallViralScore');
-
-        if (scoreElement) {
-            scoreElement.textContent = Math.round(avgScore);
-            scoreElement.className = `viral-score ${this.getScoreClass(avgScore)}`;
+    showEntertainingFact(fact) {
+        const factElement = document.getElementById('entertainingFact');
+        if (factElement) {
+            factElement.textContent = fact;
+            factElement.style.display = 'block';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                factElement.style.display = 'none';
+            }, 5000);
         }
     }
 
-    updateRealtimePreview(previewData) {
-        const previewContainer = document.getElementById('realtimePreview');
-        if (!previewContainer) return;
-
-        if (previewData.thumbnail) {
-            const img = previewContainer.querySelector('img') || document.createElement('img');
-            img.src = `data:image/jpeg;base64,${previewData.thumbnail}`;
-            img.className = 'preview-thumbnail';
-
-            if (!previewContainer.contains(img)) {
-                previewContainer.appendChild(img);
-            }
-        }
-    }
-
-    handleProcessingComplete(result) {
-        this.state.isProcessing = false;
-        this.updateUI('processing-complete');
-
-        // Display results
-        this.displayResults(result);
-
-        // Track completion
-        this.trackEvent('processing_complete', {
-            duration: result.processing_time,
-            viral_score: result.viral_score
+    updateFactorsList(factors) {
+        const factorsContainer = document.getElementById('viralFactors');
+        if (!factorsContainer) return;
+        
+        factorsContainer.innerHTML = '';
+        
+        factors.forEach(factor => {
+            const factorElement = document.createElement('div');
+            factorElement.className = 'viral-factor';
+            factorElement.textContent = factor;
+            factorsContainer.appendChild(factorElement);
         });
     }
 
-    displayResults(result) {
-        const resultsContainer = document.getElementById('results');
-        if (!resultsContainer) return;
-
-        resultsContainer.innerHTML = `
-            <div class="results-header">
-                <h2>🎉 Your Viral Clips Are Ready!</h2>
-                <div class="viral-score-display">
-                    <span class="score-value ${this.getScoreClass(result.viral_score)}">${result.viral_score}</span>
-                    <span class="score-label">Viral Score</span>
-                </div>
-            </div>
-
-            <div class="clips-grid">
-                ${result.clips.map(clip => this.renderClipCard(clip)).join('')}
-            </div>
-
-            <div class="actions">
-                <button class="btn-primary" onclick="app.downloadAll()">Download All</button>
-                <button class="btn-secondary" onclick="app.shareClips()">Share Clips</button>
-                <button class="btn-tertiary" onclick="app.processNew()">Process New Video</button>
-            </div>
-        `;
-
-        resultsContainer.style.display = 'block';
-        this.animateResults();
+    // UI Helper Methods
+    showUploadUI() {
+        const uploadSection = document.getElementById('uploadSection');
+        const processingSection = document.getElementById('processingSection');
+        
+        if (uploadSection) uploadSection.style.display = 'block';
+        if (processingSection) processingSection.style.display = 'none';
     }
 
-    renderClipCard(clip) {
-        return `
-            <div class="clip-card" data-clip-id="${clip.id}">
-                <div class="clip-preview">
-                    <video poster="${clip.thumbnail}" preload="none">
-                        <source src="${clip.url}" type="video/mp4">
-                    </video>
-                    <div class="play-button" onclick="app.playClip('${clip.id}')">▶</div>
-                </div>
-
-                <div class="clip-info">
-                    <h3>${clip.title}</h3>
-                    <div class="clip-stats">
-                        <span class="duration">${this.formatDuration(clip.duration)}</span>
-                        <span class="viral-score ${this.getScoreClass(clip.viral_score)}">${clip.viral_score}% viral</span>
-                    </div>
-                    <p class="clip-description">${clip.description}</p>
-                </div>
-
-                <div class="clip-actions">
-                    <button onclick="app.downloadClip('${clip.id}')" class="btn-download">Download</button>
-                    <button onclick="app.shareClip('${clip.id}')" class="btn-share">Share</button>
-                </div>
-            </div>
-        `;
+    hideUploadUI() {
+        const uploadSection = document.getElementById('uploadSection');
+        if (uploadSection) uploadSection.style.display = 'none';
     }
 
-    // Utility methods
-    generateSessionId() {
-        return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    showTimelineUI(data) {
+        const timelineSection = document.getElementById('timelineSection');
+        const processingSection = document.getElementById('processingSection');
+        
+        if (timelineSection) timelineSection.style.display = 'block';
+        if (processingSection) processingSection.style.display = 'block';
     }
 
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    updateUploadUI() {
+        const uploadArea = document.getElementById('uploadArea');
+        if (uploadArea && this.state.uploadProgress > 0) {
+            uploadArea.classList.add('uploading');
+        }
     }
 
-    formatDuration(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    updateProcessingUI() {
+        const processingSection = document.getElementById('processingSection');
+        if (processingSection && this.state.processingStatus !== 'idle') {
+            processingSection.style.display = 'block';
+        }
     }
 
-    isMobile() {
-        return window.innerWidth <= this.config.ui.breakpoints.mobile;
+    updateConnectionStatus() {
+        const statusIndicator = document.getElementById('connectionStatus');
+        if (statusIndicator) {
+            statusIndicator.className = this.state.isConnected ? 'connected' : 'disconnected';
+            statusIndicator.textContent = this.state.isConnected ? 'Connected' : 'Disconnected';
+        }
     }
 
-    trackEvent(eventName, data = {}) {
+    // Event Handlers
+    handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.add('drag-over');
+    }
+
+    handleDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.classList.remove('drag-over');
+    }
+
+    handleButtonClick(event) {
+        const target = event.target;
+        const action = target.dataset.action;
+        
+        if (!action) return;
+        
+        switch (action) {
+            case 'generate-clips':
+                this.generateClips();
+                break;
+            case 'download-clip':
+                this.downloadClip(target.dataset.clipId);
+                break;
+            case 'preview-clip':
+                this.previewClip(target.dataset.clipId);
+                break;
+            case 'retry':
+                this.retryLastOperation();
+                break;
+            default:
+                console.log(`Unhandled action: ${action}`);
+        }
+    }
+
+    async generateClips() {
+        try {
+            if (!this.state.currentSession) {
+                throw new Error('No active session');
+            }
+            
+            const clips = this.getSelectedClips();
+            if (clips.length === 0) {
+                this.showError('Please select at least one clip to generate');
+                return;
+            }
+            
+            const response = await fetch('/api/v3/process-clips', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: this.state.currentSession,
+                    clips: clips,
+                    options: this.getProcessingOptions()
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.handleClipGenerationStart(result);
+            } else {
+                throw new Error(result.error);
+            }
+            
+        } catch (error) {
+            this.handleError('Clip generation failed', error);
+        }
+    }
+
+    getSelectedClips() {
+        const clipElements = document.querySelectorAll('.clip-item.selected');
+        return Array.from(clipElements).map(element => ({
+            start_time: parseFloat(element.dataset.startTime),
+            end_time: parseFloat(element.dataset.endTime),
+            title: element.dataset.title
+        }));
+    }
+
+    getProcessingOptions() {
+        return {
+            quality: document.getElementById('qualitySelect')?.value || 'high',
+            platforms: this.getSelectedPlatforms()
+        };
+    }
+
+    getSelectedPlatforms() {
+        const platformElements = document.querySelectorAll('.platform-option:checked');
+        return Array.from(platformElements).map(el => el.value);
+    }
+
+    // Error Handling
+    handleError(message, error) {
+        console.error(message, error);
+        
+        this.state.errors.push({
+            message,
+            error: error.toString(),
+            timestamp: Date.now()
+        });
+        
+        this.showError(`${message}: ${error.message || error}`);
+    }
+
+    handleGlobalError(event) {
+        console.log('Global error:', event.error);
+        this.handleError('Unexpected error occurred', event.error);
+    }
+
+    handleUnhandledRejection(event) {
+        console.log('Unhandled promise rejection:', event.reason);
+        this.handleError('Promise rejection', event.reason);
+    }
+
+    showError(message) {
+        const errorContainer = document.getElementById('errorContainer');
+        if (!errorContainer) {
+            console.error(message);
+            return;
+        }
+        
+        const errorElement = document.createElement('div');
+        errorElement.className = 'error-message';
+        errorElement.textContent = message;
+        
+        errorContainer.appendChild(errorElement);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            errorElement.remove();
+        }, 5000);
+    }
+
+    showSuccess(message) {
+        const successContainer = document.getElementById('successContainer');
+        if (!successContainer) {
+            console.log(message);
+            return;
+        }
+        
+        const successElement = document.createElement('div');
+        successElement.className = 'success-message';
+        successElement.textContent = message;
+        
+        successContainer.appendChild(successElement);
+        
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            successElement.remove();
+        }, 3000);
+    }
+
+    // Utility Methods
+    generateUploadId() {
+        return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    logEvent(eventName, data) {
         console.log('📊 Event:', eventName, data);
-
-        // Send to analytics if available
-        if (typeof gtag !== 'undefined') {
-            gtag('event', eventName, data);
+        
+        // Send to analytics if enabled
+        if (this.config.features.analytics) {
+            this.sendAnalytics(eventName, data);
         }
     }
 
-    measurePerformance() {
-        if (performance.mark) {
-            performance.mark('app-init-complete');
+    sendAnalytics(eventName, data) {
+        // Placeholder for analytics integration
+        console.log('Analytics:', eventName, data);
+    }
 
-            const navigation = performance.getEntriesByType('navigation')[0];
-            if (navigation) {
-                console.log('📊 Page Load Performance:');
-                console.log('DOM Content Loaded:', navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart, 'ms');
-                console.log('Full Load Time:', navigation.loadEventEnd - navigation.loadEventStart, 'ms');
+    startPerformanceMonitoring() {
+        // DOM Content Loaded
+        const domContentLoaded = performance.now();
+        console.log('📊 Page Load Performance:');
+        console.log('DOM Content Loaded:', domContentLoaded, 'ms');
+        
+        // Full page load
+        window.addEventListener('load', () => {
+            const fullLoadTime = performance.now() - domContentLoaded;
+            console.log('Full Load Time:', fullLoadTime, 'ms');
+            
+            // Log total load time
+            const totalLoadTime = performance.now();
+            console.log(`📊 Total Load Time: ${totalLoadTime}ms`);
+        });
+    }
+
+    async performHealthCheck() {
+        try {
+            const response = await fetch('/api/v3/health');
+            const health = await response.json();
+            
+            if (health.status !== 'healthy') {
+                console.warn('Application health check failed:', health);
+            }
+            
+        } catch (error) {
+            console.warn('Health check failed:', error);
+        }
+    }
+
+    // WebSocket Management
+    scheduleReconnect(type, endpoint) {
+        if (this.retryAttempts >= this.maxRetries) {
+            console.error(`Max WebSocket reconnection attempts reached for ${type}`);
+            return;
+        }
+        
+        this.retryAttempts++;
+        const delay = Math.pow(2, this.retryAttempts) * 1000; // Exponential backoff
+        
+        setTimeout(() => {
+            console.log(`Attempting to reconnect WebSocket: ${type}`);
+            this.connectWebSocket(type, endpoint);
+        }, delay);
+    }
+
+    handleWebSocketError(type, error) {
+        console.error(`WebSocket error (${type}):`, error);
+        this.handleError(`WebSocket connection failed (${type})`, error);
+    }
+
+    async loadUserPreferences() {
+        try {
+            const preferences = localStorage.getItem('viralclip_preferences');
+            if (preferences) {
+                const parsed = JSON.parse(preferences);
+                this.applyUserPreferences(parsed);
+            }
+        } catch (error) {
+            console.warn('Failed to load user preferences:', error);
+        }
+    }
+
+    applyUserPreferences(preferences) {
+        // Apply user preferences to the UI
+        if (preferences.theme) {
+            document.body.classList.add(`theme-${preferences.theme}`);
+        }
+        
+        if (preferences.quality) {
+            const qualitySelect = document.getElementById('qualitySelect');
+            if (qualitySelect) {
+                qualitySelect.value = preferences.quality;
             }
         }
     }
 
-    async registerServiceWorker() {
-        if ('serviceWorker' in navigator) {
-            try {
-                await navigator.serviceWorker.register('/sw.js');
-                console.log('📱 Service Worker registered successfully');
-            } catch (error) {
-                console.log('📱 SW registration failed:', error);
-            }
+    // Initialization helpers
+    initializeTooltips() {
+        const tooltipElements = document.querySelectorAll('[data-tooltip]');
+        tooltipElements.forEach(element => {
+            element.addEventListener('mouseenter', this.showTooltip.bind(this));
+            element.addEventListener('mouseleave', this.hideTooltip.bind(this));
+        });
+    }
+
+    initializeProgressBars() {
+        const progressBars = document.querySelectorAll('.progress-bar');
+        progressBars.forEach(bar => {
+            bar.style.transition = 'width 0.3s ease';
+        });
+    }
+
+    initializeTimeline() {
+        const timelineContainer = document.getElementById('timelineContainer');
+        if (timelineContainer) {
+            timelineContainer.addEventListener('click', this.handleTimelineClick.bind(this));
         }
     }
 
-    // Event handlers (stub implementations)
-    preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
-    addDropHighlight(element) { element.classList.add('drop-highlight'); }
-    removeDropHighlight(element) { element.classList.remove('drop-highlight'); }
-    handleDrop(e) { this.handleFileSelect({ target: { files: e.dataTransfer.files } }); }
-    handleScreenSizeChange(e) { document.body.classList.toggle('mobile', e.matches); }
-    handleTouchStart(e) { /* Touch handling */ }
-    handleTouchMove(e) { /* Touch handling */ }
-    handleTouchEnd(e) { /* Touch handling */ }
-    handleTimelineClick(e) { /* Timeline interaction */ }
-    togglePlayback() { /* Playback control */ }
-    handleQualityChange(e) { /* Quality selection */ }
-    triggerFileSelect() { document.getElementById('fileInput')?.click(); }
-    cancelProcessing() { this.resetProcessing(); }
-    updateUI(state) { document.body.dataset.state = state; }
-    updateProgressBar(type, progress) { /* Progress bar updates */ }
-    updateProcessingStage(stage) { /* Stage updates */ }
-    updateETA(eta) { /* ETA display */ }
-    animateResults() { /* Results animation */ }
-    showError(message) { console.error(message); alert(message); }
-    resetProcessing() { this.state.isProcessing = false; this.updateUI('idle'); }
-    scheduleWebSocketReconnect() { /* Reconnection logic */ }
-    loadUserPreferences() { /* Load preferences */ }
-    downloadAll() { /* Download implementation */ }
-    shareClips() { /* Share implementation */ }
-    processNew() { location.reload(); }
-    playClip(id) { /* Play clip */ }
-    downloadClip(id) { /* Download single clip */ }
-    shareClip(id) { /* Share single clip */ }
+    showTooltip(event) {
+        const text = event.target.dataset.tooltip;
+        if (!text) return;
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip';
+        tooltip.textContent = text;
+        document.body.appendChild(tooltip);
+        
+        const rect = event.target.getBoundingClientRect();
+        tooltip.style.left = rect.left + rect.width / 2 + 'px';
+        tooltip.style.top = rect.top - tooltip.offsetHeight - 5 + 'px';
+        
+        event.target._tooltip = tooltip;
+    }
+
+    hideTooltip(event) {
+        if (event.target._tooltip) {
+            event.target._tooltip.remove();
+            event.target._tooltip = null;
+        }
+    }
+
+    handleTimelineClick(event) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const percentage = x / rect.width;
+        
+        if (this.state.timeline && this.state.timeline.duration) {
+            const timestamp = percentage * this.state.timeline.duration;
+            this.seekToTimestamp(timestamp);
+        }
+    }
+
+    seekToTimestamp(timestamp) {
+        console.log(`Seeking to timestamp: ${timestamp}s`);
+        // Implement timeline seeking functionality
+    }
+
+    // Cleanup
+    handleBeforeUnload() {
+        // Close WebSocket connections
+        this.websockets.forEach(ws => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+        });
+        
+        // Save user preferences
+        this.saveUserPreferences();
+    }
+
+    handleOnline() {
+        console.log('Connection restored');
+        this.state.isConnected = true;
+        this.updateConnectionStatus();
+        this.setupWebSockets();
+    }
+
+    handleOffline() {
+        console.log('Connection lost');
+        this.state.isConnected = false;
+        this.updateConnectionStatus();
+    }
+
+    saveUserPreferences() {
+        try {
+            const preferences = {
+                theme: document.body.classList.contains('theme-dark') ? 'dark' : 'light',
+                quality: document.getElementById('qualitySelect')?.value || 'high'
+            };
+            
+            localStorage.setItem('viralclip_preferences', JSON.stringify(preferences));
+        } catch (error) {
+            console.warn('Failed to save user preferences:', error);
+        }
+    }
 }
 
-// Global app instance
+// Initialize the application
 let app;
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        app = new ViralClipApp();
-    });
-} else {
+document.addEventListener('DOMContentLoaded', () => {
     app = new ViralClipApp();
-}
-
-// Global error handling
-window.addEventListener('error', (event) => {
-    console.error('Global error:', event.error);
-    if (app) {
-        app.trackEvent('javascript_error', {
-            message: event.error?.message,
-            filename: event.filename,
-            lineno: event.lineno
-        });
-    }
 });
+
+// Export for global access (if needed)
+if (typeof window !== 'undefined') {
+    window.ViralClipApp = ViralClipApp;
+}
