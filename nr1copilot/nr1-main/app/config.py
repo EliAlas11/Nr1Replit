@@ -10,99 +10,102 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 
-
 class Settings(BaseSettings):
-    """Application settings with environment variable support and validation"""
+    """Application settings with validation and environment support"""
     
-    # Application
-    APP_NAME: str = "Viral Clip Generator"
-    VERSION: str = "2.0.0"
-    ENVIRONMENT: str = Field(default="development", env="ENV")
-    DEBUG: bool = Field(default=False)
+    # Environment
+    environment: str = Field(default="development", env="ENV")
+    debug: bool = Field(default=False, env="DEBUG")
     
     # Server
-    HOST: str = Field(default="0.0.0.0")
-    PORT: int = Field(default=5000, env="PORT")
+    host: str = Field(default="0.0.0.0", env="HOST")
+    port: int = Field(default=5000, env="PORT")
     
     # Security
-    JWT_SECRET: str = Field(..., env="JWT_SECRET")
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION_HOURS: int = 24
-    SECRET_KEY: str = Field(..., env="SECRET_KEY")
+    jwt_secret: str = Field(..., env="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expiration_hours: int = Field(default=24, env="JWT_EXPIRATION_HOURS")
     
     # Database
-    DATABASE_URL: str = Field(..., env="DATABASE_URL")
-    MONGODB_URI: Optional[str] = Field(None, env="MONGODB_URI")
+    mongodb_uri: str = Field(..., env="MONGODB_URI")
+    database_name: str = Field(default="viralclip", env="DATABASE_NAME")
     
     # Redis
-    REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
-    
-    # File Storage
-    VIDEO_STORAGE_PATH: str = Field(default="./videos", env="VIDEO_STORAGE_PATH")
-    MAX_FILE_SIZE: int = Field(default=500 * 1024 * 1024)  # 500MB
-    ALLOWED_VIDEO_FORMATS: List[str] = ["mp4", "avi", "mov", "mkv"]
+    redis_url: str = Field(..., env="REDIS_URL")
     
     # AWS S3
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(None, env="AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(None, env="AWS_SECRET_ACCESS_KEY")
-    AWS_S3_BUCKET: Optional[str] = Field(None, env="AWS_S3_BUCKET")
-    AWS_REGION: str = Field(default="us-east-1", env="AWS_REGION")
+    aws_access_key_id: Optional[str] = Field(default=None, env="AWS_ACCESS_KEY_ID")
+    aws_secret_access_key: Optional[str] = Field(default=None, env="AWS_SECRET_ACCESS_KEY")
+    aws_region: str = Field(default="us-east-1", env="AWS_REGION")
+    s3_bucket_name: Optional[str] = Field(default=None, env="S3_BUCKET_NAME")
     
-    # External APIs
-    YOUTUBE_API_KEY: Optional[str] = Field(None, env="YOUTUBE_API_KEY")
+    # File storage
+    video_storage_path: str = Field(default="videos", env="VIDEO_STORAGE_PATH")
+    upload_storage_path: str = Field(default="uploads", env="UPLOAD_STORAGE_PATH")
+    max_file_size: int = Field(default=500 * 1024 * 1024, env="MAX_FILE_SIZE")  # 500MB
     
     # CORS
-    ALLOWED_ORIGINS: List[str] = Field(default=["*"], env="CORS_ORIGINS")
+    cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
+    allowed_hosts: List[str] = Field(default=["*"], env="ALLOWED_HOSTS")
     
     # Logging
-    LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
-    LOG_FILE_PATH: Optional[str] = Field(None, env="LOG_FILE_PATH")
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    log_file_path: Optional[str] = Field(default=None, env="LOG_FILE_PATH")
     
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = Field(default=60)
+    # External APIs
+    youtube_api_key: Optional[str] = Field(default=None, env="YOUTUBE_API_KEY")
+    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
     
-    # Video Processing
-    MAX_VIDEO_DURATION: int = Field(default=3600)  # 1 hour
-    DEFAULT_VIDEO_QUALITY: str = "720p"
+    # Processing
+    max_workers: int = Field(default=4, env="MAX_WORKERS")
+    processing_timeout: int = Field(default=300, env="PROCESSING_TIMEOUT")  # 5 minutes
     
-    @validator("ENVIRONMENT")
-    def validate_environment(cls, v):
-        allowed_envs = ["development", "production", "testing"]
-        if v not in allowed_envs:
-            raise ValueError(f"Environment must be one of {allowed_envs}")
-        return v
-    
-    @validator("ALLOWED_ORIGINS", pre=True)
+    @validator("cors_origins", pre=True)
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
     
+    @validator("allowed_hosts", pre=True)
+    def parse_allowed_hosts(cls, v):
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(",")]
+        return v
+    
+    @validator("environment")
+    def validate_environment(cls, v):
+        allowed_envs = ["development", "staging", "production"]
+        if v not in allowed_envs:
+            raise ValueError(f"Environment must be one of: {allowed_envs}")
+        return v
+    
+    @validator("port")
+    def validate_port(cls, v):
+        if not 1 <= v <= 65535:
+            raise ValueError("Port must be between 1 and 65535")
+        return v
+    
     @property
     def is_production(self) -> bool:
-        return self.ENVIRONMENT == "production"
+        return self.environment == "production"
     
     @property
     def is_development(self) -> bool:
-        return self.ENVIRONMENT == "development"
-    
-    @property
-    def database_url_async(self) -> str:
-        """Convert sync database URL to async"""
-        if self.DATABASE_URL.startswith("postgresql://"):
-            return self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-        return self.DATABASE_URL
+        return self.environment == "development"
     
     class Config:
         env_file = ".env"
-        case_sensitive = True
-
+        case_sensitive = False
 
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance"""
     return Settings()
 
-
-# Global settings instance
-settings = get_settings()
+# Validate critical settings on import
+try:
+    settings = get_settings()
+    print(f"✅ Configuration loaded successfully for {settings.environment} environment")
+except Exception as e:
+    print(f"❌ Configuration error: {e}")
+    raise

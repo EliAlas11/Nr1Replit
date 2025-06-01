@@ -1,108 +1,118 @@
 
 """
 Production-grade database session management
-Supports both PostgreSQL (SQLAlchemy) and MongoDB (Motor)
+Handles MongoDB connections with proper error handling and connection pooling
 """
 
 import logging
-from typing import AsyncGenerator, Optional
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.pool import NullPool
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.config import get_settings
+from typing import Optional
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from ..config import get_settings
 
-logger = logging.getLogger("database")
-settings = get_settings()
+logger = logging.getLogger(__name__)
 
-# SQLAlchemy setup
-Base = declarative_base()
-
-# Create async engine
-engine = create_async_engine(
-    settings.database_url_async,
-    echo=not settings.is_production,
-    poolclass=NullPool if settings.is_production else None,
-    pool_pre_ping=True,
-    pool_recycle=300,
-)
-
-# Create session factory
-async_session_maker = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
-
-# MongoDB client
-mongo_client: Optional[AsyncIOMotorClient] = None
-mongo_db = None
-
-
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get async database session"""
-    async with async_session_maker() as session:
+class DatabaseManager:
+    """Singleton database manager for MongoDB connections"""
+    
+    _instance: Optional['DatabaseManager'] = None
+    _client: Optional[AsyncIOMotorClient] = None
+    _database: Optional[AsyncIOMotorDatabase] = None
+    
+    def __new__(cls) -> 'DatabaseManager':
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    async def connect(self) -> None:
+        """Establish database connection"""
+        if self._client is not None:
+            return
+            
+        settings = get_settings()
+        
         try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
+            logger.info("Connecting to MongoDB...")
+            
+            self._client = AsyncIOMotorClient(
+                settings.mongodb_uri,
+                serverSelectionTimeoutMS=5000,
+                maxPoolSize=50,
+                minPoolSize=5,
+                maxIdleTimeMS=30000,
+                retryWrites=True,
+                retryReads=True
+            )
+            
+            # Test connection
+            await self._client.admin.command('ping')
+            
+            self._database = self._client[settings.database_name]
+            
+            logger.info(f"✅ Connected to MongoDB database: {settings.database_name}")
+            
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.error(f"❌ Failed to connect to MongoDB: {e}")
             raise
-        finally:
-            await session.close()
-
-
-async def connect_to_mongo():
-    """Connect to MongoDB"""
-    global mongo_client, mongo_db
+        except Exception as e:
+            logger.error(f"❌ Unexpected database error: {e}")
+            raise
     
-    if not settings.MONGODB_URI:
-        logger.warning("MongoDB URI not provided, skipping MongoDB connection")
-        return
+    async def disconnect(self) -> None:
+        """Close database connection"""
+        if self._client:
+            logger.info("Disconnecting from MongoDB...")
+            self._client.close()
+            self._client = None
+            self._database = None
+            logger.info("✅ Disconnected from MongoDB")
     
-    try:
-        mongo_client = AsyncIOMotorClient(settings.MONGODB_URI)
-        mongo_db = mongo_client.get_default_database()
-        
-        # Test connection
-        await mongo_client.admin.command('ping')
-        logger.info("Successfully connected to MongoDB")
-        
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {e}")
-        raise
-
-
-async def close_mongo_connection():
-    """Close MongoDB connection"""
-    global mongo_client
+    @property
+    def database(self) -> AsyncIOMotorDatabase:
+        """Get database instance"""
+        if self._database is None:
+            raise RuntimeError("Database not connected. Call connect() first.")
+        return self._database
     
-    if mongo_client:
-        mongo_client.close()
-        logger.info("MongoDB connection closed")
+    @property
+    def client(self) -> AsyncIOMotorClient:
+        """Get client instance"""
+        if self._client is None:
+            raise RuntimeError("Database not connected. Call connect() first.")
+        return self._client
+    
+    async def health_check(self) -> dict:
+        """Check database health"""
+        try:
+            if self._client is None:
+                return {"status": "disconnected", "error": "No client connection"}
+            
+            start_time = time.time()
+            await self._client.admin.command('ping')
+            response_time = time.time() - start_time
+            
+            return {
+                "status": "healthy",
+                "response_time_ms": round(response_time * 1000, 2),
+                "database": self._database.name if self._database else None
+            }
+        except Exception as e:
+            return {"status": "unhealthy", "error": str(e)}
 
+# Global database manager instance
+db_manager = DatabaseManager()
 
-def get_mongo_db():
-    """Get MongoDB database instance"""
-    if mongo_db is None:
-        raise RuntimeError("MongoDB not connected")
-    return mongo_db
+async def get_database() -> AsyncIOMotorDatabase:
+    """Get database instance (dependency injection)"""
+    if db_manager._database is None:
+        await db_manager.connect()
+    return db_manager.database
 
+async def get_client() -> AsyncIOMotorClient:
+    """Get client instance"""
+    if db_manager._client is None:
+        await db_manager.connect()
+    return db_manager.client
 
-async def init_database():
-    """Initialize database tables"""
-    try:
-        async with engine.begin() as conn:
-            # Create all tables
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Failed to create database tables: {e}")
-        raise
-
-
-async def close_database():
-    """Close database connections"""
-    await engine.dispose()
-    await close_mongo_connection()
-    logger.info("Database connections closed")
+# Import time for health check
+import time

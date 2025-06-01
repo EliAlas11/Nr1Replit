@@ -1,521 +1,634 @@
-<!--
-  This HTML file is for the frontend UI only. All backend logic, video processing, and API endpoints are implemented in Python using FastAPI. 
-  For backend details, see the FastAPI app and service modules in the `app/` directory.
--->
-<!doctype html>
-<html lang="en" dir="ltr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests;"
-    />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Viral Clip Generator - AI-Powered YouTube to TikTok Converter</title>
-    <meta
-      name="description"
-      content="Transform YouTube videos into viral clips perfect for TikTok, Instagram Reels, and YouTube Shorts with AI-powered editing."
-    />
-    <meta
-      name="keywords"
-      content="AI, YouTube, TikTok, Viral Clips, Video Editing, Shorts, Reels"
-    />
-    <meta name="author" content="EliAlas11" />
-    <link rel="icon" href="favicon.ico" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/public/styles.css" />
-    <link rel="manifest" href="/public/manifest.json" />
-    <meta name="theme-color" content="#667eea" />
-  </head>
-  <body>
-    <noscript
-      ><div style="background: #fd746c; color: #fff; padding: 10px; text-align: center">
-        JavaScript is required for this app to function. Please enable JavaScript in your browser.
-      </div></noscript
-    >
 
-    <!-- Improved: Added skip link for accessibility -->
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viral Clip Generator - Professional Video Processing</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
-      <i class="fas fa-moon" aria-hidden="true"></i>
-    </button>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
 
-    <div class="container" role="main">
-      <header class="header" role="banner">
-        <h1>
-          <i class="fas fa-fire" aria-label="Viral Clip Generator Logo"></i>
-          <span>Viral Clip Generator</span>
-        </h1>
-        <p>
-          Transform YouTube videos into viral clips perfect for TikTok, Instagram Reels, and YouTube
-          Shorts with AI-powered editing
-        </p>
-      </header>
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
 
-      <nav
-        class="site-nav"
-        aria-label="Site navigation"
-        style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 30px;
-          gap: 20px;
-        "
-      >
-        <div style="display: flex; align-items: center; gap: 15px">
-          <a
-            href="#"
-            class="site-logo"
-            aria-label="Home"
-            style="
-              font-weight: 700;
-              font-size: 1.3rem;
-              color: #667eea;
-              text-decoration: none;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            "
-            ><i class="fas fa-fire" aria-hidden="true"></i> ViralClip</a
-          >
-          <button
-            class="btn btn-link"
-            id="dashboardBtn"
-            aria-label="Analytics Dashboard"
-            onclick="showDashboard()"
-            style="
-              background: none;
-              border: none;
-              color: #764ba2;
-              font-weight: 600;
-              cursor: pointer;
-            "
-          >
-            Dashboard
-          </button>
-          <button
-            class="btn btn-link"
-            id="blogBtn"
-            aria-label="Blog & News"
-            onclick="window.open('/blog','_blank')"
-            style="
-              background: none;
-              border: none;
-              color: #764ba2;
-              font-weight: 600;
-              cursor: pointer;
-            "
-          >
-            Blog
-          </button>
+        .header h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .status {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #f0fff4;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .status.info {
+            background: #ebf8ff;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        .video-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .video-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            background: #f7fafc;
+        }
+
+        .video-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .video-info h4 {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 0.25rem;
+        }
+
+        .video-info p {
+            font-size: 0.875rem;
+            color: #718096;
+        }
+
+        .video-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .highlight-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-time {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .highlight-score {
+            background: #667eea;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .api-docs {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+
+        .api-docs a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            margin: 0 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .api-docs a:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 1rem;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1><i class="fas fa-video"></i> Viral Clip Generator</h1>
+    </header>
+
+    <div class="container">
+        <div class="grid">
+            <!-- YouTube Download -->
+            <div class="card">
+                <h2><i class="fab fa-youtube"></i> YouTube Download</h2>
+                <div class="input-group">
+                    <label for="youtube-url">YouTube URL</label>
+                    <input type="url" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..." />
+                </div>
+                <button class="btn" onclick="downloadVideo()">
+                    <i class="fas fa-download"></i> Download Video
+                </button>
+                <div id="download-status"></div>
+            </div>
+
+            <!-- Video Analysis -->
+            <div class="card">
+                <h2><i class="fas fa-chart-line"></i> Video Analysis</h2>
+                <div class="input-group">
+                    <label for="analysis-video-id">Video ID</label>
+                    <input type="text" id="analysis-video-id" placeholder="Enter video ID..." />
+                </div>
+                <button class="btn" onclick="analyzeVideo()">
+                    <i class="fas fa-search"></i> Analyze Video
+                </button>
+                <div id="analysis-results" class="hidden">
+                    <h3>Highlights Found:</h3>
+                    <div id="highlights-list"></div>
+                </div>
+            </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px">
-          <select
-            id="languageSelect"
-            aria-label="Select language"
-            style="padding: 6px 12px; border-radius: 8px; border: 1px solid #e0e6ed"
-          >
-            <option value="en">English</option>
-            <option value="es">Español</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
-            <option value="zh">中文</option>
-          </select>
-          <button
-            class="btn btn-link"
-            id="helpBtn"
-            aria-label="Help & FAQ"
-            onclick="showHelpModal()"
-            style="
-              background: none;
-              border: none;
-              color: #764ba2;
-              font-weight: 600;
-              cursor: pointer;
-            "
-          >
-            Help
-          </button>
-          <button
-            class="btn btn-link"
-            id="feedbackBtn"
-            aria-label="Send Feedback"
-            onclick="showFeedbackModal()"
-            style="
-              background: none;
-              border: none;
-              color: #764ba2;
-              font-weight: 600;
-              cursor: pointer;
-            "
-          >
-            Feedback
-          </button>
-          <button
-            class="btn btn-link"
-            id="loginBtn"
-            aria-label="Login or Sign Up"
-            onclick="showAuthModal()"
-            style="
-              background: none;
-              border: none;
-              color: #667eea;
-              font-weight: 700;
-              cursor: pointer;
-            "
-          >
-            Login / Sign Up
-          </button>
+
+        <!-- Video List -->
+        <div class="card">
+            <h2><i class="fas fa-list"></i> Available Videos</h2>
+            <button class="btn btn-secondary" onclick="loadVideoList()">
+                <i class="fas fa-refresh"></i> Refresh List
+            </button>
+            <div id="video-list" class="video-list"></div>
         </div>
-      </nav>
 
-      <section class="input-section" aria-label="YouTube URL Input">
-        <div class="input-group">
-          <input
-            type="text"
-            id="youtubeUrl"
-            placeholder="Paste YouTube URL here... (e.g., https://www.youtube.com/watch?v=...)"
-            aria-label="YouTube video URL"
-            autocomplete="off"
-          />
-          <i class="fab fa-youtube" aria-label="YouTube icon"></i>
+        <!-- Clip Creation -->
+        <div class="card">
+            <h2><i class="fas fa-cut"></i> Create Clip</h2>
+            <div class="grid">
+                <div class="input-group">
+                    <label for="clip-video-id">Source Video ID</label>
+                    <input type="text" id="clip-video-id" placeholder="Enter video ID..." />
+                </div>
+                <div class="input-group">
+                    <label for="clip-start">Start Time (seconds)</label>
+                    <input type="number" id="clip-start" placeholder="0" min="0" />
+                </div>
+                <div class="input-group">
+                    <label for="clip-duration">Duration (seconds)</label>
+                    <input type="number" id="clip-duration" placeholder="60" min="1" max="300" />
+                </div>
+                <div class="input-group">
+                    <label for="clip-title">Clip Title</label>
+                    <input type="text" id="clip-title" placeholder="My Viral Clip" />
+                </div>
+            </div>
+            <button class="btn btn-success" onclick="createClip()">
+                <i class="fas fa-magic"></i> Create Clip
+            </button>
+            <div id="clip-status"></div>
         </div>
-        <div class="validation-status" id="validationStatus" role="status" aria-live="polite">
-          <i class="fas fa-check-circle" aria-hidden="true"></i>
-          <span id="validationText">URL validation status</span>
+
+        <!-- API Documentation -->
+        <div class="api-docs">
+            <h3 style="color: white; margin-bottom: 1rem;">API Documentation</h3>
+            <a href="/docs" target="_blank"><i class="fas fa-book"></i> Swagger UI</a>
+            <a href="/redoc" target="_blank"><i class="fas fa-file-alt"></i> ReDoc</a>
+            <a href="/health" target="_blank"><i class="fas fa-heartbeat"></i> Health Check</a>
         </div>
-      </section>
-
-      <section class="video-info" id="videoInfo" aria-label="Video Information">
-        <!-- Video info will be displayed here -->
-      </section>
-
-      <nav class="buttons" aria-label="Main actions">
-        <button
-          class="btn btn-primary"
-          onclick="processVideo()"
-          id="processBtn"
-          aria-label="Create Viral Clip"
-        >
-          <i class="fas fa-magic" aria-hidden="true"></i>
-          <span>Create Viral Clip</span>
-        </button>
-        <button
-          class="btn btn-secondary"
-          onclick="showExample()"
-          id="exampleBtn"
-          aria-label="View Example Clip"
-        >
-          <i class="fas fa-play" aria-hidden="true"></i>
-          <span>View Example</span>
-        </button>
-      </nav>
-
-      <div class="progress-container" id="progressContainer" aria-label="Progress Bar">
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill"></div>
-        </div>
-        <div class="progress-text" id="progressText">0%</div>
-      </div>
-
-      <div class="loader" id="loader" aria-label="Loading" role="status"></div>
-
-      <section class="result" id="result" aria-label="Result Area" aria-live="polite" tabindex="0">
-        <!-- Results will be displayed here -->
-      </section>
     </div>
-
-    <main id="main-content">
-      <script src="/public/main.js" defer></script>
-    </main>
-
-    <!-- Modals and overlays for new features -->
-    <div
-      id="authModal"
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="authModalTitle"
-      style="display: none"
-    >
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close" onclick="closeModal('authModal')">
-          &times;
-        </button>
-        <h2 id="authModalTitle">Login or Sign Up</h2>
-        <form id="authForm" autocomplete="off">
-          <input
-            type="email"
-            id="authEmail"
-            placeholder="Email"
-            aria-label="Email"
-            required
-            style="margin-bottom: 10px"
-          />
-          <input
-            type="password"
-            id="authPassword"
-            placeholder="Password"
-            aria-label="Password"
-            required
-            style="margin-bottom: 10px"
-          />
-          <button type="submit" class="btn btn-primary" style="width: 100%">Login</button>
-          <div style="margin: 10px 0; text-align: center">or</div>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            onclick="switchAuthMode()"
-            style="width: 100%"
-          >
-            Sign Up
-          </button>
-        </form>
-      </div>
-    </div>
-    <div
-      id="helpModal"
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="helpModalTitle"
-      style="display: none"
-    >
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close" onclick="closeModal('helpModal')">
-          &times;
-        </button>
-        <h2 id="helpModalTitle">Help & FAQ</h2>
-        <ul style="margin: 20px 0 0 0; padding: 0; list-style: none">
-          <li>
-            <strong>How do I use this site?</strong><br />Paste a YouTube URL, validate, and click
-            Create Viral Clip.
-          </li>
-          <li>
-            <strong>What platforms are supported?</strong><br />TikTok, Instagram Reels, YouTube
-            Shorts, X (Twitter).
-          </li>
-          <li>
-            <strong>How do I customize my clip?</strong><br />Click the Customize button before
-            processing.
-          </li>
-          <li>
-            <strong>Is my data private?</strong><br />See our
-            <a href="#" onclick="showPrivacyModal()">Privacy Policy</a>.
-          </li>
-          <li>
-            <strong>Need more help?</strong><br />Email
-            <a href="mailto:support@example.com">support@example.com</a>
-          </li>
-        </ul>
-      </div>
-    </div>
-    <div
-      id="feedbackModal"
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="feedbackModalTitle"
-      style="display: none"
-    >
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close" onclick="closeModal('feedbackModal')">
-          &times;
-        </button>
-        <h2 id="feedbackModalTitle">Send Feedback</h2>
-        <form id="feedbackForm">
-          <textarea
-            id="feedbackText"
-            rows="4"
-            placeholder="Your feedback..."
-            aria-label="Feedback"
-            required
-            style="width: 100%; margin-bottom: 10px"
-          ></textarea>
-          <button type="submit" class="btn btn-primary" style="width: 100%">Submit</button>
-        </form>
-      </div>
-    </div>
-    <div
-      id="privacyModal"
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="privacyModalTitle"
-      style="display: none"
-    >
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close" onclick="closeModal('privacyModal')">
-          &times;
-        </button>
-        <h2 id="privacyModalTitle">Privacy Policy</h2>
-        <p>
-          Your privacy is important. We do not share your data. See our full policy on our website.
-        </p>
-      </div>
-    </div>
-    <div
-      id="tosModal"
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="tosModalTitle"
-      style="display: none"
-    >
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close" onclick="closeModal('tosModal')">
-          &times;
-        </button>
-        <h2 id="tosModalTitle">Terms of Service</h2>
-        <p>By using this site, you agree to our terms. See our full TOS on our website.</p>
-      </div>
-    </div>
-    <div
-      id="customizeModal"
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="customizeModalTitle"
-      style="display: none"
-    >
-      <div class="modal-content">
-        <button class="modal-close" aria-label="Close" onclick="closeModal('customizeModal')">
-          &times;
-        </button>
-        <h2 id="customizeModalTitle">Customize Your Clip</h2>
-        <form id="customizeForm">
-          <label for="startTime">Start Time (sec):</label>
-          <input
-            type="number"
-            id="startTime"
-            min="0"
-            value="0"
-            style="margin-bottom: 10px; width: 100%"
-          />
-          <label for="endTime">End Time (sec):</label>
-          <input
-            type="number"
-            id="endTime"
-            min="1"
-            value="60"
-            style="margin-bottom: 10px; width: 100%"
-          />
-          <label for="aspectRatio">Aspect Ratio:</label>
-          <select id="aspectRatio" style="margin-bottom: 10px; width: 100%">
-            <option value="9:16">9:16 (Vertical)</option>
-            <option value="1:1">1:1 (Square)</option>
-            <option value="16:9">16:9 (Horizontal)</option>
-          </select>
-          <label for="captions">Add Captions:</label>
-          <input
-            type="text"
-            id="captions"
-            placeholder="Enter captions (optional)"
-            style="margin-bottom: 10px; width: 100%"
-          />
-          <button type="submit" class="btn btn-primary" style="width: 100%">Apply</button>
-        </form>
-      </div>
-    </div>
-    <div id="dashboardSection" style="display: none">
-      <h2>Analytics Dashboard</h2>
-      <div id="dashboardContent">
-        <p>Loading analytics...</p>
-      </div>
-    </div>
-
-    <!-- Add Open Graph and SEO meta tags -->
-    <meta
-      property="og:title"
-      content="Viral Clip Generator - AI-Powered YouTube to TikTok Converter"
-    />
-    <meta
-      property="og:description"
-      content="Transform YouTube videos into viral clips perfect for TikTok, Instagram Reels, and YouTube Shorts with AI-powered editing."
-    />
-    <meta property="og:image" content="/favicon.ico" />
-    <meta property="og:url" content="https://viralclip.example.com" />
-    <meta name="twitter:card" content="summary_large_image" />
-
-    <!-- Add PWA install prompt and offline notice -->
-    <div
-      id="pwaPrompt"
-      style="
-        display: none;
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #fff;
-        padding: 18px 30px;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-        z-index: 10001;
-      "
-    >
-      <span>Install this app for offline use!</span>
-      <button onclick="installPWA()" class="btn btn-primary" style="margin-left: 15px">
-        Install
-      </button>
-      <button
-        onclick="document.getElementById('pwaPrompt').style.display='none'"
-        class="btn btn-link"
-        style="margin-left: 10px"
-      >
-        Dismiss
-      </button>
-    </div>
-    <div
-      id="offlineNotice"
-      style="
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        background: #fd746c;
-        color: #fff;
-        text-align: center;
-        padding: 10px 0;
-        z-index: 10002;
-      "
-    >
-      You are offline. Some features may be unavailable.
-    </div>
-
-    <footer
-      style="text-align: center; margin-top: 40px; color: #888; font-size: 0.95rem"
-      role="contentinfo"
-    >
-      &copy; 2025 Viral Clip Generator &mdash; Created by EliAlas11. For support, contact
-      <a href="mailto:support@example.com" style="color: #667eea">support@example.com</a> &mdash;
-      <a href="#" onclick="showPrivacyModal()">Privacy Policy</a> &mdash;
-      <a href="#" onclick="showTOSModal()">Terms</a> &mdash;
-      <a href="/blog" target="_blank">Blog</a>
-    </footer>
 
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/service-worker.js').then(
-            function (registration) {
-              // Registration successful
-            },
-            function (err) {
-              // Registration failed
-            },
-          );
-        });
-      }
+        const API_BASE = '/api/v1';
+        
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type} fade-in">${message}</div>`;
+        }
+
+        function showSpinner(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status info"><span class="spinner"></span> ${message}</div>`;
+        }
+
+        async function downloadVideo() {
+            const url = document.getElementById('youtube-url').value.trim();
+            if (!url) {
+                showStatus('download-status', 'Please enter a YouTube URL', 'error');
+                return;
+            }
+
+            showSpinner('download-status', 'Downloading video...');
+
+            try {
+                const response = await fetch(`${API_BASE}/video/download`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus('download-status', 
+                        `✅ Video downloaded successfully! Video ID: ${data.data.video_id}`, 
+                        'success'
+                    );
+                    document.getElementById('analysis-video-id').value = data.data.video_id;
+                    document.getElementById('clip-video-id').value = data.data.video_id;
+                    loadVideoList();
+                } else {
+                    showStatus('download-status', `❌ ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showStatus('download-status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function analyzeVideo() {
+            const videoId = document.getElementById('analysis-video-id').value.trim();
+            if (!videoId) {
+                showStatus('analysis-results', 'Please enter a video ID', 'error');
+                return;
+            }
+
+            showSpinner('analysis-results', 'Analyzing video...');
+            document.getElementById('analysis-results').classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE}/video/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_id: videoId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayHighlights(data.data.highlights);
+                } else {
+                    showStatus('analysis-results', `❌ ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showStatus('analysis-results', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function displayHighlights(highlights) {
+            const highlightsList = document.getElementById('highlights-list');
+            
+            if (highlights.length === 0) {
+                highlightsList.innerHTML = '<p>No highlights found.</p>';
+                return;
+            }
+
+            highlightsList.innerHTML = highlights.map(highlight => `
+                <div class="highlight-item">
+                    <div class="highlight-header">
+                        <span class="highlight-time">
+                            ${Math.floor(highlight.start_time / 60)}:${(highlight.start_time % 60).toString().padStart(2, '0')} - 
+                            ${Math.floor(highlight.end_time / 60)}:${(highlight.end_time % 60).toString().padStart(2, '0')}
+                        </span>
+                        <span class="highlight-score">${Math.round(highlight.score * 100)}%</span>
+                    </div>
+                    <p>${highlight.description}</p>
+                    <button class="btn" onclick="useHighlight(${highlight.start_time}, ${highlight.end_time - highlight.start_time})">
+                        <i class="fas fa-magic"></i> Use This Highlight
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function useHighlight(startTime, duration) {
+            document.getElementById('clip-start').value = startTime;
+            document.getElementById('clip-duration').value = duration;
+            showStatus('clip-status', '✅ Highlight data applied to clip creation form', 'success');
+        }
+
+        async function createClip() {
+            const videoId = document.getElementById('clip-video-id').value.trim();
+            const startTime = parseInt(document.getElementById('clip-start').value) || 0;
+            const duration = parseInt(document.getElementById('clip-duration').value) || 60;
+            const title = document.getElementById('clip-title').value.trim() || 'Generated Clip';
+
+            if (!videoId) {
+                showStatus('clip-status', 'Please enter a video ID', 'error');
+                return;
+            }
+
+            showSpinner('clip-status', 'Creating clip...');
+
+            try {
+                const response = await fetch(`${API_BASE}/video/create-clip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_id: videoId,
+                        start_time: startTime,
+                        duration: duration,
+                        title: title
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const clipData = data.data;
+                    showStatus('clip-status', `
+                        <div class="fade-in">
+                            <h4>✅ Clip created successfully!</h4>
+                            <p><strong>Filename:</strong> ${clipData.filename}</p>
+                            <p><strong>Duration:</strong> ${clipData.duration}s</p>
+                            <p><strong>Size:</strong> ${(clipData.file_size / 1024 / 1024).toFixed(2)} MB</p>
+                            <div style="margin-top: 1rem;">
+                                <a href="/api/v1/video/download-clip/${videoId}/${clipData.filename}" class="btn" download>
+                                    <i class="fas fa-download"></i> Download Clip
+                                </a>
+                                <a href="/api/v1/video/preview/${videoId}/${clipData.filename}" class="btn btn-secondary" target="_blank">
+                                    <i class="fas fa-play"></i> Preview Clip
+                                </a>
+                            </div>
+                        </div>
+                    `, 'success');
+                    loadVideoList();
+                } else {
+                    showStatus('clip-status', `❌ ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showStatus('clip-status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadVideoList() {
+            try {
+                const response = await fetch(`${API_BASE}/video/list`);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayVideoList(data.data);
+                } else {
+                    document.getElementById('video-list').innerHTML = '<p>Failed to load videos</p>';
+                }
+            } catch (error) {
+                document.getElementById('video-list').innerHTML = '<p>Error loading videos</p>';
+            }
+        }
+
+        function displayVideoList(data) {
+            const videoList = document.getElementById('video-list');
+            
+            if (data.videos.length === 0 && data.clips.length === 0) {
+                videoList.innerHTML = '<p>No videos or clips found. Download a video to get started!</p>';
+                return;
+            }
+
+            let html = '';
+
+            if (data.videos.length > 0) {
+                html += '<h4>📹 Original Videos</h4>';
+                data.videos.forEach(video => {
+                    html += `
+                        <div class="video-item">
+                            <div class="video-info">
+                                <h4>${video.filename}</h4>
+                                <p>ID: ${video.video_id} • Size: ${(video.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                            <div class="video-actions">
+                                <button class="btn" onclick="analyzeVideoById('${video.video_id}')">
+                                    <i class="fas fa-search"></i> Analyze
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            if (data.clips.length > 0) {
+                html += '<h4 style="margin-top: 1rem;">✂️ Generated Clips</h4>';
+                data.clips.forEach(clip => {
+                    const videoId = clip.filename.split('_')[0];
+                    html += `
+                        <div class="video-item">
+                            <div class="video-info">
+                                <h4>${clip.filename}</h4>
+                                <p>Size: ${(clip.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                            <div class="video-actions">
+                                <a href="/api/v1/video/preview/${videoId}/${clip.filename}" class="btn btn-secondary" target="_blank">
+                                    <i class="fas fa-play"></i> Preview
+                                </a>
+                                <a href="/api/v1/video/download-clip/${videoId}/${clip.filename}" class="btn" download>
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            videoList.innerHTML = html;
+        }
+
+        function analyzeVideoById(videoId) {
+            document.getElementById('analysis-video-id').value = videoId;
+            analyzeVideo();
+        }
+
+        // Load video list on page load
+        window.addEventListener('load', loadVideoList);
     </script>
-  </body>
+</body>
 </html>
