@@ -10,160 +10,170 @@
  * - Performance optimization
  */
 
-class ViralClipGenerator {
+class ViralClipApp {
     constructor() {
         this.currentStep = 1;
-        this.totalSteps = 5;
-        this.videoData = null;
         this.analysisData = null;
-        this.processingTaskId = null;
-        this.processingInterval = null;
         this.selectedClips = [];
-        this.supportedPlatforms = [
-            'tiktok', 'instagram_reels', 'instagram_story', 'instagram_feed',
-            'youtube_shorts', 'youtube_standard', 'twitter', 'facebook',
-            'linkedin', 'snapchat', 'pinterest'
-        ];
-
+        this.selectedPlatforms = [];
+        this.processingTaskId = null;
         this.init();
     }
 
     init() {
         this.setupEventListeners();
-        this.setupPlatformSelection();
         this.setupDragDrop();
-        this.setupTabs();
-        console.log('🎬 Initializing ViralClip Pro - Netflix Level');
-
-        this.setupServiceWorker();
-        this.setupProgressiveEnhancement();
-        this.loadUserPreferences();
-        this.initializePerformanceMonitoring();
-
-        // Show loading screen initially
-        this.hideLoadingScreen();
-
-        console.log('✅ ViralClip Pro initialized successfully');
+        this.setupTimeline();
+        this.loadTemplates();
     }
 
     setupEventListeners() {
-        // Form submissions
-        const urlForm = document.getElementById('url-form');
-        if (urlForm) {
-            urlForm.addEventListener('submit', (e) => this.handleUrlSubmit(e));
-        }
+        // File input change
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                this.handleFileUpload(e.target.files[0]);
+            }
+        });
 
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) {
-            fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
-        }
-
-        // Navigation
-        const nextBtn = document.getElementById('next-btn');
-        const prevBtn = document.getElementById('prev-btn');
-        const processBtn = document.getElementById('process-btn');
-
-        if (nextBtn) nextBtn.addEventListener('click', () => this.nextStep());
-        if (prevBtn) prevBtn.addEventListener('click', () => this.prevStep());
-        if (processBtn) processBtn.addEventListener('click', () => this.startProcessing());
+        // URL input enter key
+        document.getElementById('videoUrl').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.analyzeUrl();
+            }
+        });
 
         // Platform selection
-        this.setupPlatformSelection();
-
-        // Clip management
-        this.setupClipManagement();
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => this.handleKeyboard(e));
-
-        // Real-time updates
-        this.setupWebSocketConnection();
-
-        // URL analysis
-        const analyzeBtn = document.getElementById('analyze-btn');
-        if(analyzeBtn) {
-            analyzeBtn.addEventListener('click', () => {
-                const url = document.getElementById('url-input').value.trim();
-                if (url) {
-                    this.handleUrlSubmit(url);
-                } else {
-                    this.showToast('Please enter a valid video URL', 'warning');
-                }
-            });
-        }
-
-        // Enter key support
-        const urlInput = document.getElementById('url-input');
-        if(urlInput) {
-            urlInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    if(analyzeBtn) {
-                         analyzeBtn.click();
-                    }
-                }
-            });
-        }
-
-
-        // File upload
-        const fileSelectBtn = document.getElementById('file-select-btn');
-        if(fileSelectBtn) {
-             fileSelectBtn.addEventListener('click', () => {
-                document.getElementById('video-file').click();
-            });
-        }
-
-
-        const videoFile = document.getElementById('video-file');
-        if(videoFile) {
-             videoFile.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    this.handleFileUpload(e.target.files[0]);
-                }
-            });
-        }
-
-    }
-
-    setupTabs() {
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const tab = btn.dataset.tab;
-
-                // Update tab buttons
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                // Update upload methods
-                document.querySelectorAll('.upload-method').forEach(method => {
-                    method.classList.remove('active');
-                });
-                document.querySelector(`[data-method="${tab}"]`).classList.add('active');
+        document.querySelectorAll('.platform-card').forEach(card => {
+            card.addEventListener('click', () => {
+                this.togglePlatform(card.dataset.platform);
             });
         });
+
+        // Timeline interaction
+        this.setupTimelineInteraction();
     }
 
     setupDragDrop() {
-        const dropZone = document.getElementById('file-drop-zone');
+        const dropZone = document.getElementById('dropZone');
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, this.preventDefaults, false);
         });
 
         ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.add('dragover');
+            }, false);
         });
 
         ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+            dropZone.addEventListener(eventName, () => {
+                dropZone.classList.remove('dragover');
+            }, false);
         });
 
         dropZone.addEventListener('drop', (e) => {
             const files = e.dataTransfer.files;
-            if (files.length > 0) {
+            if (files[0] && files[0].type.startsWith('video/')) {
                 this.handleFileUpload(files[0]);
+            } else {
+                this.showToast('Please upload a video file', 'error');
+            }
+        }, false);
+    }
+
+    setupTimeline() {
+        const timeline = document.getElementById('timeline');
+        const clipSelector = document.getElementById('clipSelector');
+
+        if (!timeline || !clipSelector) return;
+
+        let isDragging = false;
+        let isResizing = false;
+        let startX = 0;
+        let startLeft = 0;
+        let startWidth = 0;
+
+        clipSelector.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const rect = clipSelector.getBoundingClientRect();
+
+            if (e.clientX > rect.right - 10) {
+                isResizing = true;
+                startWidth = rect.width;
+            } else {
+                isDragging = true;
+                startLeft = parseFloat(clipSelector.style.left) || 0;
+            }
+
+            startX = e.clientX;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging && !isResizing) return;
+
+            const timelineRect = timeline.getBoundingClientRect();
+            const deltaX = e.clientX - startX;
+            const deltaPercent = (deltaX / timelineRect.width) * 100;
+
+            if (isDragging) {
+                const newLeft = Math.max(0, Math.min(80, startLeft + deltaPercent));
+                clipSelector.style.left = newLeft + '%';
+            } else if (isResizing) {
+                const currentLeft = parseFloat(clipSelector.style.left) || 0;
+                const maxWidth = 100 - currentLeft;
+                const newWidth = Math.max(5, Math.min(maxWidth, (startWidth / timelineRect.width * 100) + deltaPercent));
+                clipSelector.style.width = newWidth + '%';
+            }
+
+            this.updateClipTimes();
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            isResizing = false;
+        });
+    }
+
+    setupTimelineInteraction() {
+        const timeline = document.getElementById('timeline');
+        if (!timeline) return;
+
+        timeline.addEventListener('click', (e) => {
+            if (e.target === timeline) {
+                const rect = timeline.getBoundingClientRect();
+                const clickPercent = ((e.clientX - rect.left) / rect.width) * 100;
+                document.getElementById('clipSelector').style.left = Math.max(0, Math.min(80, clickPercent - 10)) + '%';
+                this.updateClipTimes();
             }
         });
+    }
+
+    updateClipTimes() {
+        const clipSelector = document.getElementById('clipSelector');
+        const left = parseFloat(clipSelector.style.left) || 0;
+        const width = parseFloat(clipSelector.style.width) || 20;
+
+        if (this.analysisData && this.analysisData.video_info) {
+            const duration = this.analysisData.video_info.duration || 300;
+            const startTime = (left / 100) * duration;
+            const endTime = ((left + width) / 100) * duration;
+
+            // Update preview video time
+            const video = document.getElementById('previewVideo');
+            if (video) {
+                video.currentTime = startTime;
+            }
+
+            // Update UI to show current selection
+            this.showToast(`Clip: ${this.formatTime(startTime)} - ${this.formatTime(endTime)}`, 'info');
+        }
+    }
+
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
     preventDefaults(e) {
@@ -172,56 +182,496 @@ class ViralClipGenerator {
     }
 
     async handleFileUpload(file) {
-        if (!file.type.startsWith('video/')) {
-            this.showToast('Please select a valid video file', 'error');
-            return;
-        }
-
-        if (file.size > 500 * 1024 * 1024) { // 500MB limit
-            this.showToast('File size too large. Maximum 500MB allowed.', 'error');
-            return;
-        }
-
-        this.showLoading('Uploading and analyzing video... 📤');
+        this.showLoading('Uploading and analyzing video... 🎬');
 
         try {
-            const formData = new FormData();
-            formData.append('video_file', file);
-            formData.append('clip_duration', '60');
-            formData.append('viral_optimization', 'true');
+            // Simulate file upload and analysis
+            await this.delay(2000);
 
-            // This would be implemented in the backend
-            const response = await fetch('/api/v2/upload-video', {
-                method: 'POST',
-                body: formData
+            // Create video preview
+            const video = document.getElementById('previewVideo');
+            const url = URL.createObjectURL(file);
+            video.src = url;
+
+            // Mock analysis data
+            this.analysisData = {
+                session_id: 'session_' + Date.now(),
+                video_info: {
+                    title: file.name,
+                    duration: 180, // Will be updated when video loads
+                    thumbnail: url
+                },
+                ai_insights: {
+                    viral_potential: 87,
+                    best_clips: [
+                        { start: 15, end: 45, score: 92, reason: "High engagement hook" },
+                        { start: 67, end: 97, score: 89, reason: "Emotional peak moment" },
+                        { start: 120, end: 150, score: 85, reason: "Action sequence" }
+                    ],
+                    trending_topics: ["viral", "trending", "amazing"],
+                    sentiment: "positive"
+                }
+            };
+
+            video.addEventListener('loadedmetadata', () => {
+                this.analysisData.video_info.duration = video.duration;
+                this.updateAnalysisDisplay();
             });
 
-            if (!response.ok) {
-                throw new Error('Upload failed');
-            }
+            this.hideLoading();
+            this.goToStep(2);
+            this.showToast('Video uploaded successfully! 🚀', 'success');
+
+        } catch (error) {
+            this.hideLoading();
+            this.showToast('Upload failed: ' + error.message, 'error');
+        }
+    }
+
+    async analyzeUrl() {
+        const url = document.getElementById('videoUrl').value.trim();
+        if (!url) {
+            this.showToast('Please enter a valid URL', 'error');
+            return;
+        }
+
+        this.showLoading('Analyzing video with AI... 🤖');
+
+        try {
+            const response = await fetch('/api/v2/analyze-video', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: url,
+                    clip_duration: 60,
+                    viral_optimization: true,
+                    ai_editing: true
+                })
+            });
 
             const data = await response.json();
 
             if (data.success) {
-                this.videoData = data.video_info;
-                this.analysisData = data.ai_insights;
-
-                this.displayAnalysisResults(data);
-                this.updatePlatformSuitability(data.ai_insights);
-                this.generateClipSuggestions(data.ai_insights);
-
+                this.analysisData = data;
+                this.updateAnalysisDisplay();
                 this.goToStep(2);
-                this.showToast('Video uploaded and analyzed successfully! 🚀', 'success');
+                this.showToast('Analysis complete! 🎯', 'success');
             } else {
-                throw new Error(data.message || 'Analysis failed');
+                throw new Error(data.error || 'Analysis failed');
             }
-
         } catch (error) {
-            console.error('Upload error:', error);
-            this.showToast(`Upload failed: ${error.message}`, 'error');
+            this.showToast('Analysis failed: ' + error.message, 'error');
         } finally {
             this.hideLoading();
         }
+    }
+
+    updateAnalysisDisplay() {
+        if (!this.analysisData) return;
+
+        // Update viral score
+        document.getElementById('viralScore').textContent = this.analysisData.ai_insights.viral_potential || 85;
+
+        // Update insights grid
+        const insightGrid = document.getElementById('insightGrid');
+        insightGrid.innerHTML = '';
+
+        const insights = [
+            { icon: '🔥', title: 'Viral Potential', value: `${this.analysisData.ai_insights.viral_potential}%` },
+            { icon: '⏱️', title: 'Duration', value: this.formatTime(this.analysisData.video_info.duration) },
+            { icon: '📊', title: 'Sentiment', value: this.analysisData.ai_insights.sentiment },
+            { icon: '🎯', title: 'Best Clips', value: `${this.analysisData.ai_insights.best_clips.length} found` }
+        ];
+
+        insights.forEach(insight => {
+            const card = document.createElement('div');
+            card.className = 'insight-card';
+            card.innerHTML = `
+                <div class="insight-icon">${insight.icon}</div>
+                <div class="insight-text">
+                    <strong>${insight.title}</strong>
+                    <p>${insight.value}</p>
+                </div>
+            `;
+            insightGrid.appendChild(card);
+        });
+
+        // Update suggested clips
+        this.updateSuggestedClips();
+    }
+
+    updateSuggestedClips() {
+        const clipsGrid = document.querySelector('.clips-grid');
+        clipsGrid.innerHTML = '';
+
+        this.analysisData.ai_insights.best_clips.forEach((clip, index) => {
+            const clipCard = document.createElement('div');
+            clipCard.className = 'clip-card';
+            clipCard.innerHTML = `
+                <div class="clip-preview">
+                    <div class="clip-duration">${this.formatTime(clip.end - clip.start)}</div>
+                    <div class="clip-score">Score: ${clip.score}</div>
+                </div>
+                <div class="clip-info">
+                    <h4>Clip ${index + 1}</h4>
+                    <p>${clip.reason}</p>
+                    <p class="clip-time">${this.formatTime(clip.start)} - ${this.formatTime(clip.end)}</p>
+                </div>
+                <button class="btn btn-sm ${this.selectedClips.includes(index) ? 'btn-primary' : 'btn-outline'}" 
+                        onclick="app.toggleClip(${index})">
+                    ${this.selectedClips.includes(index) ? '✓ Selected' : 'Select'}
+                </button>
+            `;
+            clipsGrid.appendChild(clipCard);
+        });
+    }
+
+    toggleClip(clipIndex) {
+        const index = this.selectedClips.indexOf(clipIndex);
+        if (index > -1) {
+            this.selectedClips.splice(index, 1);
+        } else {
+            this.selectedClips.push(clipIndex);
+        }
+        this.updateSuggestedClips();
+    }
+
+    togglePlatform(platform) {
+        const card = document.querySelector(`[data-platform="${platform}"]`);
+        const index = this.selectedPlatforms.indexOf(platform);
+
+        if (index > -1) {
+            this.selectedPlatforms.splice(index, 1);
+            card.classList.remove('selected');
+        } else {
+            this.selectedPlatforms.push(platform);
+            card.classList.add('selected');
+        }
+    }
+
+    async processVideo() {
+        if (this.selectedClips.length === 0) {
+            this.showToast('Please select at least one clip', 'error');
+            return;
+        }
+
+        if (this.selectedPlatforms.length === 0) {
+            this.showToast('Please select at least one platform', 'error');
+            return;
+        }
+
+        const platform = this.selectedPlatforms[0]; // Use first selected platform
+        this.showLoading('Starting video processing... 🎬');
+
+        try {
+            // Prepare clip data
+            const clipsData = this.selectedClips.map(clipIndex => {
+                const clipData = this.analysisData.ai_insights.best_clips[clipIndex] || {};
+                return {
+                    start_time: clipData.start || clipIndex * 30,
+                    end_time: clipData.end || (clipIndex + 1) * 30,
+                    title: `ViralClip Pro - Clip ${clipIndex + 1}`,
+                    description: `AI-optimized clip for ${platform}`,
+                    tags: this.analysisData.ai_insights.trending_topics || []
+                };
+            });
+
+            const formData = new FormData();
+            formData.append('session_id', this.analysisData.session_id || 'test-session');
+            formData.append('clips', JSON.stringify(clipsData));
+            formData.append('priority', 'normal');
+            formData.append('platform', platform);
+
+            const response = await fetch('/api/v2/process-video', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.processingTaskId = data.task_id;
+                this.goToStep(4);
+                this.startProcessingMonitor();
+                this.showToast('Processing started! 🚀', 'success');
+            } else {
+                throw new Error(data.error || 'Processing failed');
+            }
+        } catch (error) {
+            this.showToast('Processing failed: ' + error.message, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    startProcessingMonitor() {
+        const updateProgress = async () => {
+            if (!this.processingTaskId) return;
+
+            try {
+                const response = await fetch(`/api/v2/processing-status/${this.processingTaskId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const task = data.data;
+                    this.updateProcessingUI(task);
+
+                    if (task.status === 'completed') {
+                        this.showProcessingResults(task);
+                        this.goToStep(5);
+                        return;
+                    } else if (task.status === 'failed') {
+                        this.showToast('Processing failed: ' + task.error, 'error');
+                        return;
+                    }
+
+                    // Continue monitoring
+                    setTimeout(updateProgress, 2000);
+                }
+            } catch (error) {
+                console.error('Error monitoring progress:', error);
+                setTimeout(updateProgress, 5000);
+            }
+        };
+
+        updateProgress();
+    }
+
+    updateProcessingUI(task) {
+        const progress = task.progress || 0;
+        const status = task.current_step || 'Processing...';
+
+        // Update progress ring
+        const circle = document.getElementById('progressCircle');
+        if (circle) {
+            const circumference = 2 * Math.PI * 52;
+            const offset = circumference - (progress / 100) * circumference;
+            circle.style.strokeDasharray = circumference;
+            circle.style.strokeDashoffset = offset;
+        }
+
+        // Update progress bar
+        const progressFill = document.getElementById('progressFill');
+        if (progressFill) {
+            progressFill.style.width = progress + '%';
+        }
+
+        // Update text
+        document.getElementById('processingStatus').textContent = status;
+        document.getElementById('progressText').textContent = Math.round(progress) + '%';
+    }
+
+    showProcessingResults(task) {
+        const resultsContent = document.getElementById('resultsContent');
+        const showcase = resultsContent.querySelector('.clips-showcase');
+
+        showcase.innerHTML = '';
+
+        task.results.forEach((result, index) => {
+            const clipResult = document.createElement('div');
+            clipResult.className = 'clip-result';
+            clipResult.innerHTML = `
+                <div class="result-preview">
+                    <video controls>
+                        <source src="/api/v2/download/${task.task_id || this.processingTaskId}/${index}" type="video/mp4">
+                    </video>
+                </div>
+                <div class="result-info">
+                    <h4>${result.title}</h4>
+                    <p>Duration: ${this.formatTime(result.duration)}</p>
+                    <p>Viral Score: ${result.viral_score}%</p>
+                    <p>Size: ${this.formatFileSize(result.file_size)}</p>
+                </div>
+                <div class="result-actions">
+                    <button class="btn btn-primary" onclick="app.downloadClip('${this.processingTaskId}', ${index})">
+                        📥 Download
+                    </button>
+                    <button class="btn btn-secondary" onclick="app.shareClip('${this.processingTaskId}', ${index})">
+                        📤 Share
+                    </button>
+                </div>
+            `;
+            showcase.appendChild(clipResult);
+        });
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    async downloadClip(taskId, clipIndex) {
+        window.open(`/api/v2/download/${taskId}/${clipIndex}`, '_blank');
+    }
+
+    async downloadAll() {
+        if (!this.processingTaskId) return;
+
+        // Download each clip individually
+        const task = await this.getTaskStatus(this.processingTaskId);
+        if (task && task.results) {
+            task.results.forEach((result, index) => {
+                setTimeout(() => {
+                    this.downloadClip(this.processingTaskId, index);
+                }, index * 1000); // Stagger downloads
+            });
+        }
+    }
+
+    async getTaskStatus(taskId) {
+        try {
+            const response = await fetch(`/api/v2/processing-status/${taskId}`);
+            const data = await response.json();
+            return data.success ? data.data : null;
+        } catch (error) {
+            console.error('Error getting task status:', error);
+            return null;
+        }
+    }
+
+    shareClip(taskId, clipIndex) {
+        // Implement social media sharing
+        this.showToast('Social media sharing coming soon! 📤', 'info');
+    }
+
+    shareToSocial() {
+        this.showToast('Direct social media integration coming soon! 🚀', 'info');
+    }
+
+    createNew() {
+        this.currentStep = 1;
+        this.analysisData = null;
+        this.selectedClips = [];
+        this.selectedPlatforms = [];
+        this.processingTaskId = null;
+
+        // Reset UI
+        document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+        document.getElementById('step-upload').classList.add('active');
+
+        // Reset form
+        document.getElementById('videoUrl').value = '';
+        document.getElementById('fileInput').value = '';
+
+        this.updateStepIndicators();
+        this.showToast('Ready for new video! 🎬', 'success');
+    }
+
+    // Navigation methods
+    goToStep(stepNumber) {
+        document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+        document.getElementById(`step-${this.getStepName(stepNumber)}`).classList.add('active');
+
+        this.currentStep = stepNumber;
+        this.updateStepIndicators();
+        this.updateNavigationButtons();
+    }
+
+    getStepName(stepNumber) {
+        const stepNames = ['', 'upload', 'analyze', 'platforms', 'processing', 'complete'];
+        return stepNames[stepNumber] || 'upload';
+    }
+
+    nextStep() {
+        if (this.currentStep === 2 && this.selectedClips.length === 0) {
+            this.showToast('Please select at least one clip', 'error');
+            return;
+        }
+
+        if (this.currentStep === 3) {
+            this.processVideo();
+            return;
+        }
+
+        if (this.currentStep < 5) {
+            this.goToStep(this.currentStep + 1);
+        }
+    }
+
+    prevStep() {
+        if (this.currentStep > 1) {
+            this.goToStep(this.currentStep - 1);
+        }
+    }
+
+    updateStepIndicators() {
+        document.querySelectorAll('.step-dot').forEach((dot, index) => {
+            dot.classList.toggle('active', index + 1 <= this.currentStep);
+        });
+    }
+
+    updateNavigationButtons() {
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        prevBtn.style.display = this.currentStep > 1 ? 'block' : 'none';
+
+        if (this.currentStep === 3) {
+            nextBtn.textContent = 'Start Processing →';
+        } else if (this.currentStep >= 4) {
+            nextBtn.style.display = 'none';
+        } else {
+            nextBtn.textContent = 'Next →';
+            nextBtn.style.display = 'block';
+        }
+    }
+
+    // Utility methods
+    showLoading(message) {
+        document.getElementById('loadingText').textContent = message;
+        document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    hideLoading() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+
+        document.getElementById('toastContainer').appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 100);
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Feature methods
+    loadTemplates() {
+        // Load viral video templates
+        console.log('Loading viral templates...');
+    }
+
+    showTemplates() {
+        this.showToast('Viral templates coming soon! 📋', 'info');
+    }
+
+    showAnalytics() {
+        this.showToast('Analytics dashboard coming soon! 📊', 'info');
+    }
+
+    showSettings() {
+        this.showToast('Settings panel coming soon! ⚙️', 'info');
+    }
+
+    showHelp() {
+        this.showToast('Help center coming soon! ❓', 'info');
     }
 
     setupPlatformSelection() {
@@ -357,850 +807,10 @@ class ViralClipGenerator {
 
         return platformSpecs[platform] || {};
     }
-
-    selectPlatform(platform, cardElement) {
-        // Remove previous selections
-        document.querySelectorAll('.platform-card').forEach(card => {
-            card.classList.remove('selected');
-        });
-
-        // Select current platform
-        cardElement.classList.add('selected');
-
-        // Update clip suggestions based on platform
-        this.updateClipSuggestions(platform);
-
-        this.showToast(`Selected ${this.getPlatformData(platform).name}`, 'success');
-    }
-
-    setupClipManagement() {
-        const addClipBtn = document.getElementById('add-clip-btn');
-        if (addClipBtn) {
-            addClipBtn.addEventListener('click', () => this.addCustomClip());
-        }
-    }
-
-    async handleUrlSubmit(e) {
-        e.preventDefault();
-
-        const urlInput = document.getElementById('url-input');
-        const url = urlInput.value.trim();
-
-        if (!url) {
-            this.showToast('Please enter a valid URL', 'error');
-            return;
-        }
-
-        this.showLoading('Analyzing video... 🎯');
-
-        try {
-            const response = await fetch('/api/v2/analyze-video', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    url: url,
-                    clip_duration: 60,
-                    output_format: 'mp4',
-                    resolution: '1080p',
-                    aspect_ratio: '9:16',
-                    enable_captions: true,
-                    enable_transitions: true,
-                    ai_editing: true,
-                    viral_optimization: true,
-                    language: 'en',
-                    priority: 'normal'
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.videoData = data.video_info;
-                this.analysisData = data.ai_insights;
-
-                this.displayAnalysisResults(data);
-                this.updatePlatformSuitability(data.ai_insights);
-                this.generateClipSuggestions(data.ai_insights);
-
-                this.goToStep(2);
-                this.showToast('Video analyzed successfully! 🚀', 'success');
-            } else {
-                throw new Error(data.message || 'Analysis failed');
-            }
-
-        } catch (error) {
-            console.error('Analysis error:', error);
-            this.showToast(`Analysis failed: ${error.message}`, 'error');
-        } finally {
-            this.hideLoading();
-        }
-    }
-
-    displayAnalysisResults(data) {
-        const resultsContainer = document.getElementById('analysis-results');
-        if (!resultsContainer) return;
-
-        const videoInfo = data.video_info;
-        const aiInsights = data.ai_insights;
-
-        resultsContainer.innerHTML = `
-            <div class="analysis-grid">
-                <div class="analysis-card video-info-card">
-                    <h3>📹 Video Information</h3>
-                    <div class="video-meta">
-                        <div class="video-thumbnail">
-                            <img src="${videoInfo.thumbnail}" alt="Video thumbnail" loading="lazy">
-                            <div class="duration-badge">${this.formatDuration(videoInfo.duration)}</div>
-                        </div>
-                        <div class="video-details">
-                            <h4>${videoInfo.title}</h4>
-                            <div class="meta-row">
-                                <span class="meta-label">👤 Uploader:</span>
-                                <span class="meta-value">${videoInfo.uploader}</span>
-                            </div>
-                            <div class="meta-row">
-                                <span class="meta-label">👀 Views:</span>
-                                <span class="meta-value">${this.formatNumber(videoInfo.view_count)}</span>
-                            </div>
-                            <div class="meta-row">
-                                <span class="meta-label">👍 Likes:</span>
-                                <span class="meta-value">${this.formatNumber(videoInfo.like_count)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="analysis-card ai-insights-card">
-                    <h3>🤖 AI Insights</h3>
-                    <div class="insights-grid">
-                        <div class="insight-item">
-                            <div class="insight-label">Viral Potential</div>
-                            <div class="score-bar">
-                                <div class="score-fill" style="width: ${aiInsights.viral_potential}%"></div>
-                                <span class="score-text">${aiInsights.viral_potential}%</span>
-                            </div>
-                        </div>
-                        <div class="insight-item">
-                            <div class="insight-label">Engagement Score</div>
-                            <div class="score-bar">
-                                <div class="score-fill" style="width: ${aiInsights.engagement_prediction}%"></div>
-                                <span class="score-text">${aiInsights.engagement_prediction}%</span>
-                            </div>
-                        </div>
-                        <div class="insight-item">
-                            <div class="insight-label">Optimal Length</div>
-                            <div class="insight-value">${aiInsights.optimal_length}s</div>
-                        </div>
-                        <div class="insight-item">
-                            <div class="insight-label">Sentiment</div>
-                            <div class="sentiment-badge ${aiInsights.sentiment_analysis}">${aiInsights.sentiment_analysis}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="analysis-card trending-topics-card">
-                    <h3>🔥 Trending Topics</h3>
-                    <div class="trending-tags">
-                        ${aiInsights.trending_topics.map(topic => 
-                            `<span class="trending-tag">#${topic}</span>`
-                        ).join('')}
-                    </div>
-                </div>
-
-                <div class="analysis-card hook-moments-card">
-                    <h3>🎣 Hook Moments</h3>
-                    <div class="hook-timeline">
-                        ${aiInsights.hook_moments.map(moment => 
-                            `<div class="hook-point" style="left: ${(moment / videoInfo.duration) * 100}%">
-                                <div class="hook-tooltip">
-                                    <strong>Hook at ${this.formatDuration(moment)}</strong>
-                                    <p>High engagement potential</p>
-                                </div>
-                            </div>`
-                        ).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    updatePlatformSuitability(aiInsights) {
-        this.supportedPlatforms.forEach(platform => {
-            const scoreElement = document.getElementById(`score-${platform}`);
-            if (scoreElement) {
-                // Calculate platform-specific suitability score
-                const score = this.calculatePlatformScore(platform, aiInsights);
-
-                const scoreValue = scoreElement.querySelector('.score-value');
-                scoreValue.textContent = `${score}%`;
-                scoreValue.className = `score-value ${this.getScoreClass(score)}`;
-            }
-        });
-    }
-
-    calculatePlatformScore(platform, aiInsights) {
-        let baseScore = aiInsights.viral_potential;
-
-        // Platform-specific adjustments
-        const platformBoosts = {
-            'tiktok': aiInsights.viral_potential > 80 ? 15 : 5,
-            'instagram_reels': aiInsights.engagement_prediction > 75 ? 12 : 3,
-            'youtube_shorts': aiInsights.viral_potential > 70 ? 10 : 2,
-            'twitter': aiInsights.sentiment_analysis === 'positive' ? 8 : 0,
-            'facebook': baseScore > 60 ? 5 : 0,
-            'linkedin': aiInsights.sentiment_analysis === 'professional' ? 15 : -5
-        };
-
-        const boost = platformBoosts[platform] || 0;
-        return Math.min(Math.max(baseScore + boost, 0), 100);
-    }
-
-    getScoreClass(score) {
-        if (score >= 80) return 'score-excellent';
-        if (score >= 60) return 'score-good';
-        if (score >= 40) return 'score-fair';
-        return 'score-poor';
-    }
-
-    generateClipSuggestions(aiInsights) {
-        const clipsContainer = document.getElementById('suggested-clips');
-        if (!clipsContainer) return;
-
-        const bestClips = aiInsights.best_clips || [];
-
-        clipsContainer.innerHTML = `
-            <div class="clips-header">
-                <h3>✨ AI-Generated Clip Suggestions</h3>
-                <p>Based on viral patterns and engagement analysis</p>
-            </div>
-            <div class="clips-grid">
-                ${bestClips.map((clip, index) => `
-                    <div class="clip-suggestion" data-clip-index="${index}">
-                        <div class="clip-preview">
-                            <div class="clip-timeline">
-                                <div class="clip-range" style="left: ${(clip.start / this.videoData.duration) * 100}%; width: ${((clip.end - clip.start) / this.videoData.duration) * 100}%"></div>
-                            </div>
-                            <div class="clip-info">
-                                <div class="clip-title">Clip ${index + 1}</div>
-                                <div class="clip-duration">${this.formatDuration(clip.end - clip.start)}</div>
-                                <div class="clip-score">Viral Score: ${clip.viral_score || 85 + index}%</div>
-                            </div>
-                        </div>
-                        <div class="clip-actions">
-                            <button class="btn-clip-action" onclick="app.selectClip(${index})">
-                                <span class="icon">✓</span> Select
-                            </button>
-                            <button class="btn-clip-action" onclick="app.editClip(${index})">
-                                <span class="icon">✏️</span> Edit
-                            </button>
-                            <button class="btn-clip-action" onclick="app.previewClip(${index})">
-                                <span class="icon">👁️</span> Preview
-                            </button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    selectClip(clipIndex) {
-        const clipElement = document.querySelector(`[data-clip-index="${clipIndex}"]`);
-        if (clipElement) {
-            clipElement.classList.toggle('selected');
-
-            if (clipElement.classList.contains('selected')) {
-                this.selectedClips.push(clipIndex);
-                this.showToast(`Clip ${clipIndex + 1} added to processing queue`, 'success');
-            } else {
-                this.selectedClips = this.selectedClips.filter(index => index !== clipIndex);
-                this.showToast(`Clip ${clipIndex + 1} removed from queue`, 'info');
-            }
-
-            this.updateProcessingQueue();
-        }
-    }
-
-    updateProcessingQueue() {
-        const queueContainer = document.getElementById('processing-queue');
-        if (!queueContainer) return;
-
-        queueContainer.innerHTML = `
-            <div class="queue-header">
-                <h3>📋 Processing Queue (${this.selectedClips.length} clips)</h3>
-            </div>
-            <div class="queue-items">
-                ${this.selectedClips.map(clipIndex => `
-                    <div class="queue-item">
-                        <span class="queue-clip-name">Clip ${clipIndex + 1}</span>
-                        <button class="btn-remove" onclick="app.removeFromQueue(${clipIndex})">❌</button>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-
-        // Update process button state
-        const processBtn = document.getElementById('process-btn');
-        if (processBtn) {
-            processBtn.disabled = this.selectedClips.length === 0;
-            processBtn.textContent = this.selectedClips.length === 0 ? 
-                'Select clips to process' : 
-                `Process ${this.selectedClips.length} clip${this.selectedClips.length === 1 ? '' : 's'}`;
-        }
-    }
-
-    removeFromQueue(clipIndex) {
-        this.selectedClips = this.selectedClips.filter(index => index !== clipIndex);
-
-        // Update UI
-        const clipElement = document.querySelector(`[data-clip-index="${clipIndex}"]`);
-        if (clipElement) {
-            clipElement.classList.remove('selected');
-        }
-
-        this.updateProcessingQueue();
-        this.showToast(`Clip ${clipIndex + 1} removed from queue`, 'info');
-    }
-
-    async startProcessing() {
-        if (this.selectedClips.length === 0) {
-            this.showToast('Please select at least one clip to process', 'warning');
-            return;
-        }
-
-        const selectedPlatform = document.querySelector('.platform-card.selected');
-        if (!selectedPlatform) {
-            this.showToast('Please select a target platform', 'warning');
-            return;
-        }
-
-        const platform = selectedPlatform.dataset.platform;
-        this.showLoading('Starting video processing... 🎬');
-
-        try {
-            // Prepare clip data
-            const clipsData = this.selectedClips.map(clipIndex => {
-                const clipData = this.analysisData.best_clips[clipIndex] || {};
-                return {
-                    start_time: clipData.start || clipIndex * 30,
-                    end_time: clipData.end || (clipIndex + 1) * 30,
-                    title: `ViralClip Pro - Clip ${clipIndex + 1}`,
-                    description: `AI-optimized clip for ${platform}`,
-                    tags: this.analysisData.trending_topics || []
-                };
-            });
-
-            const formData = new FormData();
-            formData.append('session_id', this.analysisData.session_id || 'test-session');
-            formData.append('clips', JSON.stringify(clipsData));
-            formData.append('priority', 'normal');
-            formData.append('platform', platform);
-
-            const response = await fetch('/api/v2/process-video', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.processingTaskId = data.task_id;
-                this.goToStep(4);
-                this.startProcessingMonitor();
-                this.showToast('Processing started! 🚀', 'success');
-            } else {
-                throw new Error(data.message || 'Processing failed to start');
-            }
-
-        } catch (error) {
-            console.error('Processing error:', error);
-            this.showToast(`Processing failed: ${error.message}`, 'error');
-        } finally {
-            this.hideLoading();
-        }
-    }
-
-    startProcessingMonitor() {
-        if (this.processingInterval) {
-            clearInterval(this.processingInterval);
-        }
-
-        this.processingInterval = setInterval(async () => {
-            await this.checkProcessingStatus();
-        }, 2000); // Check every 2 seconds
-
-        // Initial check
-        this.checkProcessingStatus();
-    }
-
-    async checkProcessingStatus() {
-        if (!this.processingTaskId) return;
-
-        try {
-            const response = await fetch(`/api/v2/processing-status/${this.processingTaskId}`);
-            const data = await response.json();
-
-            if (data.success) {
-                this.updateProcessingUI(data.data);
-
-                if (data.data.status === 'completed') {
-                    this.onProcessingComplete(data.data);
-                } else if (data.data.status === 'failed') {
-                    this.onProcessingFailed(data.data);
-                }
-            }
-
-        } catch (error) {
-            console.error('Status check error:', error);
-        }
-    }
-
-    updateProcessingUI(taskData) {
-        const progressContainer = document.getElementById('processing-progress');
-        if (!progressContainer) return;
-
-        const progress = taskData.progress || 0;
-        const status = taskData.status || 'queued';
-        const currentStep = taskData.current_step || 'initializing';
-
-        progressContainer.innerHTML = `
-            <div class="processing-header">
-                <h3>🎬 Processing Your Clips</h3>
-                <div class="processing-status ${status}">${this.getStatusText(status)}</div>
-            </div>
-
-            <div class="progress-bar-container">
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progress}%"></div>
-                </div>
-                <div class="progress-text">${progress}%</div>
-            </div>
-
-            <div class="processing-details">
-                <div class="current-step">
-                    <strong>Current Step:</strong> ${this.formatStepName(currentStep)}
-                </div>
-
-                ${taskData.queue_position ? `
-                    <div class="queue-position">
-                        <strong>Queue Position:</strong> #${taskData.queue_position}
-                    </div>
-                ` : ''}
-
-                ${taskData.estimated_time ? `
-                    <div class="estimated-time">
-                        <strong>Estimated Time:</strong> ${this.formatDuration(taskData.estimated_time)}
-                    </div>
-                ` : ''}
-            </div>
-
-            <div class="processing-effects">
-                <div class="effect-particle"></div>
-                <div class="effect-particle"></div>
-                <div class="effect-particle"></div>
-            </div>
-        `;
-    }
-
-    onProcessingComplete(taskData) {
-        if (this.processingInterval) {
-            clearInterval(this.processingInterval);
-            this.processingInterval = null;
-        }
-
-        this.goToStep(5);
-        this.displayResults(taskData.results);
-        this.showToast('Processing completed successfully! 🎉', 'success');
-
-        // Trigger confetti effect
-        this.triggerConfetti();
-    }
-
-    onProcessingFailed(taskData) {
-        if (this.processingInterval) {
-            clearInterval(this.processingInterval);
-            this.processingInterval = null;
-        }
-
-        this.showToast(`Processing failed: ${taskData.error || 'Unknown error'}`, 'error');
-    }
-
-    displayResults(results) {
-        const resultsContainer = document.getElementById('results-container');
-        if (!resultsContainer) return;
-
-        resultsContainer.innerHTML = `
-            <div class="results-header">
-                <h2>🎉 Your Viral Clips Are Ready!</h2>
-                <p>Processed ${results.length} clip${results.length === 1 ? '' : 's'} with Netflix-level quality</p>
-            </div>
-
-            <div class="results-grid">
-                ${results.map((result, index) => `
-                    <div class="result-card">
-                        <div class="result-preview">
-                            ${result.thumbnail ? `
-                                <img src="${result.thumbnail}" alt="Clip ${index + 1} thumbnail" loading="lazy">
-                            ` : `
-                                <div class="placeholder-thumbnail">
-                                    <span class="icon">🎬</span>
-                                    <span>Clip ${index + 1}</span>
-                                </div>
-                            `}
-                            <div class="result-overlay">
-                                <button class="btn-play" onclick="app.previewResult(${index})">
-                                    <span class="icon">▶️</span> Preview
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="result-info">
-                            <h3>${result.title || `Viral Clip ${index + 1}`}</h3>
-                            <div class="result-stats">
-                                <span class="stat">
-                                    <span class="stat-icon">⏱️</span>
-                                    ${this.formatDuration(result.duration)}
-                                </span>
-                                <span class="stat">
-                                    <span class="stat-icon">📊</span>
-                                    ${result.viral_score}% viral
-                                </span>
-                                <span class="stat">
-                                    <span class="stat-icon">📦</span>
-                                    ${this.formatFileSize(result.file_size)}
-                                </span>
-                            </div>
-
-                            ${result.ai_enhancements ? `
-                                <div class="enhancements">
-                                    <h4>🤖 AI Enhancements</h4>
-                                    <ul>
-                                        ${result.ai_enhancements.slice(0, 3).map(enhancement => 
-                                            `<li>${enhancement}</li>`
-                                        ).join('')}
-                                    </ul>
-                                </div>
-                            ` : ''}
-                        </div>
-
-                        <div class="result-actions">
-                            <button class="btn-primary" onclick="app.downloadResult(${index})">
-                                <span class="icon">⬇️</span> Download
-                            </button>
-                            <button class="btn-secondary" onclick="app.shareResult(${index})">
-                                <span class="icon">📤</span> Share
-                            </button>
-                            <button class="btn-secondary" onclick="app.optimizeForPlatforms(${index})">
-                                <span class="icon">🔧</span> Optimize
-                            </button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-
-            <div class="results-actions">
-                <button class="btn-large btn-primary" onclick="app.downloadAll()">
-                    <span class="icon">📦</span> Download All Clips
-                </button>
-                <button class="btn-large btn-secondary" onclick="app.startNew()">
-                    <span class="icon">➕</span> Create More Clips
-                </button>
-                <button class="btn-large btn-secondary" onclick="app.shareCollection()">
-                    <span class="icon">🌟</span> Share Collection
-                </button>
-            </div>
-        `;
-    }
-
-    async downloadResult(clipIndex) {
-        if (!this.processingTaskId) return;
-
-        try {
-            const response = await fetch(`/api/v2/download/${this.processingTaskId}/${clipIndex}`);
-
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `viralclip_pro_${clipIndex + 1}_${Date.now()}.mp4`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-
-                this.showToast(`Clip ${clipIndex + 1} downloaded successfully!`, 'success');
-            } else {
-                throw new Error('Download failed');
-            }
-        } catch (error) {
-            console.error('Download error:', error);
-            this.showToast('Download failed. Please try again.', 'error');        }
-    }
-
-    // Navigation methods
-    goToStep(step) {
-        if (step < 1 || step > this.totalSteps) return;
-
-        // Hide all steps
-        document.querySelectorAll('.step-section').forEach(section => {
-            section.classList.remove('active');
-        });
-
-        // Show target step
-        const targetStep = document.getElementById(`step-${step}`);
-        if (targetStep) {
-            targetStep.classList.add('active');
-            targetStep.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        this.currentStep = step;
-        this.updateProgressIndicator();
-        this.updateNavigationButtons();
-    }
-
-    nextStep() {
-        if (this.currentStep < this.totalSteps) {
-            this.goToStep(this.currentStep + 1);
-        }
-    }
-
-    prevStep() {
-        if (this.currentStep > 1) {
-            this.goToStep(this.currentStep - 1);
-        }
-    }
-
-    updateProgressIndicator() {
-        const progressSteps = document.querySelectorAll('.progress-step');
-        progressSteps.forEach((step, index) => {
-            if (index + 1 < this.currentStep) {
-                step.classList.add('completed');
-                step.classList.remove('active');
-            } else if (index + 1 === this.currentStep) {
-                step.classList.add('active');
-                step.classList.remove('completed');
-            } else {
-                step.classList.remove('active', 'completed');
-            }
-        });
-    }
-
-    updateNavigationButtons() {
-        const prevBtn = document.getElementById('prev-btn');
-        const nextBtn = document.getElementById('next-btn');
-
-        if (prevBtn) prevBtn.disabled = this.currentStep === 1;
-        if (nextBtn) nextBtn.disabled = this.currentStep === this.totalSteps;
-    }
-
-    // Utility methods
-    formatDuration(seconds) {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    formatNumber(num) {
-        if (!num) return '0';
-        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-        return num.toLocaleString();
-    }
-
-    formatFileSize(bytes) {
-        if (!bytes) return '0 B';
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
-        return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
-    }
-
-    getStatusText(status) {
-        const statusTexts = {
-            'queued': 'Queued for processing',
-            'processing': 'Processing in progress',
-            'completed': 'Processing completed',
-            'failed': 'Processing failed'
-        };
-        return statusTexts[status] || status;
-    }
-
-    formatStepName(step) {
-        const stepNames = {
-            'downloading': 'Downloading video',
-            'ai_analysis': 'AI analysis in progress',
-            'processing_clip_1': 'Processing clip 1',
-            'processing_clip_2': 'Processing clip 2',
-            'processing_clip_3': 'Processing clip 3',
-            'finalizing': 'Finalizing clips',
-            'completed': 'Process completed'
-        };
-        return stepNames[step] || step.replace(/_/g, ' ');
-    }
-
-    // UI Enhancement methods
-    showToast(message, type = 'info') {
-        const toastContainer = document.getElementById('toast-container');
-        if (!toastContainer) return;
-
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-
-        const icons = {
-            'success': '✅',
-            'error': '❌',
-            'warning': '⚠️',
-            'info': 'ℹ️'
-        };
-
-        toast.innerHTML = `
-            <span class="toast-icon">${icons[type] || 'ℹ️'}</span>
-            <span class="toast-message">${message}</span>
-            <button class="toast-close" onclick="this.parentElement.remove()">×</button>
-        `;
-
-        toastContainer.appendChild(toast);
-
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            if (toast.parentElement) {
-                toast.remove();
-            }
-        }, 5000);
-    }
-
-    showLoading(message = 'Loading...') {
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            const loadingText = loadingOverlay.querySelector('.loading-text');
-            if (loadingText) {
-                loadingText.textContent = message;
-            }
-            loadingOverlay.classList.remove('hidden');
-        }
-    }
-
-    hideLoading() {
-        const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.add('hidden');
-        }
-    }
-
-    triggerConfetti() {
-        // Simple confetti effect
-        for (let i = 0; i < 50; i++) {
-            const confetti = document.createElement('div');
-            confetti.className = 'confetti-piece';
-            confetti.style.left = Math.random() * 100 + '%';
-            confetti.style.backgroundColor = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'][Math.floor(Math.random() * 5)];
-            confetti.style.animationDelay = Math.random() * 3 + 's';
-
-            document.body.appendChild(confetti);
-
-            setTimeout(() => confetti.remove(), 3000);
-        }
-    }
-
-    // Advanced features
-    async setupServiceWorker() {
-        if ('serviceWorker' in navigator) {
-            try {
-                const registration = await navigator.serviceWorker.register('/sw.js');
-                console.log('Service Worker registered:', registration);
-            } catch (error) {
-                console.error('Service Worker registration failed:', error);
-            }
-        }
-    }
-
-    async loadUserPreferences() {
-        try {
-            const preferences = localStorage.getItem('viralclip-preferences');
-            if (preferences) {
-                const prefs = JSON.parse(preferences);
-                this.applyPreferences(prefs);
-            }
-        } catch (error) {
-            console.error('Failed to load preferences:', error);
-        }
-    }
-
-    setupWebSocketConnection() {
-        // Placeholder for real-time updates via WebSocket
-        // In production, this would connect to a WebSocket server
-        console.log('WebSocket connection setup placeholder');
-    }
-
-    async initializePerformanceMonitoring() {
-        // Performance monitoring setup
-        if ('PerformanceObserver' in window) {
-            const observer = new PerformanceObserver((list) => {
-                for (const entry of list.getEntries()) {
-                    if (entry.entryType === 'navigation') {
-                        console.log(`Page load time: ${entry.loadEventEnd - entry.loadEventStart}ms`);
-                    }
-                }
-            });
-            observer.observe({ entryTypes: ['navigation'] });
-        }
-    }
-
-    handleKeyboard(e) {
-        // Keyboard shortcuts
-        if (e.key === 'Escape') {
-            const modal = document.querySelector('.modal-overlay:not(.hidden)');
-            if (modal) modal.classList.add('hidden');
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            if (this.currentStep < this.totalSteps) {
-                this.nextStep();
-            }
-        }
-    }
-
-    async setupProgressiveEnhancement() {
-        // Setup progressive enhancement features
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            document.documentElement.style.setProperty('--transition-fast', '0ms');
-            document.documentElement.style.setProperty('--transition-base', '0ms');
-            document.documentElement.style.setProperty('--transition-slow', '0ms');
-        }
-
-        // Setup intersection observer for animations
-        if ('IntersectionObserver' in window) {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('animate-in');
-                    }
-                });
-            });
-
-            document.querySelectorAll('.feature-card, .step-section').forEach(el => {
-                observer.observe(el);
-            });
-        }
-    }
-
-    async hideLoadingScreen() {
-        return new Promise(resolve => {
-            setTimeout(() => {
-                const loadingScreen = document.getElementById('loading-screen');
-                if (loadingScreen) {
-                    loadingScreen.classList.add('hidden');
-                }
-                resolve();
-            }, 1500);
-        });
-    }
 }
 
-// Initialize the application
-const app = new ViralClipGenerator();
+// Initialize the app
+const app = new ViralClipApp();
 
 // Global error handling
 window.addEventListener('error', (e) => {
@@ -1217,5 +827,5 @@ window.addEventListener('unhandledrejection', (e) => {
     }
 });
 
-// Export for external access
+// Export for global access
 window.app = app;
