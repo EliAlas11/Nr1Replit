@@ -1,106 +1,108 @@
 
 """
-Database Session Management
-Handles MongoDB and Redis connections with proper error handling
+Production-grade database session management
+Supports both PostgreSQL (SQLAlchemy) and MongoDB (Motor)
 """
 
 import logging
+from typing import AsyncGenerator, Optional
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.pool import NullPool
 from motor.motor_asyncio import AsyncIOMotorClient
-import redis.asyncio as redis
 from app.config import get_settings
 
 logger = logging.getLogger("database")
 settings = get_settings()
 
-# Global database instances
-mongodb_client: AsyncIOMotorClient = None
-database = None
-redis_client = None
+# SQLAlchemy setup
+Base = declarative_base()
+
+# Create async engine
+engine = create_async_engine(
+    settings.database_url_async,
+    echo=not settings.is_production,
+    poolclass=NullPool if settings.is_production else None,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
+
+# Create session factory
+async_session_maker = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+# MongoDB client
+mongo_client: Optional[AsyncIOMotorClient] = None
+mongo_db = None
+
+
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get async database session"""
+    async with async_session_maker() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
 
 async def connect_to_mongo():
-    """Create database connection"""
-    global mongodb_client, database
+    """Connect to MongoDB"""
+    global mongo_client, mongo_db
+    
+    if not settings.MONGODB_URI:
+        logger.warning("MongoDB URI not provided, skipping MongoDB connection")
+        return
     
     try:
-        mongodb_client = AsyncIOMotorClient(settings.MONGODB_URI)
-        database = mongodb_client[settings.DATABASE_NAME]
+        mongo_client = AsyncIOMotorClient(settings.MONGODB_URI)
+        mongo_db = mongo_client.get_default_database()
         
         # Test connection
-        await database.admin.command('ping')
+        await mongo_client.admin.command('ping')
         logger.info("Successfully connected to MongoDB")
-        
-        # Create indexes
-        await create_indexes()
         
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
-        # In development, continue without database
-        if settings.ENVIRONMENT == "development":
-            logger.warning("Running without MongoDB in development mode")
-        else:
-            raise
+        raise
 
-async def create_indexes():
-    """Create database indexes for performance"""
-    try:
-        # Users collection indexes
-        await database.users.create_index("email", unique=True)
-        await database.users.create_index("created_at")
-        
-        # Videos collection indexes
-        await database.videos.create_index("user_id")
-        await database.videos.create_index("youtube_url")
-        await database.videos.create_index("created_at")
-        await database.videos.create_index("status")
-        
-        # Analytics collection indexes
-        await database.analytics.create_index("user_id")
-        await database.analytics.create_index("video_id")
-        await database.analytics.create_index("timestamp")
-        
-        # Feedback collection indexes
-        await database.feedback.create_index("user_id")
-        await database.feedback.create_index("created_at")
-        
-        logger.info("Database indexes created successfully")
-        
-    except Exception as e:
-        logger.error(f"Failed to create indexes: {e}")
-
-async def connect_to_redis():
-    """Create Redis connection"""
-    global redis_client
-    
-    try:
-        redis_client = redis.from_url(settings.REDIS_URL)
-        await redis_client.ping()
-        logger.info("Successfully connected to Redis")
-        
-    except Exception as e:
-        logger.error(f"Failed to connect to Redis: {e}")
-        if settings.ENVIRONMENT == "development":
-            logger.warning("Running without Redis in development mode")
-        else:
-            raise
 
 async def close_mongo_connection():
-    """Close database connection"""
-    global mongodb_client
-    if mongodb_client:
-        mongodb_client.close()
+    """Close MongoDB connection"""
+    global mongo_client
+    
+    if mongo_client:
+        mongo_client.close()
         logger.info("MongoDB connection closed")
 
-async def close_redis_connection():
-    """Close Redis connection"""
-    global redis_client
-    if redis_client:
-        await redis_client.close()
-        logger.info("Redis connection closed")
 
-def get_database():
-    """Get database instance"""
-    return database
+def get_mongo_db():
+    """Get MongoDB database instance"""
+    if mongo_db is None:
+        raise RuntimeError("MongoDB not connected")
+    return mongo_db
 
-def get_redis():
-    """Get Redis instance"""
-    return redis_client
+
+async def init_database():
+    """Initialize database tables"""
+    try:
+        async with engine.begin() as conn:
+            # Create all tables
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create database tables: {e}")
+        raise
+
+
+async def close_database():
+    """Close database connections"""
+    await engine.dispose()
+    await close_mongo_connection()
+    logger.info("Database connections closed")
