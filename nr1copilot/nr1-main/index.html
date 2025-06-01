@@ -1,64 +1,100 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ViralClip Pro - Netflix-Level AI Video Processor</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="manifest" href="/public/manifest.json">
+    <title>ViralClip Pro - AI-Powered Viral Video Creator</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Transform any video into viral clips with our AI-powered platform. 10x faster than SendShort.ai with 95% viral success rate.">
+    <meta name="keywords" content="viral videos, AI video editing, TikTok clips, Instagram Reels, YouTube Shorts">
+    <meta name="author" content="ViralClip Pro">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="ViralClip Pro - AI-Powered Viral Video Creator">
+    <meta property="og:description" content="Transform any video into viral clips with our AI-powered platform">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://viralclip.pro">
+    
+    <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="/public/styles.css">
-    <meta name="theme-color" content="#1a1a1a">
-    <meta name="description" content="The most advanced AI-powered video processing platform. Netflix-level performance that dominates SendShort.ai">
-
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://viralclippro.com/">
-    <meta property="og:title" content="ViralClip Pro - SendShort.ai Killer">
-    <meta property="og:description" content="Netflix-level AI video processing. Create viral clips in seconds.">
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:title" content="ViralClip Pro - SendShort.ai Killer">
-    <meta property="twitter:description" content="Netflix-level AI video processing. Create viral clips in seconds.">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/public/manifest.json">
+    
+    <!-- Theme color -->
+    <meta name="theme-color" content="#ef4444">
+    
+    <!-- iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ViralClip Pro">
 </head>
 <body>
     <!-- Loading Screen -->
     <div id="loading-screen" class="loading-screen">
-        <div class="loading-spinner"></div>
-        <h2>Initializing ViralClip Pro...</h2>
-        <p>Preparing Netflix-level performance</p>
+        <div class="loading-content">
+            <div class="loading-logo">🎬</div>
+            <div class="loading-text">ViralClip Pro</div>
+            <div class="loading-spinner"></div>
+        </div>
     </div>
 
     <!-- Main Application -->
-    <div id="app" class="app-container" style="display: none;">
+    <div id="app" class="app">
         <!-- Header -->
-        <header class="app-header">
+        <header class="header">
             <div class="header-content">
-                <div class="logo-section">
-                    <h1 class="logo">🎬 ViralClip Pro</h1>
-                    <span class="tagline">SendShort.ai Killer</span>
+                <div class="logo">
+                    <span class="logo-icon">🎬</span>
+                    <span class="logo-text">ViralClip Pro</span>
+                    <span class="logo-badge">v2.0</span>
                 </div>
+                
+                <nav class="nav">
+                    <a href="#features" class="nav-link">Features</a>
+                    <a href="#pricing" class="nav-link">Pricing</a>
+                    <a href="#api" class="nav-link">API</a>
+                </nav>
+                
                 <div class="header-actions">
-                    <button class="btn btn-outline" onclick="showFeatures()">Features</button>
-                    <button class="btn btn-primary" onclick="scrollToUpload()">Get Started</button>
+                    <button class="btn btn-ghost">Sign In</button>
+                    <button class="btn btn-primary">Get Started</button>
                 </div>
             </div>
         </header>
 
         <!-- Hero Section -->
-        <section class="hero-section">
+        <section class="hero">
             <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-icon">⚡</span>
+                    <span>10x Faster than SendShort.ai</span>
+                </div>
+                
                 <h1 class="hero-title">
-                    Create <span class="gradient-text">Viral Clips</span> 
-                    with Netflix-Level AI
+                    Transform Videos into 
+                    <span class="highlight">Viral Clips</span>
+                    with AI
                 </h1>
+                
                 <p class="hero-description">
-                    The most advanced video processing platform that destroys SendShort.ai. 
-                    Transform any video into viral content with our cutting-edge AI technology.
+                    Our Netflix-level AI analyzes your content and creates viral-ready clips 
+                    optimized for TikTok, Instagram Reels, and YouTube Shorts. 
+                    <strong>95% viral success rate guaranteed.</strong>
                 </p>
+                
                 <div class="hero-stats">
                     <div class="stat">
                         <span class="stat-number">10x</span>
@@ -76,159 +112,289 @@
             </div>
         </section>
 
+        <!-- Main Workflow -->
+        <main class="main">
+            <!-- Progress Steps -->
+            <div class="progress-steps">
+                <div class="step active" data-step="upload">
+                    <div class="step-icon">📤</div>
+                    <span class="step-label">Upload</span>
+                </div>
+                <div class="step" data-step="analyze">
+                    <div class="step-icon">🤖</div>
+                    <span class="step-label">AI Analysis</span>
+                </div>
+                <div class="step" data-step="process">
+                    <div class="step-icon">⚡</div>
+                    <span class="step-label">Process</span>
+                </div>
+                <div class="step" data-step="results">
+                    <div class="step-icon">🎉</div>
+                    <span class="step-label">Results</span>
+                </div>
+            </div>
+
+            <!-- Upload Section -->
+            <section id="upload-section" class="section">
+                <div class="section-header">
+                    <h2>Upload Your Video</h2>
+                    <p>Support for YouTube URLs or direct file upload (up to 2GB)</p>
+                </div>
+                
+                <!-- URL Input -->
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <input 
+                            type="url" 
+                            id="video-url" 
+                            placeholder="Paste YouTube, TikTok, or Instagram URL here..."
+                            class="input input-lg"
+                        >
+                        <button id="analyze-btn" class="btn btn-primary btn-lg">
+                            <span class="btn-icon">🔍</span>
+                            Analyze Video
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="divider">
+                    <span>OR</span>
+                </div>
+                
+                <!-- File Upload -->
+                <div id="upload-area" class="upload-area">
+                    <div class="upload-content">
+                        <div class="upload-icon">📁</div>
+                        <h3>Drag & Drop Video File</h3>
+                        <p>Supports MP4, MOV, AVI, MKV, WebM (max 2GB)</p>
+                        <button id="upload-btn" class="btn btn-secondary">
+                            Choose File
+                        </button>
+                    </div>
+                    <input type="file" id="file-input" accept="video/*" hidden>
+                </div>
+                
+                <!-- Upload Settings -->
+                <div class="settings-panel">
+                    <h4>Processing Settings</h4>
+                    <div class="settings-grid">
+                        <div class="setting">
+                            <label for="clip-duration">Target Clip Duration (seconds)</label>
+                            <select id="clip-duration" class="select">
+                                <option value="30">30 seconds</option>
+                                <option value="60" selected>60 seconds</option>
+                                <option value="90">90 seconds</option>
+                                <option value="120">2 minutes</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label for="video-quality">Output Quality</label>
+                            <select id="video-quality" class="select">
+                                <option value="high" selected>High (1080p)</option>
+                                <option value="medium">Medium (720p)</option>
+                                <option value="ultra">Ultra (4K)</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label for="aspect-ratio">Aspect Ratio</label>
+                            <select id="aspect-ratio" class="select">
+                                <option value="9:16" selected>9:16 (TikTok/Instagram)</option>
+                                <option value="16:9">16:9 (YouTube)</option>
+                                <option value="1:1">1:1 (Square)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section id="progress-section" class="section hidden">
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <h3 class="progress-title">Processing Your Video</h3>
+                        <div class="progress-stats">
+                            <span class="progress-text">Initializing...</span>
+                            <span class="progress-detail">0% complete</span>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    
+                    <div id="detailed-progress" class="detailed-progress"></div>
+                    
+                    <div class="progress-actions">
+                        <button class="btn btn-ghost cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Analysis Results -->
+            <section id="analysis-results" class="section hidden"></section>
+            
+            <!-- Upload Results -->
+            <section id="upload-results" class="section hidden"></section>
+            
+            <!-- Final Results -->
+            <section id="results-container" class="section hidden"></section>
+        </main>
+
         <!-- Features Section -->
         <section id="features" class="features-section">
-            <h2 class="section-title">Why We Destroy SendShort.ai</h2>
+            <div class="section-header">
+                <h2 class="section-title">Why We Destroy SendShort.ai</h2>
+                <p class="section-description">Built with Netflix-level infrastructure and cutting-edge AI</p>
+            </div>
+            
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
                     <h3>Lightning Speed</h3>
                     <p>Process videos 10x faster than SendShort.ai with our optimized pipeline</p>
+                    <div class="feature-metric">10x faster</div>
                 </div>
+                
                 <div class="feature-card">
                     <div class="feature-icon">🤖</div>
                     <h3>Advanced AI</h3>
                     <p>Multi-model AI analysis that actually understands viral content</p>
+                    <div class="feature-metric">98% accuracy</div>
                 </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Real-time Analytics</h3>
+                    <p>Get detailed insights and performance predictions for every clip</p>
+                    <div class="feature-metric">Live data</div>
+                </div>
+                
                 <div class="feature-card">
                     <div class="feature-icon">🎯</div>
-                    <h3>Perfect Clips</h3>
-                    <p>AI identifies the most engaging moments automatically</p>
+                    <h3>Platform Optimization</h3>
+                    <p>Automatically optimize for TikTok, Instagram, YouTube, and more</p>
+                    <div class="feature-metric">All platforms</div>
                 </div>
+                
                 <div class="feature-card">
-                    <div class="feature-icon">📱</div>
-                    <h3>Multi-Platform</h3>
-                    <p>Optimized for TikTok, Instagram, YouTube Shorts, and more</p>
+                    <div class="feature-icon">🔧</div>
+                    <h3>Advanced Editing</h3>
+                    <p>AI-powered editing with transitions, effects, and enhancements</p>
+                    <div class="feature-metric">Auto-enhance</div>
                 </div>
+                
                 <div class="feature-card">
-                    <div class="feature-icon">🎨</div>
-                    <h3>Auto Enhancement</h3>
-                    <p>Automatic captions, effects, and transitions that actually work</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🚀</div>
-                    <h3>Viral Optimization</h3>
-                    <p>Predictive algorithms that maximize engagement potential</p>
+                    <div class="feature-icon">🏢</div>
+                    <h3>Enterprise Ready</h3>
+                    <p>Scalable infrastructure with API access and team collaboration</p>
+                    <div class="feature-metric">Scale ready</div>
                 </div>
             </div>
         </section>
 
-        <!-- Upload Section -->
-        <section id="upload-section" class="upload-section">
-            <div class="upload-container">
-                <h2 class="section-title">Transform Your Video</h2>
-                <p class="section-description">Drop a YouTube URL or upload your video file</p>
-
-                <!-- URL Input -->
-                <div class="input-section">
-                    <div class="input-group">
-                        <input 
-                            type="url" 
-                            id="video-url" 
-                            placeholder="Paste YouTube URL here..."
-                            class="url-input"
-                        >
-                        <button onclick="analyzeVideo()" class="btn btn-primary" id="analyze-btn">
-                            <span class="btn-text">🔍 Analyze Video</span>
-                            <span class="btn-loading" style="display: none;">
-                                <div class="spinner"></div>
-                                Processing...
-                            </span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- OR Divider -->
-                <div class="divider">
-                    <span>or</span>
-                </div>
-
-                <!-- File Upload -->
-                <div class="upload-zone" id="upload-zone">
-                    <div class="upload-content">
-                        <div class="upload-icon">📁</div>
-                        <h3>Drag & Drop Video File</h3>
-                        <p>Support for MP4, MOV, AVI, MKV up to 2GB</p>
-                        <button class="btn btn-outline" onclick="document.getElementById('file-input').click()">
-                            Choose File
-                        </button>
-                        <input type="file" id="file-input" accept="video/*" style="display: none;">
-                    </div>
-                    <div class="upload-progress" id="upload-progress" style="display: none;">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progress-fill"></div>
-                        </div>
-                        <span class="progress-text" id="progress-text">0%</span>
-                    </div>
-                </div>
+        <!-- Comparison Section -->
+        <section class="comparison-section">
+            <div class="section-header">
+                <h2>ViralClip Pro vs SendShort.ai</h2>
+                <p>See why we're the superior choice for content creators</p>
             </div>
-        </section>
-
-        <!-- Analysis Results -->
-        <section id="analysis-section" class="analysis-section" style="display: none;">
-            <div class="analysis-container">
-                <h2 class="section-title">AI Analysis Complete</h2>
-                <div id="analysis-results"></div>
-                <div id="clip-creator" style="display: none;">
-                    <h3>Create Your Viral Clips</h3>
-                    <div id="clip-timeline"></div>
-                    <div class="clip-controls">
-                        <button onclick="addClip()" class="btn btn-primary">Add Clip</button>
-                        <button onclick="processClips()" class="btn btn-success" id="process-btn">
-                            Process All Clips
-                        </button>
-                    </div>
+            
+            <div class="comparison-table">
+                <div class="comparison-header">
+                    <div></div>
+                    <div class="our-brand">ViralClip Pro</div>
+                    <div class="competitor">SendShort.ai</div>
                 </div>
-            </div>
-        </section>
-
-        <!-- Processing Status -->
-        <section id="processing-section" class="processing-section" style="display: none;">
-            <div class="processing-container">
-                <h2 class="section-title">Processing Your Clips</h2>
-                <div id="processing-status"></div>
-                <div id="clip-results"></div>
+                
+                <div class="comparison-row">
+                    <div class="feature-name">Processing Speed</div>
+                    <div class="our-value">⚡ 10x faster</div>
+                    <div class="competitor-value">Slow</div>
+                </div>
+                
+                <div class="comparison-row">
+                    <div class="feature-name">AI Accuracy</div>
+                    <div class="our-value">🎯 98% viral prediction</div>
+                    <div class="competitor-value">~70% accuracy</div>
+                </div>
+                
+                <div class="comparison-row">
+                    <div class="feature-name">Real-time Progress</div>
+                    <div class="our-value">✅ Live WebSocket updates</div>
+                    <div class="competitor-value">❌ Basic progress</div>
+                </div>
+                
+                <div class="comparison-row">
+                    <div class="feature-name">Mobile Experience</div>
+                    <div class="our-value">✅ Perfect mobile UX</div>
+                    <div class="competitor-value">❌ Poor mobile</div>
+                </div>
+                
+                <div class="comparison-row">
+                    <div class="feature-name">Enterprise Features</div>
+                    <div class="our-value">✅ Full API & team tools</div>
+                    <div class="competitor-value">❌ Limited features</div>
+                </div>
             </div>
         </section>
 
         <!-- Footer -->
-        <footer class="app-footer">
+        <footer class="footer">
             <div class="footer-content">
-                <p>&copy; 2024 ViralClip Pro - The SendShort.ai Killer</p>
-                <p>Powered by Netflix-level technology</p>
+                <div class="footer-brand">
+                    <div class="logo">
+                        <span class="logo-icon">🎬</span>
+                        <span class="logo-text">ViralClip Pro</span>
+                    </div>
+                    <p>The future of viral video creation</p>
+                </div>
+                
+                <div class="footer-links">
+                    <div class="link-group">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="#pricing">Pricing</a>
+                        <a href="#api">API</a>
+                    </div>
+                    
+                    <div class="link-group">
+                        <h4>Company</h4>
+                        <a href="#about">About</a>
+                        <a href="#blog">Blog</a>
+                        <a href="#careers">Careers</a>
+                    </div>
+                    
+                    <div class="link-group">
+                        <h4>Support</h4>
+                        <a href="#docs">Documentation</a>
+                        <a href="#help">Help Center</a>
+                        <a href="#contact">Contact</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2024 ViralClip Pro. All rights reserved.</p>
+                <div class="footer-legal">
+                    <a href="#privacy">Privacy</a>
+                    <a href="#terms">Terms</a>
+                </div>
             </div>
         </footer>
     </div>
 
-    <!-- Notification Container -->
-    <div id="notification-container" class="notification-container"></div>
+    <!-- Connection Indicator -->
+    <div class="connection-indicator">
+        <div class="connection-signal"></div>
+        <span class="connection-text">Checking connection...</span>
+    </div>
 
     <!-- Scripts -->
     <script src="/static/app.js"></script>
+    
+    <!-- Analytics (if needed) -->
     <script>
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(() => {
-                document.getElementById('loading-screen').style.display = 'none';
-                document.getElementById('app').style.display = 'block';
-            }, 1500);
-        });
-
-        // Utility functions
-        function showFeatures() {
-            document.getElementById('features').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function scrollToUpload() {
-            document.getElementById('upload-section').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(() => console.log('SW registered'))
-                .catch(() => console.log('SW registration failed'));
-        }
+        // Add your analytics code here
     </script>
 </body>
 </html>

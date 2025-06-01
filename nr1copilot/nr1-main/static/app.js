@@ -1,1250 +1,976 @@
 /**
- * ViralClip Pro - Netflix-Level Frontend
- * Advanced video processing interface with real-time updates
+ * ViralClip Pro - Advanced Frontend Application
+ * Netflix-level UI/UX with real-time features
  */
 
 class ViralClipApp {
     constructor() {
-        this.ws = null;
-        this.currentTaskId = null;
-        this.currentSessionId = null;
-        this.clips = [];
+        this.currentSession = null;
+        this.currentTask = null;
+        this.websocket = null;
+        this.uploadWebSocket = null;
         this.analysisData = null;
-        this.processingStartTime = null;
+        this.processingData = [];
+        this.isProcessing = false;
+        this.retryAttempts = 0;
+        this.maxRetries = 3;
+
+        // Enhanced state management
+        this.state = {
+            currentStep: 'upload', // upload, analyze, process, results
+            isLoading: false,
+            error: null,
+            progress: 0,
+            connectionStatus: 'connected'
+        };
 
         this.init();
     }
 
     init() {
         this.setupEventListeners();
-        this.setupDragAndDrop();
-        this.setupWebSocket();
-        this.showNotification('ViralClip Pro loaded successfully!', 'success');
+        this.setupServiceWorker();
+        this.setupConnectionMonitoring();
+        this.setupKeyboardShortcuts();
+        this.updateUIState();
+        this.preloadAssets();
+
+        console.log('🚀 ViralClip Pro initialized');
     }
 
     setupEventListeners() {
-        // URL analysis
+        // URL Analysis
         const analyzeBtn = document.getElementById('analyze-btn');
         const urlInput = document.getElementById('video-url');
 
-        if (analyzeBtn) {
-            analyzeBtn.addEventListener('click', () => this.analyzeVideo());
-        }
-
-        if (urlInput) {
+        if (analyzeBtn && urlInput) {
+            analyzeBtn.addEventListener('click', () => this.handleAnalyze());
             urlInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.analyzeVideo();
-                }
+                if (e.key === 'Enter') this.handleAnalyze();
             });
-
-            urlInput.addEventListener('input', () => {
-                this.validateUrl(urlInput.value);
-            });
+            urlInput.addEventListener('input', this.debounce((e) => {
+                this.validateURL(e.target.value);
+            }, 300));
         }
 
-        // File upload
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) {
-            fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
-        }
-    }
+        // File Upload
+        this.setupFileUpload();
 
-    setupDragAndDrop() {
-        const uploadZone = document.getElementById('upload-zone');
-        if (!uploadZone) return;
-
-        // Prevent default drag behaviors on document
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            uploadZone.addEventListener(eventName, this.preventDefaults, false);
-            document.body.addEventListener(eventName, this.preventDefaults, false);
-        });
-
-        // Visual feedback for drag states
-        uploadZone.addEventListener('dragenter', (e) => {
-            uploadZone.classList.add('drag-active');
-            this.showDragOverlay();
-        });
-
-        uploadZone.addEventListener('dragover', (e) => {
-            uploadZone.classList.add('drag-active');
-        });
-
-        uploadZone.addEventListener('dragleave', (e) => {
-            // Only remove if we're leaving the upload zone completely
-            if (!uploadZone.contains(e.relatedTarget)) {
-                uploadZone.classList.remove('drag-active');
-                this.hideDragOverlay();
+        // Processing controls
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.process-btn')) {
+                this.handleProcess();
+            }
+            if (e.target.matches('.download-btn')) {
+                this.handleDownload(e.target.dataset.clipIndex);
+            }
+            if (e.target.matches('.regenerate-btn')) {
+                this.handleRegenerate();
+            }
+            if (e.target.matches('.share-btn')) {
+                this.handleShare(e.target.dataset.clipIndex);
             }
         });
 
-        uploadZone.addEventListener('drop', (e) => {
-            uploadZone.classList.remove('drag-active');
-            this.hideDragOverlay();
-            this.handleDrop(e);
-        }, false);
+        // Step navigation
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.step-btn')) {
+                this.navigateToStep(e.target.dataset.step);
+            }
+        });
+
+        // Global error handling
+        window.addEventListener('error', (e) => {
+            this.handleGlobalError(e);
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            this.handleGlobalError(e);
+        });
+    }
+
+    setupFileUpload() {
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+
+        if (!uploadArea || !fileInput) return;
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+
+            const files = Array.from(e.dataTransfer.files);
+            const videoFile = files.find(file => file.type.startsWith('video/'));
+
+            if (videoFile) {
+                this.handleFileUpload(videoFile);
+            } else {
+                this.showNotification('Please upload a video file', 'error');
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                this.handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        // Upload button click
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', () => fileInput.click());
+        }
 
         // Click to upload
-        uploadZone.addEventListener('click', () => {
-            const fileInput = document.getElementById('file-input');
-            if (fileInput) fileInput.click();
-        });
-
-        // Touch support for mobile
-        uploadZone.addEventListener('touchstart', (e) => {
-            uploadZone.classList.add('touch-active');
-        });
-
-        uploadZone.addEventListener('touchend', (e) => {
-            uploadZone.classList.remove('touch-active');
-        });
+        uploadArea.addEventListener('click', () => fileInput.click());
     }
 
-    setupWebSocket() {
-        // WebSocket will be initialized when needed
-        console.log('WebSocket ready for initialization');
-    }
-
-    preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    validateUrl(url) {
-        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-        const youtubePattern = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
-
-        const analyzeBtn = document.getElementById('analyze-btn');
-        if (!analyzeBtn) return;
-
-        if (url && (youtubePattern.test(url) || urlPattern.test(url))) {
-            analyzeBtn.disabled = false;
-            analyzeBtn.classList.remove('disabled');
-        } else {
-            analyzeBtn.disabled = !url;
-            analyzeBtn.classList.toggle('disabled', !url);
+    setupServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('✅ Service Worker registered');
+                })
+                .catch(error => {
+                    console.log('❌ SW registration failed');
+                });
         }
     }
 
-    async analyzeVideo() {
+    setupConnectionMonitoring() {
+        this.connectionMonitor = new ConnectionMonitor(this);
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + U for upload
+            if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+                e.preventDefault();
+                document.getElementById('file-input')?.click();
+            }
+
+            // Ctrl/Cmd + Enter for process
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                this.handleProcess();
+            }
+
+            // Escape to cancel/close
+            if (e.key === 'Escape') {
+                this.handleCancel();
+            }
+        });
+    }
+
+    preloadAssets() {
+        // Preload critical images and icons
+        const preloadImages = [
+            '/public/icons/upload.svg',
+            '/public/icons/ai.svg',
+            '/public/icons/success.svg'
+        ];
+
+        preloadImages.forEach(src => {
+            const img = new Image();
+            img.src = src;
+        });
+    }
+
+    // URL Analysis
+    async handleAnalyze() {
         const urlInput = document.getElementById('video-url');
         const url = urlInput?.value?.trim();
 
         if (!url) {
+            this.showNotification('Please enter a video URL', 'error');
+            return;
+        }
+
+        if (!this.validateURL(url)) {
             this.showNotification('Please enter a valid video URL', 'error');
             return;
         }
 
-        this.setButtonLoading('analyze-btn', true);
+        this.setState({ isLoading: true, currentStep: 'analyze' });
+        this.updateProgress(0, 'Analyzing video...');
 
         try {
-            const response = await fetch('/api/v2/analyze-video', {
+            const response = await this.apiRequest('/api/v2/analyze-video', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     url: url,
-                    clip_duration: 60,
-                    output_format: 'mp4',
-                    resolution: '1080p',
-                    aspect_ratio: '9:16',
-                    enable_captions: true,
-                    enable_transitions: true,
-                    ai_editing: true,
+                    clip_duration: parseInt(document.getElementById('clip-duration')?.value || 60),
                     viral_optimization: true,
-                    language: 'en',
-                    priority: 'normal'
+                    suggested_formats: ['tiktok', 'instagram', 'youtube_shorts']
                 })
             });
 
-            const data = await response.json();
-
-            if (data.success) {
-                this.currentSessionId = data.session_id;
-                this.analysisData = data;
-                this.showAnalysisResults(data);
-                this.showNotification('Video analysis complete!', 'success');
+            if (response.success) {
+                this.analysisData = response;
+                this.currentSession = response.session_id;
+                this.displayAnalysisResults(response);
+                this.setState({ currentStep: 'results' });
+                this.showNotification('Analysis complete!', 'success');
             } else {
-                throw new Error(data.error || 'Analysis failed');
+                throw new Error(response.error || 'Analysis failed');
             }
         } catch (error) {
-            console.error('Analysis error:', error);
-            
-            // Enhanced error handling with user-friendly messages
-            let errorMessage = 'Analysis failed';
-            if (error.message.includes('fetch')) {
-                errorMessage = 'Network error - please check your connection and try again';
-            } else if (error.message.includes('404')) {
-                errorMessage = 'Video not found - please check the URL';
-            } else if (error.message.includes('timeout')) {
-                errorMessage = 'Request timed out - the video might be too large';
-            } else if (error.message.includes('rate limit')) {
-                errorMessage = 'Too many requests - please wait a moment and try again';
-            } else {
-                errorMessage = `Analysis failed: ${error.message}`;
-            }
-            
-            this.showNotification(errorMessage, 'error');
-            
-            // Show retry option for network errors
-            if (error.message.includes('fetch') || error.message.includes('timeout')) {
-                this.showRetryOption(() => this.analyzeVideo());
-            }
+            this.handleError(error, 'Analysis failed');
         } finally {
-            this.setButtonLoading('analyze-btn', false);
+            this.setState({ isLoading: false });
         }
     }
 
-    async handleFileSelect(event) {
-        const file = event.target.files[0];
-        if (file) {
-            await this.processFileWithPreview(file);
-        }
-    }
+    // File Upload
+    async handleFileUpload(file) {
+        if (!this.validateFile(file)) return;
 
-    async handleDrop(event) {
-        const files = event.dataTransfer.files;
-        if (files.length > 0) {
-            await this.processFileWithPreview(files[0]);
-        }
-    }
+        this.setState({ isLoading: true, currentStep: 'upload' });
 
-    async processFileWithPreview(file) {
+        const uploadId = this.generateId();
+        this.setupUploadWebSocket(uploadId);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_id', uploadId);
+
         try {
-            // Validate file first
-            if (!this.validateFile(file)) return;
+            this.updateProgress(0, 'Uploading video...');
 
-            // Show instant preview
-            await this.showInstantPreview(file);
+            const response = await this.uploadWithProgress(formData, (progress) => {
+                this.updateProgress(progress, `Uploading... ${Math.round(progress)}%`);
+            });
 
-            // Start upload with preview
-            await this.uploadFileWithPreview(file);
-
+            if (response.success) {
+                this.currentSession = response.session_id;
+                this.updateProgress(100, 'Upload complete!');
+                this.displayUploadResults(response);
+                this.setState({ currentStep: 'process' });
+                this.showNotification('Upload successful!', 'success');
+            } else {
+                throw new Error(response.error || 'Upload failed');
+            }
         } catch (error) {
-            console.error('File processing error:', error);
-            this.showNotification(`File processing failed: ${error.message}`, 'error');
-            this.hideInstantPreview();
+            this.handleError(error, 'Upload failed');
+        } finally {
+            this.setState({ isLoading: false });
+        }
+    }
+
+    // Processing
+    async handleProcess() {
+        if (!this.currentSession) {
+            this.showNotification('No video session found', 'error');
+            return;
+        }
+
+        this.setState({ isLoading: true });
+        this.isProcessing = true;
+
+        const clips = this.getSelectedClips();
+        if (clips.length === 0) {
+            this.showNotification('Please select at least one clip to process', 'error');
+            this.setState({ isLoading: false });
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('session_id', this.currentSession);
+            formData.append('clips', JSON.stringify(clips));
+            formData.append('priority', 'high');
+
+            const response = await this.apiRequest('/api/v2/process-video', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.success) {
+                this.currentTask = response.task_id;
+                this.setupProcessingWebSocket(response.task_id);
+                this.updateProgress(0, 'Processing started...');
+                this.showNotification('Processing started!', 'info');
+            } else {
+                throw new Error(response.error || 'Processing failed to start');
+            }
+        } catch (error) {
+            this.handleError(error, 'Failed to start processing');
+            this.isProcessing = false;
+            this.setState({ isLoading: false });
+        }
+    }
+
+    // WebSocket Management
+    setupUploadWebSocket(uploadId) {
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v2/upload-progress/${uploadId}`;
+
+        this.uploadWebSocket = new WebSocket(wsUrl);
+
+        this.uploadWebSocket.onopen = () => {
+            console.log('📡 Upload WebSocket connected');
+        };
+
+        this.uploadWebSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleUploadWebSocketMessage(data);
+        };
+
+        this.uploadWebSocket.onerror = (error) => {
+            console.error('Upload WebSocket error:', error);
+        };
+
+        this.uploadWebSocket.onclose = () => {
+            console.log('📡 Upload WebSocket disconnected');
+        };
+    }
+
+    setupProcessingWebSocket(taskId) {
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v2/ws/${taskId}`;
+
+        this.websocket = new WebSocket(wsUrl);
+
+        this.websocket.onopen = () => {
+            console.log('📡 Processing WebSocket connected');
+        };
+
+        this.websocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            this.handleProcessingWebSocketMessage(data);
+        };
+
+        this.websocket.onerror = (error) => {
+            console.error('Processing WebSocket error:', error);
+        };
+
+        this.websocket.onclose = () => {
+            console.log('📡 Processing WebSocket disconnected');
+            if (this.isProcessing) {
+                this.retryConnection();
+            }
+        };
+    }
+
+    handleUploadWebSocketMessage(data) {
+        switch (data.type) {
+            case 'upload_complete':
+                this.updateProgress(100, 'Upload complete!');
+                break;
+            case 'upload_progress':
+                this.updateProgress(data.progress, `Uploading... ${Math.round(data.progress)}%`);
+                break;
+        }
+    }
+
+    handleProcessingWebSocketMessage(data) {
+        switch (data.type) {
+            case 'connected':
+                console.log('WebSocket ready for processing updates');
+                break;
+
+            case 'progress_update':
+                this.handleProgressUpdate(data.data);
+                break;
+
+            case 'processing_complete':
+                this.handleProcessingComplete(data.data);
+                break;
+
+            case 'processing_error':
+                this.handleProcessingError(data.data);
+                break;
+
+            case 'keep_alive':
+                // Send pong back
+                if (this.websocket?.readyState === WebSocket.OPEN) {
+                    this.websocket.send(JSON.stringify({ type: 'pong' }));
+                }
+                break;
+        }
+    }
+
+    handleProgressUpdate(progressData) {
+        const { current, total, percentage, stage, message } = progressData;
+        this.updateProgress(percentage, message || `Processing ${current}/${total}...`);
+
+        // Update detailed progress
+        this.updateDetailedProgress(progressData);
+    }
+
+    handleProcessingComplete(data) {
+        this.isProcessing = false;
+        this.processingData = data.results;
+        this.updateProgress(100, 'Processing complete!');
+        this.displayResults(data.results);
+        this.setState({ isLoading: false, currentStep: 'results' });
+        this.showNotification('All clips processed successfully!', 'success');
+
+        // Close WebSocket
+        if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+        }
+    }
+
+    handleProcessingError(data) {
+        this.isProcessing = false;
+        this.setState({ isLoading: false });
+        this.handleError(new Error(data.error), 'Processing failed');
+
+        if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+        }
+    }
+
+    // UI Updates
+    updateProgress(percentage, message) {
+        const progressBar = document.querySelector('.progress-fill');
+        const progressText = document.querySelector('.progress-text');
+        const progressDetail = document.querySelector('.progress-detail');
+
+        if (progressBar) {
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        if (progressText) {
+            progressText.textContent = message;
+        }
+
+        if (progressDetail) {
+            progressDetail.textContent = `${Math.round(percentage)}% complete`;
+        }
+
+        this.state.progress = percentage;
+    }
+
+    updateDetailedProgress(progressData) {
+        const container = document.getElementById('detailed-progress');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="progress-stage">
+                <span class="stage-name">${progressData.stage}</span>
+                <span class="stage-progress">${progressData.current}/${progressData.total}</span>
+            </div>
+            ${progressData.estimated_time_remaining ? 
+                `<div class="time-remaining">ETA: ${this.formatTime(progressData.estimated_time_remaining)}</div>` : 
+                ''
+            }
+        `;
+    }
+
+    displayAnalysisResults(data) {
+        const container = document.getElementById('analysis-results');
+        if (!container) return;
+
+        const { video_info, ai_insights, suggested_clips } = data;
+
+        container.innerHTML = `
+            <div class="analysis-header">
+                <h3>AI Analysis Complete</h3>
+                <div class="viral-score">
+                    <span class="score-label">Viral Potential</span>
+                    <div class="score-circle">
+                        <span class="score-value">${ai_insights.viral_potential}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="video-info">
+                <div class="video-preview">
+                    <img src="${video_info.thumbnail}" alt="Video thumbnail" />
+                    <div class="video-overlay">
+                        <div class="viral-badge">
+                            ${ai_insights.viral_potential}% Viral Score
+                        </div>
+                    </div>
+                </div>
+
+                <div class="video-details">
+                    <h4>${video_info.title}</h4>
+                    <div class="video-stats">
+                        <span>Duration: ${this.formatDuration(video_info.duration)}</span>
+                        <span>Views: ${this.formatNumber(video_info.view_count)}</span>
+                        <span>Platform: ${video_info.platform}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ai-insights">
+                <h4>AI Insights</h4>
+                <div class="insights-grid">
+                    <div class="insight">
+                        <span class="insight-label">Content Type</span>
+                        <span class="insight-value">${ai_insights.content_type}</span>
+                    </div>
+                    <div class="insight">
+                        <span class="insight-label">Optimal Length</span>
+                        <span class="insight-value">${ai_insights.optimal_length}s</span>
+                    </div>
+                    <div class="insight">
+                        <span class="insight-label">Hook Quality</span>
+                        <span class="insight-value">${ai_insights.hook_quality}%</span>
+                    </div>
+                    <div class="insight">
+                        <span class="insight-label">Retention</span>
+                        <span class="insight-value">${ai_insights.audience_retention}%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="suggested-clips">
+                <h4>Suggested Clips (${suggested_clips.length})</h4>
+                <div class="clips-list">
+                    ${suggested_clips.map((clip, index) => `
+                        <div class="clip-card" data-clip-index="${index}">
+                            <div class="clip-header">
+                                <input type="checkbox" class="clip-select" checked>
+                                <h5>${clip.title}</h5>
+                                <span class="viral-score">${clip.viral_score}%</span>
+                            </div>
+                            <div class="clip-details">
+                                <p>${clip.description}</p>
+                                <div class="clip-info">
+                                    <span>⏱️ ${this.formatDuration(clip.end_time - clip.start_time)}</span>
+                                    <span>📱 ${clip.recommended_platforms.join(', ')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-primary process-btn">
+                    🚀 Process Selected Clips
+                </button>
+                <button class="btn btn-secondary regenerate-btn">
+                    🔄 Regenerate Analysis
+                </button>
+            </div>
+        `;
+    }
+
+    displayUploadResults(data) {
+        const container = document.getElementById('upload-results');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="upload-success">
+                <div class="success-icon">✅</div>
+                <h3>Upload Successful</h3>
+                <div class="file-info">
+                    <div class="file-name">${data.filename}</div>
+                    <div class="file-size">${this.formatFileSize(data.file_size)}</div>
+                    ${data.thumbnail ? `<img src="${data.thumbnail}" alt="Video thumbnail" class="file-thumbnail" />` : ''}
+                </div>
+
+                <div class="metadata">
+                    <h4>Video Information</h4>
+                    <div class="metadata-grid">
+                        ${Object.entries(data.metadata || {}).map(([key, value]) => `
+                            <div class="metadata-item">
+                                <span class="metadata-key">${key}</span>
+                                <span class="metadata-value">${value}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="next-steps">
+                    <h4>Next Steps</h4>
+                    <p>Your video is ready for processing. You can now create viral clips!</p>
+                    <button class="btn btn-primary process-btn">
+                        🎬 Start Processing
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    displayResults(results) {
+        const container = document.getElementById('results-container');
+        if (!container) return;
+
+        const successfulClips = results.filter(r => r.success);
+        const failedClips = results.filter(r => !r.success);
+
+        container.innerHTML = `
+            <div class="results-header">
+                <h3>Processing Complete</h3>
+                <div class="results-stats">
+                    <span class="success-count">${successfulClips.length} successful</span>
+                    ${failedClips.length > 0 ? `<span class="error-count">${failedClips.length} failed</span>` : ''}
+                </div>
+            </div>
+
+            <div class="results-grid">
+                ${successfulClips.map((result, index) => `
+                    <div class="result-card">
+                        <div class="result-preview">
+                            ${result.thumbnail_path ? 
+                                `<img src="${result.thumbnail_path}" alt="Clip thumbnail" />` :
+                                '<div class="no-thumbnail">🎬</div>'
+                            }
+                            <div class="result-overlay">
+                                <button class="btn btn-primary download-btn" data-clip-index="${result.clip_index}">
+                                    📥 Download
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="result-info">
+                            <h4>Clip ${result.clip_index + 1}</h4>
+                            <div class="result-stats">
+                                <span>Duration: ${this.formatDuration(result.duration)}</span>
+                                <span>Size: ${this.formatFileSize(result.file_size)}</span>
+                                <span>Viral Score: ${result.viral_score}%</span>
+                            </div>
+
+                            <div class="result-enhancements">
+                                <h5>AI Enhancements</h5>
+                                <ul>
+                                    ${result.ai_enhancements.map(enhancement => 
+                                        `<li>${enhancement}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+
+                            <div class="result-actions">
+                                <button class="btn btn-secondary share-btn" data-clip-index="${result.clip_index}">
+                                    📤 Share
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            ${failedClips.length > 0 ? `
+                <div class="failed-clips">
+                    <h4>Failed Clips</h4>
+                    ${failedClips.map(result => `
+                        <div class="error-item">
+                            <span>Clip ${result.clip_index + 1}</span>
+                            <span class="error-message">${result.error}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+        `;
+    }
+
+    // Utility Functions
+    validateURL(url) {
+        try {
+            new URL(url);
+            return url.includes('youtube.com') || url.includes('youtu.be') || 
+                   url.includes('tiktok.com') || url.includes('instagram.com');
+        } catch {
+            return false;
         }
     }
 
     validateFile(file) {
-        // Check file type
-        if (!file.type.startsWith('video/')) {
-            this.showNotification('Please select a video file (MP4, MOV, AVI, MKV)', 'error');
+        const maxSize = 2 * 1024 * 1024 * 1024; // 2GB
+        const allowedTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/mkv', 'video/webm'];
+
+        if (!allowedTypes.includes(file.type)) {
+            this.showNotification('Please upload a supported video format (MP4, MOV, AVI, MKV, WebM)', 'error');
             return false;
         }
 
-        // Check file size (2GB limit)
-        const maxSize = 2 * 1024 * 1024 * 1024;
         if (file.size > maxSize) {
             this.showNotification('File size must be less than 2GB', 'error');
-            return false;
-        }
-
-        // Check duration (estimate from file size)
-        const estimatedDuration = file.size / (1024 * 1024); // Rough estimate
-        if (estimatedDuration > 3600) { // 1 hour max
-            this.showNotification('Video must be less than 1 hour long', 'error');
             return false;
         }
 
         return true;
     }
 
-    async showInstantPreview(file) {
-        const uploadZone = document.getElementById('upload-zone');
-        if (!uploadZone) return;
+    getSelectedClips() {
+        const checkboxes = document.querySelectorAll('.clip-select:checked');
+        const clips = [];
 
-        // Create preview container
-        const previewContainer = document.createElement('div');
-        previewContainer.className = 'instant-preview';
-        previewContainer.id = 'instant-preview';
+        checkboxes.forEach(checkbox => {
+            const clipCard = checkbox.closest('.clip-card');
+            const clipIndex = parseInt(clipCard.dataset.clipIndex);
 
-        // Create video preview
-        const video = document.createElement('video');
-        video.src = URL.createObjectURL(file);
-        video.controls = true;
-        video.muted = true;
-        video.className = 'preview-video';
+            if (this.analysisData?.suggested_clips[clipIndex]) {
+                clips.push(this.analysisData.suggested_clips[clipIndex]);
+            }
+        });
 
-        // Create file info overlay
-        const infoOverlay = document.createElement('div');
-        infoOverlay.className = 'preview-overlay';
-        infoOverlay.innerHTML = `
-            <div class="preview-info">
-                <div class="file-details">
-                    <h4>${file.name}</h4>
-                    <p class="file-stats">
-                        <span class="file-size">${this.formatFileSize(file.size)}</span>
-                        <span class="file-type">${file.type}</span>
-                    </p>
-                </div>
-                <div class="preview-actions">
-                    <button class="btn btn-primary btn-small" onclick="app.confirmUpload()">
-                        ✅ Upload This Video
-                    </button>
-                    <button class="btn btn-secondary btn-small" onclick="app.cancelUpload()">
-                        ❌ Cancel
-                    </button>
-                </div>
-            </div>
-        `;
-
-        previewContainer.appendChild(video);
-        previewContainer.appendChild(infoOverlay);
-        uploadZone.appendChild(previewContainer);
-
-        // Animate preview in
-        setTimeout(() => {
-            previewContainer.classList.add('show');
-        }, 100);
-
-        // Store file reference
-        this.currentFile = file;
+        return clips;
     }
 
-    hideInstantPreview() {
-        const preview = document.getElementById('instant-preview');
-        if (preview) {
-            preview.classList.remove('show');
-            setTimeout(() => {
-                if (preview.parentNode) {
-                    preview.parentNode.removeChild(preview);
-                }
-            }, 300);
-        }
-        this.currentFile = null;
-    }
+    async handleDownload(clipIndex) {
+        if (!this.currentTask) return;
 
-    async confirmUpload() {
-        if (this.currentFile) {
-            await this.uploadFileWithPreview(this.currentFile);
-        }
-    }
-
-    cancelUpload() {
-        this.hideInstantPreview();
-        this.showNotification('Upload cancelled', 'info');
-    }
-
-    async uploadFileWithPreview(file) {
-        const progressContainer = this.createAdvancedProgressIndicator();
-        
         try {
-            // Initialize WebSocket for real-time updates
-            const uploadId = this.generateUploadId();
-            this.initializeUploadWebSocket(uploadId);
+            window.open(`/api/v2/download/${this.currentTask}/${clipIndex}`, '_blank');
+            this.showNotification('Download started!', 'success');
+        } catch (error) {
+            this.showNotification('Download failed', 'error');
+        }
+    }
 
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_id', uploadId);
+    async handleShare(clipIndex) {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Check out my viral clip!',
+                    text: 'Created with ViralClip Pro',
+                    url: window.location.href
+                });
+            } catch (error) {
+                this.copyToClipboard(window.location.href);
+            }
+        } else {
+            this.copyToClipboard(window.location.href);
+        }
+    }
 
+    async handleRegenerate() {
+        if (this.analysisData) {
+            this.handleAnalyze();
+        }
+    }
+
+    handleCancel() {
+        if (this.isProcessing && this.websocket) {
+            this.websocket.close();
+            this.isProcessing = false;
+        }
+
+        this.setState({ isLoading: false });
+        this.updateProgress(0, 'Cancelled');
+    }
+
+    navigateToStep(step) {
+        this.setState({ currentStep: step });
+        this.updateUIState();
+    }
+
+    setState(newState) {
+        this.state = { ...this.state, ...newState };
+        this.updateUIState();
+    }
+
+    updateUIState() {
+        // Update step indicators
+        document.querySelectorAll('.step').forEach(step => {
+            step.classList.toggle('active', step.dataset.step === this.state.currentStep);
+            step.classList.toggle('completed', this.isStepCompleted(step.dataset.step));
+        });
+
+        // Update loading states
+        document.body.classList.toggle('loading', this.state.isLoading);
+
+        // Update connection status
+        document.body.classList.toggle('offline', this.state.connectionStatus === 'offline');
+    }
+
+    isStepCompleted(step) {
+        switch (step) {
+            case 'upload': return this.currentSession !== null;
+            case 'analyze': return this.analysisData !== null;
+            case 'process': return this.processingData.length > 0;
+            default: return false;
+        }
+    }
+
+    // API and Network
+    async apiRequest(url, options = {}) {
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return await response.json();
+    }
+
+    async uploadWithProgress(formData, onProgress) {
+        return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
 
-            // Enhanced progress tracking
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    this.updateAdvancedProgress({
-                        stage: 'uploading',
-                        progress: percentComplete,
-                        loaded: e.loaded,
-                        total: e.total,
-                        speed: this.calculateUploadSpeed(e.loaded)
-                    });
+                    const progress = (e.loaded / e.total) * 100;
+                    onProgress(progress);
                 }
             });
 
             xhr.addEventListener('load', () => {
                 if (xhr.status === 200) {
-                    const response = JSON.parse(xhr.responseText);
-                    if (response.success) {
-                        this.updateAdvancedProgress({
-                            stage: 'processing',
-                            progress: 100,
-                            message: 'Upload complete! Processing video...'
-                        });
-                        
-                        this.hideInstantPreview();
-                        this.processUploadedFile(response);
-                    } else {
-                        throw new Error(response.message || 'Upload failed');
+                    try {
+                        resolve(JSON.parse(xhr.responseText));
+                    } catch (error) {
+                        reject(new Error('Invalid response format'));
                     }
                 } else {
-                    throw new Error(`Upload failed with status ${xhr.status}`);
+                    reject(new Error(`Upload failed: ${xhr.statusText}`));
                 }
             });
 
             xhr.addEventListener('error', () => {
-                throw new Error('Network error during upload');
-            });
-
-            xhr.addEventListener('abort', () => {
-                throw new Error('Upload was cancelled');
+                reject(new Error('Upload failed'));
             });
 
             xhr.open('POST', '/api/v2/upload-video');
             xhr.send(formData);
-
-        } catch (error) {
-            console.error('Upload error:', error);
-            this.showNotification(`Upload failed: ${error.message}`, 'error');
-            this.hideAdvancedProgress();
-            this.hideInstantPreview();
-        }
-    }
-
-    generateUploadId() {
-        return 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-
-    calculateUploadSpeed(bytesLoaded) {
-        const now = Date.now();
-        if (!this.uploadStartTime) {
-            this.uploadStartTime = now;
-            this.lastBytesLoaded = 0;
-            return 0;
-        }
-
-        const elapsedTime = (now - this.uploadStartTime) / 1000; // seconds
-        const speed = bytesLoaded / elapsedTime; // bytes per second
-        return speed;
-    }
-
-    createAdvancedProgressIndicator() {
-        const existingProgress = document.getElementById('advanced-progress');
-        if (existingProgress) {
-            existingProgress.remove();
-        }
-
-        const progressContainer = document.createElement('div');
-        progressContainer.id = 'advanced-progress';
-        progressContainer.className = 'advanced-progress-container';
-        progressContainer.innerHTML = `
-            <div class="progress-header">
-                <h4>Uploading Video</h4>
-                <button class="progress-close" onclick="app.cancelCurrentUpload()">×</button>
-            </div>
-            <div class="progress-body">
-                <div class="progress-visual">
-                    <div class="progress-circle">
-                        <svg class="progress-ring" width="80" height="80">
-                            <circle class="progress-ring-bg" cx="40" cy="40" r="36"/>
-                            <circle class="progress-ring-fill" cx="40" cy="40" r="36"/>
-                        </svg>
-                        <span class="progress-percentage">0%</span>
-                    </div>
-                    <div class="progress-details">
-                        <div class="progress-stage">Preparing upload...</div>
-                        <div class="progress-stats">
-                            <span class="bytes-info">0 / 0 MB</span>
-                            <span class="speed-info">0 MB/s</span>
-                        </div>
-                        <div class="progress-eta">Calculating...</div>
-                    </div>
-                </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar-advanced">
-                        <div class="progress-fill-advanced" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(progressContainer);
-        
-        // Animate in
-        setTimeout(() => {
-            progressContainer.classList.add('show');
-        }, 100);
-
-        return progressContainer;
-    }
-
-    updateAdvancedProgress(data) {
-        const container = document.getElementById('advanced-progress');
-        if (!container) return;
-
-        const { stage, progress, loaded, total, speed, message } = data;
-
-        // Update percentage
-        const percentageEl = container.querySelector('.progress-percentage');
-        if (percentageEl) {
-            percentageEl.textContent = Math.round(progress) + '%';
-        }
-
-        // Update progress ring
-        const ring = container.querySelector('.progress-ring-fill');
-        if (ring) {
-            const circumference = 2 * Math.PI * 36;
-            const strokeDasharray = `${(progress / 100) * circumference} ${circumference}`;
-            ring.style.strokeDasharray = strokeDasharray;
-        }
-
-        // Update progress bar
-        const progressFill = container.querySelector('.progress-fill-advanced');
-        if (progressFill) {
-            progressFill.style.width = progress + '%';
-        }
-
-        // Update stage
-        const stageEl = container.querySelector('.progress-stage');
-        if (stageEl) {
-            stageEl.textContent = message || this.getStageMessage(stage);
-        }
-
-        // Update stats
-        if (loaded && total) {
-            const bytesEl = container.querySelector('.bytes-info');
-            if (bytesEl) {
-                bytesEl.textContent = `${this.formatFileSize(loaded)} / ${this.formatFileSize(total)}`;
-            }
-        }
-
-        if (speed) {
-            const speedEl = container.querySelector('.speed-info');
-            if (speedEl) {
-                speedEl.textContent = `${this.formatFileSize(speed)}/s`;
-            }
-
-            // Calculate ETA
-            const etaEl = container.querySelector('.progress-eta');
-            if (etaEl && loaded && total) {
-                const remaining = total - loaded;
-                const eta = remaining / speed;
-                etaEl.textContent = `ETA: ${this.formatDuration(eta)}`;
-            }
-        }
-    }
-
-    getStageMessage(stage) {
-        const messages = {
-            'uploading': 'Uploading video file...',
-            'processing': 'Processing uploaded video...',
-            'analyzing': 'AI analyzing content...',
-            'complete': 'Upload complete!'
-        };
-        return messages[stage] || 'Processing...';
-    }
-
-    hideAdvancedProgress() {
-        const container = document.getElementById('advanced-progress');
-        if (container) {
-            container.classList.remove('show');
-            setTimeout(() => {
-                if (container.parentNode) {
-                    container.parentNode.removeChild(container);
-                }
-            }, 300);
-        }
-    }
-
-    initializeUploadWebSocket(uploadId) {
-        try {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/api/v2/upload-progress/${uploadId}`;
-            
-            this.uploadWs = new WebSocket(wsUrl);
-            
-            this.uploadWs.onopen = () => {
-                console.log('Upload WebSocket connected');
-            };
-            
-            this.uploadWs.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-                this.handleUploadWebSocketMessage(message);
-            };
-            
-            this.uploadWs.onclose = () => {
-                console.log('Upload WebSocket disconnected');
-            };
-            
-            this.uploadWs.onerror = (error) => {
-                console.error('Upload WebSocket error:', error);
-            };
-            
-            // Send periodic pings
-            this.uploadPingInterval = setInterval(() => {
-                if (this.uploadWs && this.uploadWs.readyState === WebSocket.OPEN) {
-                    this.uploadWs.send(JSON.stringify({ type: 'ping' }));
-                }
-            }, 25000);
-            
-        } catch (error) {
-            console.error('Failed to initialize upload WebSocket:', error);
-        }
-    }
-
-    handleUploadWebSocketMessage(message) {
-        switch (message.type) {
-            case 'upload_started':
-                console.log('Upload WebSocket confirmed connection');
-                break;
-            case 'upload_progress':
-                // Handle upload progress if server sends it
-                break;
-            case 'upload_complete':
-                this.closeUploadWebSocket();
-                break;
-            case 'pong':
-                // Heartbeat response
-                break;
-            case 'keep_alive':
-                // Server keep-alive
-                break;
-        }
-    }
-
-    closeUploadWebSocket() {
-        if (this.uploadWs) {
-            this.uploadWs.close();
-            this.uploadWs = null;
-        }
-        if (this.uploadPingInterval) {
-            clearInterval(this.uploadPingInterval);
-            this.uploadPingInterval = null;
-        }
-    }
-
-    cancelCurrentUpload() {
-        // Close WebSocket
-        this.closeUploadWebSocket();
-        
-        // Hide UI elements
-        this.hideAdvancedProgress();
-        this.hideInstantPreview();
-        
-        // Reset upload state
-        this.currentFile = null;
-        this.uploadStartTime = null;
-        this.lastBytesLoaded = 0;
-        
-        this.showNotification('Upload cancelled', 'info');
-    }
-
-    processUploadedFile(uploadResponse) {
-        // For uploaded files, we can proceed to clip creation
-        this.showNotification('File ready for processing!', 'success');
-        // Show clip creation interface
-        this.showClipCreator({
-            video_info: {
-                title: uploadResponse.filename,
-                duration: 300, // We'd need to extract this from the file
-                thumbnail: null
-            }
         });
     }
 
-    showAnalysisResults(data) {
-        const analysisSection = document.getElementById('analysis-section');
-        const resultsContainer = document.getElementById('analysis-results');
-
-        if (!analysisSection || !resultsContainer) return;
-
-        const videoInfo = data.video_info;
-        const aiInsights = data.ai_insights;
-
-        resultsContainer.innerHTML = `
-            <div class="analysis-grid">
-                <div class="video-info-card">
-                    <h3>📹 Video Information</h3>
-                    <div class="info-grid">
-                        <div class="info-item">
-                            <span class="label">Title:</span>
-                            <span class="value">${videoInfo.title}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="label">Duration:</span>
-                            <span class="value">${this.formatDuration(videoInfo.duration)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="label">Views:</span>
-                            <span class="value">${this.formatNumber(videoInfo.view_count)}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="label">Likes:</span>
-                            <span class="value">${this.formatNumber(videoInfo.like_count)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="ai-insights-card">
-                    <h3>🤖 AI Analysis</h3>
-                    <div class="insights-grid">
-                        <div class="insight-meter">
-                            <span class="meter-label">Viral Potential</span>
-                            <div class="meter">
-                                <div class="meter-fill" style="width: ${aiInsights.viral_potential}%"></div>
-                            </div>
-                            <span class="meter-value">${aiInsights.viral_potential}%</span>
-                        </div>
-                        <div class="insight-meter">
-                            <span class="meter-label">Engagement Score</span>
-                            <div class="meter">
-                                <div class="meter-fill" style="width: ${aiInsights.engagement_prediction}%"></div>
-                            </div>
-                            <span class="meter-value">${aiInsights.engagement_prediction}%</span>
-                        </div>
-                        <div class="insights-list">
-                            <h4>Best Platforms:</h4>
-                            <div class="platform-tags">
-                                ${aiInsights.suggested_formats.map(format => `<span class="platform-tag">${format}</span>`).join('')}
-                            </div>
-                        </div>
-                        <div class="insights-list">
-                            <h4>Optimal Length:</h4>
-                            <span class="optimal-length">${aiInsights.optimal_length} seconds</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        analysisSection.style.display = 'block';
-        analysisSection.scrollIntoView({ behavior: 'smooth' });
-
-        // Show clip creator
-        setTimeout(() => {
-            this.showClipCreator(data);
-        }, 500);
-    }
-
-    showClipCreator(data) {
-        const clipCreator = document.getElementById('clip-creator');
-        if (!clipCreator) return;
-
-        clipCreator.style.display = 'block';
-
-        // Initialize with some default clips
-        this.clips = [
-            { start_time: 10, end_time: 70, title: 'Viral Clip 1', description: 'Main highlight' },
-            { start_time: 30, end_time: 90, title: 'Viral Clip 2', description: 'Secondary moment' }
-        ];
-
-        this.renderClipTimeline();
-    }
-
-    renderClipTimeline() {
-        const timeline = document.getElementById('clip-timeline');
-        if (!timeline) return;
-
-        timeline.innerHTML = `
-            <div class="timeline-container">
-                <h4>Clip Timeline</h4>
-                <div class="clips-list">
-                    ${this.clips.map((clip, index) => `
-                        <div class="clip-item" data-index="${index}">
-                            <div class="clip-header">
-                                <h5>${clip.title}</h5>
-                                <button onclick="app.removeClip(${index})" class="btn-remove">×</button>
-                            </div>
-                            <div class="clip-times">
-                                <input type="number" value="${clip.start_time}" 
-                                       onchange="app.updateClip(${index}, 'start_time', this.value)"
-                                       placeholder="Start (seconds)" class="time-input">
-                                <span>to</span>
-                                <input type="number" value="${clip.end_time}" 
-                                       onchange="app.updateClip(${index}, 'end_time', this.value)"
-                                       placeholder="End (seconds)" class="time-input">
-                            </div>
-                            <input type="text" value="${clip.title}" 
-                                   onchange="app.updateClip(${index}, 'title', this.value)"
-                                   placeholder="Clip title" class="clip-title-input">
-                            <textarea onchange="app.updateClip(${index}, 'description', this.value)"
-                                      placeholder="Description (optional)" class="clip-description">${clip.description}</textarea>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    addClip() {
-        const newClip = {
-            start_time: 0,
-            end_time: 60,
-            title: `Viral Clip ${this.clips.length + 1}`,
-            description: ''
-        };
-        this.clips.push(newClip);
-        this.renderClipTimeline();
-        this.showNotification('New clip added!', 'success');
-    }
-
-    removeClip(index) {
-        this.clips.splice(index, 1);
-        this.renderClipTimeline();
-        this.showNotification('Clip removed', 'success');
-    }
-
-    updateClip(index, field, value) {
-        if (this.clips[index]) {
-            this.clips[index][field] = field.includes('time') ? parseFloat(value) : value;
-        }
-    }
-
-    async processClips() {
-        if (!this.currentSessionId) {
-            this.showNotification('No session found. Please analyze a video first.', 'error');
-            return;
-        }
-
-        if (this.clips.length === 0) {
-            this.showNotification('Please add at least one clip', 'error');
-            return;
-        }
-
-        this.setButtonLoading('process-btn', true);
-
-        try {
-            const formData = new FormData();
-            formData.append('session_id', this.currentSessionId);
-            formData.append('clips', JSON.stringify(this.clips));
-            formData.append('priority', 'normal');
-
-            const response = await fetch('/api/v2/process-video', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.currentTaskId = data.task_id;
-                this.showProcessingStatus();
-                this.initializeWebSocket(data.task_id);
-                this.showNotification('Processing started!', 'success');
-            } else {
-                throw new Error(data.detail || 'Processing failed');
-            }
-        } catch (error) {
-            console.error('Processing error:', error);
-            this.showNotification(`Processing failed: ${error.message}`, 'error');
-        } finally {
-            this.setButtonLoading('process-btn', false);
-        }
-    }
-
-    initializeWebSocket(taskId) {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/api/v2/ws/${taskId}`;
-
-        this.ws = new WebSocket(wsUrl);
-
-        this.ws.onopen = () => {
-            console.log('WebSocket connected');
-            this.processingStartTime = Date.now();
-        };
-
-        this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            this.handleWebSocketMessage(message);
-        };
-
-        this.ws.onclose = () => {
-            console.log('WebSocket disconnected');
-        };
-
-        this.ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-            this.showNotification('Connection error', 'error');
-        };
-
-        // Send periodic pings
-        setInterval(() => {
-            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                this.ws.send(JSON.stringify({ type: 'ping' }));
-            }
-        }, 30000);
-    }
-
-    handleWebSocketMessage(message) {
-        switch (message.type) {
-            case 'status_update':
-            case 'progress_update':
-                this.updateProcessingStatus(message.data);
-                break;
-            case 'processing_complete':
-                this.handleProcessingComplete(message.data);
-                break;
-            case 'processing_error':
-                this.handleProcessingError(message.data);
-                break;
-            case 'pong':
-                // Heartbeat response
-                break;
-        }
-    }
-
-    showProcessingStatus() {
-        const processingSection = document.getElementById('processing-section');
-        if (processingSection) {
-            processingSection.style.display = 'block';
-            processingSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-
-    updateProcessingStatus(data) {
-        const statusContainer = document.getElementById('processing-status');
-        if (!statusContainer) return;
-
-        const elapsedTime = this.processingStartTime ? 
-            Math.floor((Date.now() - this.processingStartTime) / 1000) : 0;
-
-        statusContainer.innerHTML = `
-            <div class="processing-card">
-                <div class="processing-header">
-                    <h3>🎬 Processing Your Clips</h3>
-                    <span class="status-badge ${data.status}">${data.status.toUpperCase()}</span>
-                </div>
-                <div class="progress-section">
-                    <div class="progress-bar-large">
-                        <div class="progress-fill-large" style="width: ${data.progress || 0}%"></div>
-                    </div>
-                    <div class="progress-info">
-                        <span class="progress-percentage">${data.progress || 0}%</span>
-                        <span class="progress-time">Elapsed: ${this.formatDuration(elapsedTime)}</span>
-                    </div>
-                </div>
-                <div class="current-step">
-                    <strong>Current Step:</strong> ${data.current_step || data.message || 'Initializing...'}
-                </div>
-            </div>
-        `;
-    }
-
-    handleProcessingComplete(data) {
-        this.showNotification('All clips processed successfully!', 'success');
-        this.showProcessingResults(data.results);
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    handleProcessingError(data) {
-        this.showNotification(`Processing failed: ${data.error}`, 'error');
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    showProcessingResults(results) {
-        const resultsContainer = document.getElementById('clip-results');
-        if (!resultsContainer) return;
-
-        resultsContainer.innerHTML = `
-            <div class="results-header">
-                <h3>🎉 Your Viral Clips Are Ready!</h3>
-                <p>Download your professionally processed clips below:</p>
-            </div>
-            <div class="clips-grid">
-                ${results.map((result, index) => `
-                    <div class="result-clip-card">
-                        <div class="clip-preview">
-                            ${result.thumbnail ? 
-                                `<img src="${result.thumbnail}" alt="Clip ${index + 1}" class="clip-thumbnail">` :
-                                `<div class="clip-placeholder">🎬</div>`
-                            }
-                        </div>
-                        <div class="clip-info">
-                            <h4>${result.title}</h4>
-                            <div class="clip-stats">
-                                <span class="stat">⏱️ ${this.formatDuration(result.duration)}</span>
-                                <span class="stat">📊 ${result.viral_score}% viral potential</span>
-                                <span class="stat">💾 ${this.formatFileSize(result.file_size)}</span>
-                            </div>
-                            ${result.ai_enhancements?.length ? `
-                                <div class="enhancements">
-                                    <strong>AI Enhancements:</strong>
-                                    <ul>
-                                        ${result.ai_enhancements.map(enhancement => `<li>${enhancement}</li>`).join('')}
-                                    </ul>
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div class="clip-actions">
-                            <button onclick="app.downloadClip(${index})" class="btn btn-primary">
-                                📥 Download
-                            </button>
-                            <button onclick="app.shareClip(${index})" class="btn btn-outline">
-                                📤 Share
-                            </button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    async downloadClip(clipIndex) {
-        if (!this.currentTaskId) return;
-
-        try {
-            const response = await fetch(`/api/v2/download/${this.currentTaskId}/${clipIndex}`);
-
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `viralclip_pro_${clipIndex + 1}_${Date.now()}.mp4`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                this.showNotification('Download started!', 'success');
-            } else {
-                throw new Error('Download failed');
-            }
-        } catch (error) {
-            console.error('Download error:', error);
-            this.showNotification('Download failed', 'error');
-        }
-    }
-
-    shareClip(clipIndex) {
-        if (navigator.share) {
-            navigator.share({
-                title: 'Check out my viral clip from ViralClip Pro!',
-                text: 'Created with the SendShort.ai killer - ViralClip Pro',
-                url: window.location.href
-            });
-        } else {
-            // Fallback: copy link to clipboard
-            navigator.clipboard.writeText(window.location.href).then(() => {
-                this.showNotification('Link copied to clipboard!', 'success');
-            });
-        }
-    }
-
-    // Drag overlay methods
-    showDragOverlay() {
-        const existing = document.getElementById('drag-overlay');
-        if (existing) return;
-
-        const overlay = document.createElement('div');
-        overlay.id = 'drag-overlay';
-        overlay.className = 'drag-overlay';
-        overlay.innerHTML = `
-            <div class="drag-content">
-                <div class="drag-icon">📁</div>
-                <h3>Drop Video File Here</h3>
-                <p>Release to upload your video file</p>
-            </div>
-        `;
-
-        document.body.appendChild(overlay);
-        setTimeout(() => overlay.classList.add('show'), 10);
-    }
-
-    hideDragOverlay() {
-        const overlay = document.getElementById('drag-overlay');
-        if (overlay) {
-            overlay.classList.remove('show');
+    retryConnection() {
+        if (this.retryAttempts < this.maxRetries) {
+            this.retryAttempts++;
             setTimeout(() => {
-                if (overlay.parentNode) {
-                    overlay.parentNode.removeChild(overlay);
+                if (this.currentTask) {
+                    this.setupProcessingWebSocket(this.currentTask);
                 }
-            }, 200);
+            }, 1000 * this.retryAttempts);
         }
     }
 
-    // Utility methods
-    setButtonLoading(buttonId, loading) {
-        const button = document.getElementById(buttonId);
-        if (!button) return;
+    // Error Handling
+    handleError(error, context = 'Operation') {
+        console.error(`${context}:`, error);
 
-        if (loading) {
-            button.classList.add('loading');
-            button.disabled = true;
-            
-            // Add loading spinner to button
-            const btnText = button.querySelector('.btn-text');
-            const btnLoading = button.querySelector('.btn-loading');
-            
-            if (btnText) btnText.style.display = 'none';
-            if (btnLoading) btnLoading.style.display = 'flex';
-        } else {
-            button.classList.remove('loading');
-            button.disabled = false;
-            
-            // Remove loading spinner
-            const btnText = button.querySelector('.btn-text');
-            const btnLoading = button.querySelector('.btn-loading');
-            
-            if (btnText) btnText.style.display = 'inline';
-            if (btnLoading) btnLoading.style.display = 'none';
-        }
+        const message = error.message || 'An unexpected error occurred';
+        this.showNotification(`${context}: ${message}`, 'error');
+
+        this.setState({ error: message });
     }
 
-    showNotification(message, type = 'info', duration = 5000, actions = null) {
-        const container = document.getElementById('notification-container');
-        if (!container) return;
+    handleGlobalError(event) {
+        console.error('Global error:', event);
+        this.showNotification('Something went wrong. Please try again.', 'error');
+    }
 
-        const notificationId = `notification-${Date.now()}`;
+    // UI Helpers
+    showNotification(message, type = 'info', duration = 5000) {
+        // Remove existing notifications
+        document.querySelectorAll('.notification').forEach(n => n.remove());
+
         const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.id = notificationId;
-        
-        let actionsHtml = '';
-        if (actions) {
-            actionsHtml = `
-                <div class="notification-actions">
-                    ${actions.map(action => `
-                        <button class="notification-action-btn" onclick="${action.onclick}">
-                            ${action.text}
-                        </button>
-                    `).join('')}
-                </div>
-            `;
-        }
-        
+        notification.className = `notification notification-${type}`;
         notification.innerHTML = `
             <div class="notification-content">
-                <div class="notification-header">
-                    <span class="notification-icon">${this.getNotificationIcon(type)}</span>
-                    <span class="notification-message">${message}</span>
-                    <button class="notification-close" onclick="app.closeNotification('${notificationId}')">×</button>
-                </div>
-                ${actionsHtml}
+                <span class="notification-icon">${this.getNotificationIcon(type)}</span>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close">&times;</button>
             </div>
         `;
 
-        container.appendChild(notification);
-        
-        // Animate in
-        setTimeout(() => notification.classList.add('show'), 10);
+        document.body.appendChild(notification);
 
-        // Auto remove after duration (unless it's an error with actions)
-        if (duration > 0 && !(type === 'error' && actions)) {
-            setTimeout(() => {
-                this.closeNotification(notificationId);
-            }, duration);
+        // Auto remove
+        if (duration > 0) {
+            setTimeout(() => notification.remove(), duration);
         }
+
+        // Manual close
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.remove();
+        });
+
+        // Animate in
+        requestAnimationFrame(() => {
+            notification.classList.add('show');
+        });
     }
-    
-    closeNotification(notificationId) {
-        const notification = document.getElementById(notificationId);
-        if (notification) {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                if (notification.parentElement) {
-                    notification.remove();
-                }
-            }, 300);
-        }
-    }
-    
+
     getNotificationIcon(type) {
         const icons = {
-            'success': '✅',
-            'error': '❌',
-            'warning': '⚠️',
-            'info': 'ℹ️'
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
         };
-        return icons[type] || 'ℹ️';
-    }
-    
-    showRetryOption(retryCallback) {
-        this.showNotification(
-            'Operation failed. Would you like to try again?',
-            'error',
-            0, // Don't auto-dismiss
-            [
-                {
-                    text: 'Retry',
-                    onclick: `app.handleRetry(${retryCallback})`
-                },
-                {
-                    text: 'Cancel',
-                    onclick: `app.closeNotification(this.closest('.notification').id)`
-                }
-            ]
-        );
-    }
-    
-    async handleRetry(retryCallback) {
-        // Close all error notifications
-        const errorNotifications = document.querySelectorAll('.notification.error');
-        errorNotifications.forEach(n => this.closeNotification(n.id));
-        
-        // Show retry attempt
-        this.showNotification('Retrying...', 'info', 2000);
-        
-        // Wait a moment then retry
-        setTimeout(() => {
-            if (typeof retryCallback === 'function') {
-                retryCallback();
-            }
-        }, 1000);
+        return icons[type] || icons.info;
     }
 
+    copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            this.showNotification('Copied to clipboard!', 'success', 2000);
+        });
+    }
+
+    // Formatting Helpers
     formatDuration(seconds) {
-        if (!seconds) return '0:00';
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
+    formatFileSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
+    }
+
     formatNumber(num) {
-        if (!num) return '0';
         if (num >= 1000000) {
             return (num / 1000000).toFixed(1) + 'M';
-        }
-        if (num >= 1000) {
+        } else if (num >= 1000) {
             return (num / 1000).toFixed(1) + 'K';
         }
         return num.toString();
     }
 
-    formatFileSize(bytes) {
-        if (!bytes) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-}
-
-// Global app instance
-const app = new ViralClipApp();
-
-// Global functions for HTML onclick handlers
-function analyzeVideo() {
-    app.analyzeVideo();
-}
-
-function addClip() {
-    app.addClip();
-}
-
-function processClips() {
-    app.processClips();
-}
-
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ViralClipApp;
-}
-
-// Initialize the app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new ViralClipApp();
-});
-
-// Handle page visibility changes
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && window.app) {
-        // Page became visible, check for updates
-        if (window.app.currentTaskId) {
-            // Reconnect WebSocket if needed
+    formatTime(seconds) {
+        if (seconds < 60) {
+            return `${seconds}s`;
+        } else if (seconds < 3600) {
+            return `${Math.floor(seconds / 60)}m`;
+        } else {
+            return `${Math.floor(seconds / 3600)}h`;
         }
     }
-});
+
+    generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
 
 // Enhanced connection monitoring
 class ConnectionMonitor {
@@ -1253,15 +979,15 @@ class ConnectionMonitor {
         this.isOnline = navigator.onLine;
         this.retryQueue = [];
         this.heartbeatInterval = null;
-        
+
         this.setupEventListeners();
         this.startHeartbeat();
     }
-    
+
     setupEventListeners() {
         window.addEventListener('online', () => this.handleOnline());
         window.addEventListener('offline', () => this.handleOffline());
-        
+
         // Monitor connection quality
         if ('connection' in navigator) {
             navigator.connection.addEventListener('change', () => {
@@ -1269,20 +995,20 @@ class ConnectionMonitor {
             });
         }
     }
-    
+
     handleOnline() {
         console.log('📶 Back online');
         this.isOnline = true;
         this.app.showNotification('Connection restored', 'success', 3000);
-        
+
         // Process retry queue
         this.processRetryQueue();
-        
+
         // Update UI
         document.body.classList.remove('offline');
         this.startHeartbeat();
     }
-    
+
     handleOffline() {
         console.log('📵 Gone offline');
         this.isOnline = false;
@@ -1291,80 +1017,86 @@ class ConnectionMonitor {
             'warning',
             0
         );
-        
+
         // Update UI
         document.body.classList.add('offline');
         this.stopHeartbeat();
     }
-    
+
     handleConnectionChange() {
         if ('connection' in navigator) {
             const connection = navigator.connection;
-            const speed = connection.effectiveType;
-            
-            if (speed === 'slow-2g' || speed === '2g') {
-                this.app.showNotification(
-                    'Slow connection detected - uploads may take longer',
-                    'info',
-                    5000
-                );
-            }
+            console.log(`Connection: ${connection.effectiveType}, ${connection.downlink}Mbps`);
+
+            // Update connection indicator
+            this.updateConnectionIndicator(connection);
         }
     }
-    
-    startHeartbeat() {
-        if (this.heartbeatInterval) return;
-        
-        this.heartbeatInterval = setInterval(async () => {
-            try {
-                const response = await fetch('/health', {
-                    method: 'GET',
-                    cache: 'no-cache'
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Server not responding');
-                }
-                
-                // Connection is good
-                if (!this.isOnline) {
-                    this.handleOnline();
-                }
-                
-            } catch (error) {
-                if (this.isOnline) {
-                    this.handleOffline();
-                }
-            }
-        }, 30000); // Check every 30 seconds
+
+    updateConnectionIndicator(connection) {
+        const indicator = document.querySelector('.connection-indicator');
+        if (!indicator) return;
+
+        const signal = indicator.querySelector('.connection-signal');
+        const text = indicator.querySelector('.connection-text');
+
+        if (connection.effectiveType === '4g' && connection.downlink > 1) {
+            signal.className = 'connection-signal strong';
+            text.textContent = 'Strong connection';
+        } else if (connection.effectiveType === '3g' || connection.downlink > 0.5) {
+            signal.className = 'connection-signal weak';
+            text.textContent = 'Weak connection';
+        } else {
+            signal.className = 'connection-signal poor';
+            text.textContent = 'Poor connection';
+        }
+
+        indicator.classList.add('show');
+        setTimeout(() => indicator.classList.remove('show'), 3000);
     }
-    
+
+    startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatInterval = setInterval(() => {
+            this.checkConnection();
+        }, 30000); // Every 30 seconds
+    }
+
     stopHeartbeat() {
         if (this.heartbeatInterval) {
             clearInterval(this.heartbeatInterval);
             this.heartbeatInterval = null;
         }
     }
-    
-    addToRetryQueue(operation) {
-        this.retryQueue.push(operation);
-    }
-    
-    async processRetryQueue() {
-        while (this.retryQueue.length > 0 && this.isOnline) {
-            const operation = this.retryQueue.shift();
-            try {
-                await operation();
-            } catch (error) {
-                console.error('Retry operation failed:', error);
+
+    async checkConnection() {
+        try {
+            const response = await fetch('/health', { 
+                method: 'HEAD',
+                cache: 'no-cache'
+            });
+
+            if (!response.ok) {
+                throw new Error('Health check failed');
             }
+        } catch (error) {
+            console.warn('Connection check failed:', error);
+            this.handleOffline();
+        }
+    }
+
+    processRetryQueue() {
+        while (this.retryQueue.length > 0) {
+            const request = this.retryQueue.shift();
+            request();
         }
     }
 }
 
-// Handle online/offline status with enhanced monitoring
-window.addEventListener('DOMContentLoaded', () => {
-    if (window.app) {
-        window.app.connectionMonitor = new ConnectionMonitor(window.app);
-    }
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.viralClipApp = new ViralClipApp();
 });
+
+// Export for global access
+window.ViralClipApp = ViralClipApp;
