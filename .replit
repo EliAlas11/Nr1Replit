@@ -16,4 +16,22 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"
+args = "cd nr1copilot/nr1-main && python -m pip install -r requirements.txt && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"
+
+[[workflows.workflow]]
+name = "Code Quality Check"
+author = 43354655
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python -m black app/ --check && python -m isort app/ --check-only && python -m flake8 app/"
+
+[[workflows.workflow]]
+name = "Transform Codebase"
+author = 43354655
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "chmod +x transform_codebase.sh && ./transform_codebase.sh"
