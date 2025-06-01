@@ -1068,9 +1068,8 @@ class ViralClipApp {
                     <div class="spinner"></div>
                     <span>Analyzing...</span>
                 </div>
-            `;
-        }
-    }The code is updated with new helper functions.```text
+            `;        }
+    }
 
     hideAnalysisProgress() {
         const button = document.querySelector('#url-form button');
@@ -1408,6 +1407,156 @@ class ViralClipApp {
             </div>
         `;
         document.body.appendChild(errorModal);
+    }
+
+    // Enhanced utility methods
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const size = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
+        return `${size} ${sizes[i]}`;
+    }
+
+    formatDuration(seconds) {
+        if (!seconds || isNaN(seconds)) return '0:00';
+
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+
+        if (hours > 0) {
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '0:00';
+
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    formatNumber(num) {
+        if (!num || isNaN(num)) return '0';
+
+        if (num >= 1000000000) {
+            return (num / 1000000000).toFixed(1) + 'B';
+        }
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        }
+        if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
+    }
+
+    generateId() {
+        return 'id_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    }
+
+    // New utility methods for enhanced functionality
+    formatUploadSpeed(bytesPerSecond) {
+        if (!bytesPerSecond || bytesPerSecond === 0) return '0 KB/s';
+
+        const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+        const k = 1024;
+        const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
+        const speed = parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(1));
+
+        return `${speed} ${units[i]}`;
+    }
+
+    formatETA(seconds) {
+        if (!seconds || isNaN(seconds) || seconds === Infinity) return 'Calculating...';
+
+        if (seconds < 60) {
+            return `${Math.ceil(seconds)}s remaining`;
+        } else if (seconds < 3600) {
+            const minutes = Math.ceil(seconds / 60);
+            return `${minutes}m remaining`;
+        } else {
+            const hours = Math.ceil(seconds / 3600);
+            return `${hours}h remaining`;
+        }
+    }
+
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    throttle(func, limit) {
+        let inThrottle;
+        return function() {
+            const args = arguments;
+            const context = this;
+            if (!inThrottle) {
+                func.apply(context, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    }
+
+    isValidVideoFile(file) {
+        const allowedTypes = [
+            'video/mp4', 'video/mov', 'video/avi', 
+            'video/mkv', 'video/webm', 'video/m4v',
+            'video/quicktime', 'video/x-msvideo'
+        ];
+
+        const allowedExtensions = [
+            '.mp4', '.mov', '.avi', '.mkv', 
+            '.webm', '.m4v', '.qt'
+        ];
+
+        const hasValidType = allowedTypes.includes(file.type);
+        const hasValidExtension = allowedExtensions.some(ext => 
+            file.name.toLowerCase().endsWith(ext)
+        );
+
+        return hasValidType || hasValidExtension;
+    }
+
+    getFileExtension(filename) {
+        return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
+    }
+
+    generateUniqueId() {
+        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    copyToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for older browsers
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            return new Promise((resolve, reject) => {
+                document.execCommand('copy') ? resolve() : reject();
+                textArea.remove();
+            });
+        }
     }
 }
 
