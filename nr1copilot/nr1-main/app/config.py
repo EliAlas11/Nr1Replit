@@ -87,3 +87,72 @@ def get_production_settings() -> Settings:
     settings.debug = False
     settings.log_level = "WARNING"
     return settings
+"""
+Application configuration using Pydantic settings
+"""
+
+import os
+from typing import List
+from pydantic import BaseSettings
+
+class Settings(BaseSettings):
+    # Application Settings
+    APP_NAME: str = "ViralClip Pro"
+    APP_VERSION: str = "3.0.0"
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
+    HOST: str = "0.0.0.0"
+    PORT: int = 5000
+    
+    # Security Settings
+    SECRET_KEY: str = "dev-secret-key"
+    JWT_SECRET: str = "dev-jwt-secret"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 1440
+    
+    # Database Settings
+    DATABASE_URL: str = "sqlite:///./viralclip.db"
+    REDIS_URL: str = "redis://localhost:6379"
+    
+    # Video Processing Settings
+    MAX_VIDEO_DURATION: int = 3600
+    MAX_FILE_SIZE: int = 2147483648
+    MAX_CLIP_DURATION: int = 300
+    MIN_CLIP_DURATION: int = 5
+    CONCURRENT_PROCESSING: int = 4
+    
+    # Storage Settings
+    UPLOAD_PATH: str = "uploads"
+    TEMP_PATH: str = "temp"
+    OUTPUT_PATH: str = "output"
+    VIDEO_STORAGE_PATH: str = "videos"
+    LOG_PATH: str = "logs"
+    
+    # Cache Settings
+    CACHE_TTL: int = 3600
+    ENABLE_CACHE: bool = True
+    
+    # Rate Limiting
+    RATE_LIMIT_PER_MINUTE: int = 100
+    RATE_LIMIT_PER_HOUR: int = 1000
+    
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    ENABLE_METRICS: bool = True
+    
+    # Feature Flags
+    ENABLE_WEBSOCKETS: bool = True
+    ENABLE_FILE_UPLOAD: bool = True
+    ENABLE_BATCH_PROCESSING: bool = True
+    ENABLE_SOCIAL_SHARING: bool = True
+    ENABLE_ANALYTICS: bool = True
+    
+    # CORS Settings
+    ALLOWED_HOSTS: List[str] = ["*"]
+    CORS_ORIGINS: List[str] = ["*"]
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()

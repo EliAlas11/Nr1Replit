@@ -683,3 +683,120 @@ if __name__ == "__main__":
         reload=settings.debug,
         log_level="info"
     )
+"""
+ViralClip Pro - FastAPI Main Application
+High-performance video processing and AI analysis platform
+"""
+
+import os
+import sys
+from pathlib import Path
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+# Add the app directory to Python path
+app_dir = Path(__file__).parent
+sys.path.insert(0, str(app_dir))
+
+from config import settings
+from routes.video import router as video_router
+from utils.health import get_health_status
+from logging_config import setup_logging
+
+# Setup logging
+setup_logging()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"Environment: {settings.ENVIRONMENT}")
+    print(f"Debug mode: {settings.DEBUG}")
+    
+    # Create necessary directories
+    for directory in [settings.UPLOAD_PATH, settings.OUTPUT_PATH, settings.TEMP_PATH, settings.LOG_PATH]:
+        Path(directory).mkdir(exist_ok=True)
+    
+    yield
+    
+    # Shutdown
+    print("Shutting down ViralClip Pro")
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="AI-powered viral video analysis and clipping platform",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add trusted host middleware
+if settings.ALLOWED_HOSTS != ["*"]:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS
+    )
+
+# Include routers
+app.include_router(video_router, prefix="/api/v1")
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        health_data = await get_health_status()
+        status_code = 200 if health_data["status"] == "healthy" else 503
+        return JSONResponse(content=health_data, status_code=status_code)
+    except Exception as e:
+        return JSONResponse(
+            content={"status": "unhealthy", "error": str(e)},
+            status_code=503
+        )
+
+# Serve static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/public", StaticFiles(directory="public"), name="public")
+
+# Serve main page
+@app.get("/")
+async def read_root():
+    """Serve the main application page"""
+    return FileResponse("index.html")
+
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """Global exception handler"""
+    print(f"Global exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"error": True, "message": "Internal server error"}
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_level="info"
+    )
