@@ -1,5 +1,4 @@
 
-```python
 """
 Enhanced Configuration Management
 Handles all application settings with environment variable support
@@ -35,6 +34,10 @@ class Settings(BaseSettings):
     output_dir: str = Field(default="output", env="OUTPUT_DIR")
     temp_dir: str = Field(default="temp", env="TEMP_DIR")
     
+    # Logging settings
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    log_path: str = Field(default="logs", env="LOG_PATH")
+    
     # Redis settings
     redis_url: str = Field(default="redis://localhost:6379", env="REDIS_URL")
     redis_password: Optional[str] = Field(default=None, env="REDIS_PASSWORD")
@@ -62,9 +65,9 @@ class Settings(BaseSettings):
     rate_limit_window: int = Field(default=3600, env="RATE_LIMIT_WINDOW")  # 1 hour
     
     # Monitoring and logging
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
     sentry_dsn: Optional[str] = Field(default=None, env="SENTRY_DSN")
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
+    enable_analytics: bool = Field(default=False, env="ENABLE_ANALYTICS")
     
     # External services
     youtube_api_key: Optional[str] = Field(default=None, env="YOUTUBE_API_KEY")
@@ -106,4 +109,3 @@ def reload_settings() -> Settings:
     global _settings
     _settings = None
     return get_settings()
-```

@@ -32,56 +32,17 @@ import redis.asyncio as redis
 from .config import get_settings
 from .config import get_settings
 
-# Import with fallback for missing modules
-try:
-    from .logging_config import get_logger
-except ImportError:
-    import logging
-    def get_logger(name):
-        return logging.getLogger(name)
+# Import modules with proper error handling
+from .logging_config import get_logger, setup_logging
+from .services.video_service import VideoProcessor
+from .utils.security import SecurityManager
+from .utils.rate_limiter import RateLimiter
+from .utils.health import HealthChecker
+from .utils.cache import CacheManager
+from .utils.metrics import MetricsCollector
 
-try:
-    from .services.video_service import VideoProcessor
-except ImportError:
-    class VideoProcessor:
-        async def initialize(self): pass
-        async def validate_video(self, path): 
-            return {"valid": True, "metadata": {"duration": 120, "width": 1920, "height": 1080, "fps": 30}}
-        async def extract_thumbnail(self, path): 
-            return "/public/placeholder-thumb.jpg"
-
-try:
-    from .utils.security import SecurityManager
-except ImportError:
-    class SecurityManager: pass
-
-try:
-    from .utils.rate_limiter import RateLimiter
-except ImportError:
-    class RateLimiter: pass
-
-try:
-    from .utils.health import HealthChecker
-except ImportError:
-    class HealthChecker: pass
-
-try:
-    from .utils.cache import CacheManager
-except ImportError:
-    class CacheManager:
-        async def initialize(self): pass
-        async def close(self): pass
-        async def set(self, key, value, ttl=None): pass
-        async def get(self, key): return None
-
-try:
-    from .utils.metrics import MetricsCollector
-except ImportError:
-    class MetricsCollector:
-        async def close(self): pass
-        async def record_request(self, **kwargs): pass
-        async def record_upload(self, **kwargs): pass
-        async def record_error(self, **kwargs): pass
+# Setup logging first
+setup_logging()
 
 # Initialize
 settings = get_settings()
@@ -694,23 +655,29 @@ async def upload_video(
         logger.error(f"❌ Unexpected upload error for {upload_id}: {e}", exc_info=True)
         
         # Clean up any partial files
-        if 'file_path' in locals() and file_path.exists():
-            try:
+        try:
+            if 'file_path' in locals() and file_path and file_path.exists():
                 file_path.unlink()
-            except Exception:
-                pass
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to cleanup file: {cleanup_error}")
         
         # Notify client of error
-        await manager.send_message(upload_id, {
-            "type": "upload_error",
-            "error": "An unexpected error occurred",
-            "request_id": request_id,
-            "timestamp": datetime.now().isoformat()
-        }, "upload")
+        try:
+            await manager.send_message(upload_id, {
+                "type": "upload_error",
+                "error": "An unexpected error occurred",
+                "request_id": request_id,
+                "timestamp": datetime.now().isoformat()
+            }, "upload")
+        except Exception as notification_error:
+            logger.warning(f"Failed to send error notification: {notification_error}")
         
         # Record error metrics
-        if metrics_collector:
-            await metrics_collector.record_error("upload", str(e))
+        try:
+            if metrics_collector:
+                await metrics_collector.record_error("upload", str(e))
+        except Exception as metrics_error:
+            logger.warning(f"Failed to record error metrics: {metrics_error}")
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
