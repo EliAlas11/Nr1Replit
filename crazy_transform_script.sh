@@ -1,62 +1,59 @@
 
 #!/bin/bash
 
-echo "🚀 Starting Crazy Transformation Script..."
+echo "🚀 Starting Crazy Transformation Script (Replit Compatible)..."
 
 # 1) Remove any old copy and clone fresh
 rm -rf Nr1Replit
 git clone https://github.com/EliAlas11/Nr1Replit.git
 cd Nr1Replit
 
-# 2) Install Python requirements (if you have requirements.txt)
-if [ -f requirements.txt ]; then
-  python3 -m pip install --upgrade pip
-  python3 -m pip install -r requirements.txt
+# 2) Install Python requirements (using python instead of python3)
+if [ -f nr1copilot/nr1-main/requirements.txt ]; then
+  echo "📦 Installing Python dependencies..."
+  cd nr1copilot/nr1-main
+  python -m pip install --upgrade pip
+  python -m pip install -r requirements.txt
+  cd ../..
 fi
 
-# 3) Install Node.js dependencies (if you have package.json)
-if [ -f package.json ]; then
-  npm install
-fi
+# 3) Install formatting tools for Python
+echo "🛠️ Installing development tools..."
+python -m pip install black isort flake8 || true
 
-# 4) Install "crazy" global tools for formatting, minifying, docs
-npm install -g prettier jsdoc terser csso || true
-python3 -m pip install black || true
-
-# 5) Format all Python files (if black is available)
+# 4) Format Python code with black (if available)
 if command -v black >/dev/null 2>&1; then
-  black .
+  echo "🎨 Formatting Python code..."
+  black Nr1Replit/nr1copilot/nr1-main/app/ --line-length 88 || true
 else
   echo "⚠️  black not found; skipping Python formatting"
 fi
 
-# 6) Format all JS/TS/JSON/MD files (if prettier is available)
-if command -v prettier >/dev/null 2>&1; then
-  prettier --write "**/*.{js,ts,json,md}" || true
+# 5) Sort imports with isort (if available)
+if command -v isort >/dev/null 2>&1; then
+  echo "📝 Sorting imports..."
+  isort Nr1Replit/nr1copilot/nr1-main/app/ --profile black || true
 else
-  echo "⚠️  prettier not found; skipping JS/TS/JSON/MD formatting"
+  echo "⚠️  isort not found; skipping import sorting"
 fi
 
-# 7) Minify every .js (except in node_modules) into .min.js
-find . -type f -name "*.js" -not -path "./node_modules/*" | while read -r file; do
-  terser "$file" -o "${file%.js}.min.js" || true
-done
+# 6) Create production-ready structure
+echo "📁 Creating production structure..."
+cd Nr1Replit/nr1copilot/nr1-main
+mkdir -p videos uploads logs static
 
-# 8) Minify every .css (except in node_modules) into .min.css
-find . -type f -name "*.css" -not -path "./node_modules/*" | while read -r file; do
-  csso "$file" -o "${file%.css}.min.css" || true
-done
+# 7) Clean up legacy files
+echo "🧹 Cleaning up legacy files..."
+rm -f *.js *.md backend_todo.md todo.md ui_analysis.md viral_clip_generator_analysis.md
+rm -f swagger.yaml render_deployment_guide.md render_deployment_todo.md
+rm -f compatibility_test_report.md final_validation_report.md package.json
 
-# 9) If you have JSDoc configured, generate docs into ./out_docs
-if [ -f package.json ]; then
-  mkdir -p out_docs
-  jsdoc -c jsdoc.json -d out_docs . || echo "⚠️  JSDoc failed or no jsdoc.json present"
-fi
-
-# 10) Return to parent folder and zip up the entire "crazy" transformed folder
-cd ..
-zip -r Nr1Replit_crazy_transformed.zip Nr1Replit
+# 8) Create tar.gz archive (since zip isn't available)
+cd ../../..
+echo "📦 Creating archive..."
+tar -czf Nr1Replit_crazy_transformed.tar.gz Nr1Replit
 
 echo
 echo "✅ Transformation complete!"
-echo "▶️  Download your ZIP under the Files sidebar as: Nr1Replit_crazy_transformed.zip"
+echo "▶️  Download your archive as: Nr1Replit_crazy_transformed.tar.gz"
+echo "📝 Your FastAPI backend is ready for deployment!"
