@@ -1,403 +1,238 @@
-
 """
-Enhanced Metrics Collection System
-Provides comprehensive application metrics and monitoring
+Netflix-Level Metrics Collection
+Real-time performance and business metrics
 """
 
-import time
 import asyncio
-import logging
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+import logging
+from pathlib import Path
+import json
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class MetricEvent:
-    """Represents a single metric event"""
-    name: str
-    value: float
-    timestamp: datetime
-    tags: Dict[str, str] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 class MetricsCollector:
-    """Enhanced metrics collection and aggregation system"""
-    
-    def __init__(self, max_events: int = 10000):
-        self.max_events = max_events
-        self.events: deque = deque(maxlen=max_events)
-        self.counters: defaultdict = defaultdict(int)
-        self.gauges: defaultdict = defaultdict(float)
-        self.histograms: defaultdict = defaultdict(list)
-        self.timers: defaultdict = defaultdict(list)
-        
-        # Performance tracking
-        self.request_times: deque = deque(maxlen=1000)
-        self.error_counts: defaultdict = defaultdict(int)
-        self.upload_stats: deque = deque(maxlen=500)
-        self.processing_stats: deque = deque(maxlen=500)
-        
-        # System health
-        self.health_checks: Dict[str, Any] = {}
-        self.start_time = datetime.now()
-        
-        logger.info("✅ Metrics collector initialized")
-    
-    async def record_request(
-        self, 
-        method: str, 
-        path: str, 
-        status_code: int, 
-        duration: float,
-        **kwargs
-    ):
+    """Netflix-level metrics collection and monitoring"""
+
+    def __init__(self, retention_hours: int = 24):
+        self.retention_hours = retention_hours
+        self.metrics = defaultdict(deque)
+        self.counters = defaultdict(int)
+        self.gauges = defaultdict(float)
+        self.histograms = defaultdict(list)
+        self.start_time = time.time()
+
+        # Request metrics
+        self.request_count = 0
+        self.error_count = 0
+        self.response_times = deque(maxlen=1000)
+
+        # Video processing metrics
+        self.uploads_count = 0
+        self.processing_count = 0
+        self.completed_count = 0
+        self.failed_count = 0
+
+        # WebSocket metrics
+        self.websocket_connections = 0
+        self.websocket_messages = 0
+
+        # Start background cleanup
+        asyncio.create_task(self._cleanup_old_metrics())
+
+    async def record_request(self, method: str, path: str, status_code: int, duration: float):
         """Record HTTP request metrics"""
-        try:
-            # Record timing
-            self.request_times.append(duration)
-            self.timers[f"request.{method.lower()}"].append(duration)
-            
-            # Update counters
-            self.counters[f"requests.total"] += 1
-            self.counters[f"requests.{method.lower()}"] += 1
-            self.counters[f"responses.{status_code}"] += 1
-            
-            # Track errors
-            if status_code >= 400:
-                self.error_counts[f"{method}:{path}"] += 1
-                self.counters["requests.errors"] += 1
-            
-            # Record event
-            event = MetricEvent(
-                name="http_request",
-                value=duration,
-                timestamp=datetime.now(),
-                tags={
-                    "method": method,
-                    "path": path,
-                    "status": str(status_code)
-                },
-                metadata=kwargs
-            )
-            self.events.append(event)
-            
-            # Update gauges
-            if len(self.request_times) > 0:
-                self.gauges["request.avg_duration"] = sum(self.request_times) / len(self.request_times)
-                self.gauges["request.max_duration"] = max(self.request_times)
-                self.gauges["request.min_duration"] = min(self.request_times)
-            
-        except Exception as e:
-            logger.error(f"Error recording request metrics: {e}")
-    
-    async def record_upload(
-        self, 
-        file_size: int, 
-        processing_time: float, 
-        file_type: str,
-        success: bool = True,
-        **kwargs
-    ):
-        """Record file upload metrics"""
-        try:
-            upload_stat = {
-                "file_size": file_size,
-                "processing_time": processing_time,
-                "file_type": file_type,
-                "success": success,
-                "timestamp": datetime.now(),
-                **kwargs
-            }
-            self.upload_stats.append(upload_stat)
-            
-            # Update counters
-            self.counters["uploads.total"] += 1
-            if success:
-                self.counters["uploads.success"] += 1
-            else:
-                self.counters["uploads.failed"] += 1
-            
-            self.counters[f"uploads.{file_type}"] += 1
-            
-            # Update gauges
-            recent_uploads = [s for s in self.upload_stats if s["success"]]
-            if recent_uploads:
-                avg_size = sum(s["file_size"] for s in recent_uploads) / len(recent_uploads)
-                avg_time = sum(s["processing_time"] for s in recent_uploads) / len(recent_uploads)
-                
-                self.gauges["upload.avg_file_size"] = avg_size
-                self.gauges["upload.avg_processing_time"] = avg_time
-                self.gauges["upload.success_rate"] = len(recent_uploads) / len(self.upload_stats) * 100
-            
-            # Record event
-            event = MetricEvent(
-                name="file_upload",
-                value=processing_time,
-                timestamp=datetime.now(),
-                tags={
-                    "file_type": file_type,
-                    "success": str(success)
-                },
-                metadata={
-                    "file_size": file_size,
-                    **kwargs
-                }
-            )
-            self.events.append(event)
-            
-        except Exception as e:
-            logger.error(f"Error recording upload metrics: {e}")
-    
-    async def record_processing(
-        self,
-        video_duration: float,
-        processing_time: float,
-        clips_generated: int,
-        quality: str,
-        success: bool = True,
-        **kwargs
-    ):
+        self.request_count += 1
+        self.response_times.append(duration)
+
+        if status_code >= 400:
+            self.error_count += 1
+
+        # Store detailed metrics
+        metric_key = f"request_{method}_{self._sanitize_path(path)}"
+        self.metrics[metric_key].append({
+            "timestamp": time.time(),
+            "status_code": status_code,
+            "duration": duration
+        })
+
+        # Update counters
+        self.counters[f"requests_total"] += 1
+        self.counters[f"requests_{method.lower()}"] += 1
+
+        if status_code >= 400:
+            self.counters["requests_errors"] += 1
+
+    async def record_upload(self, file_size: int, duration: float, success: bool = True):
+        """Record upload metrics"""
+        self.uploads_count += 1
+
+        if success:
+            self.counters["uploads_successful"] += 1
+        else:
+            self.counters["uploads_failed"] += 1
+
+        self.metrics["uploads"].append({
+            "timestamp": time.time(),
+            "file_size": file_size,
+            "duration": duration,
+            "success": success
+        })
+
+        # Update gauges
+        self.gauges["avg_upload_size"] = self._calculate_average("uploads", "file_size")
+        self.gauges["avg_upload_duration"] = self._calculate_average("uploads", "duration")
+
+    async def record_processing(self, session_id: str, stage: str, duration: float, success: bool = True):
         """Record video processing metrics"""
-        try:
-            processing_stat = {
-                "video_duration": video_duration,
-                "processing_time": processing_time,
-                "clips_generated": clips_generated,
-                "quality": quality,
-                "success": success,
-                "timestamp": datetime.now(),
-                "efficiency": video_duration / processing_time if processing_time > 0 else 0,
-                **kwargs
-            }
-            self.processing_stats.append(processing_stat)
-            
-            # Update counters
-            self.counters["processing.total"] += 1
-            self.counters[f"processing.{quality}"] += 1
-            self.counters["clips.generated"] += clips_generated
-            
-            if success:
-                self.counters["processing.success"] += 1
-            else:
-                self.counters["processing.failed"] += 1
-            
-            # Update gauges
-            recent_processing = [s for s in self.processing_stats if s["success"]]
-            if recent_processing:
-                avg_efficiency = sum(s["efficiency"] for s in recent_processing) / len(recent_processing)
-                avg_clips = sum(s["clips_generated"] for s in recent_processing) / len(recent_processing)
-                
-                self.gauges["processing.avg_efficiency"] = avg_efficiency
-                self.gauges["processing.avg_clips"] = avg_clips
-                self.gauges["processing.success_rate"] = len(recent_processing) / len(self.processing_stats) * 100
-            
-            # Record event
-            event = MetricEvent(
-                name="video_processing",
-                value=processing_time,
-                timestamp=datetime.now(),
-                tags={
-                    "quality": quality,
-                    "success": str(success)
-                },
-                metadata={
-                    "video_duration": video_duration,
-                    "clips_generated": clips_generated,
-                    **kwargs
-                }
-            )
-            self.events.append(event)
-            
-        except Exception as e:
-            logger.error(f"Error recording processing metrics: {e}")
-    
-    async def record_error(self, error_type: str, error_message: str, **kwargs):
-        """Record error metrics"""
-        try:
-            self.counters[f"errors.{error_type}"] += 1
-            self.counters["errors.total"] += 1
-            
-            event = MetricEvent(
-                name="error",
-                value=1,
-                timestamp=datetime.now(),
-                tags={
-                    "error_type": error_type,
-                    "error_class": error_message.__class__.__name__ if hasattr(error_message, '__class__') else "Unknown"
-                },
-                metadata={
-                    "message": str(error_message),
-                    **kwargs
-                }
-            )
-            self.events.append(event)
-            
-        except Exception as e:
-            logger.error(f"Error recording error metrics: {e}")
-    
-    async def record_custom_metric(
-        self, 
-        name: str, 
-        value: float, 
-        metric_type: str = "gauge",
-        tags: Optional[Dict[str, str]] = None,
-        **kwargs
-    ):
-        """Record custom application metrics"""
-        try:
-            if metric_type == "counter":
-                self.counters[name] += value
-            elif metric_type == "gauge":
-                self.gauges[name] = value
-            elif metric_type == "histogram":
-                self.histograms[name].append(value)
-            elif metric_type == "timer":
-                self.timers[name].append(value)
-            
-            event = MetricEvent(
-                name=name,
-                value=value,
-                timestamp=datetime.now(),
-                tags=tags or {},
-                metadata=kwargs
-            )
-            self.events.append(event)
-            
-        except Exception as e:
-            logger.error(f"Error recording custom metric: {e}")
-    
+        self.processing_count += 1
+
+        if success:
+            if stage == "complete":
+                self.completed_count += 1
+        else:
+            self.failed_count += 1
+
+        self.metrics["processing"].append({
+            "timestamp": time.time(),
+            "session_id": session_id,
+            "stage": stage,
+            "duration": duration,
+            "success": success
+        })
+
+        # Update processing stage counters
+        self.counters[f"processing_{stage}"] += 1
+
+    async def record_websocket_connection(self, connected: bool):
+        """Record WebSocket connection metrics"""
+        if connected:
+            self.websocket_connections += 1
+            self.counters["websocket_connections"] += 1
+        else:
+            self.websocket_connections = max(0, self.websocket_connections - 1)
+            self.counters["websocket_disconnections"] += 1
+
+        self.gauges["active_websocket_connections"] = self.websocket_connections
+
+    async def record_websocket_message(self, message_type: str, size: int):
+        """Record WebSocket message metrics"""
+        self.websocket_messages += 1
+        self.counters[f"websocket_messages_{message_type}"] += 1
+
+        self.metrics["websocket_messages"].append({
+            "timestamp": time.time(),
+            "type": message_type,
+            "size": size
+        })
+
     def get_summary(self) -> Dict[str, Any]:
-        """Get comprehensive metrics summary"""
-        try:
-            now = datetime.now()
-            uptime = now - self.start_time
-            
-            # Calculate request rates
-            recent_requests = [
-                e for e in self.events 
-                if e.name == "http_request" and 
-                now - e.timestamp < timedelta(minutes=5)
-            ]
-            
-            request_rate = len(recent_requests) / 5 if recent_requests else 0  # per minute
-            
-            # Calculate error rates
-            recent_errors = [
-                e for e in self.events 
-                if e.name == "error" and 
-                now - e.timestamp < timedelta(minutes=5)
-            ]
-            
-            error_rate = len(recent_errors) / 5 if recent_errors else 0  # per minute
-            
-            return {
-                "uptime_seconds": uptime.total_seconds(),
-                "uptime_formatted": str(uptime),
-                "total_events": len(self.events),
-                "request_rate_per_minute": round(request_rate, 2),
-                "error_rate_per_minute": round(error_rate, 2),
-                "counters": dict(self.counters),
-                "gauges": dict(self.gauges),
-                "health_status": self._get_health_status(),
-                "performance": self._get_performance_summary(),
-                "upload_statistics": self._get_upload_summary(),
-                "processing_statistics": self._get_processing_summary()
+        """Get metrics summary for health checks"""
+        uptime = time.time() - self.start_time
+
+        # Calculate response time percentiles
+        response_times = list(self.response_times)
+        percentiles = {}
+        if response_times:
+            response_times.sort()
+            percentiles = {
+                "p50": self._percentile(response_times, 50),
+                "p95": self._percentile(response_times, 95),
+                "p99": self._percentile(response_times, 99)
             }
-            
-        except Exception as e:
-            logger.error(f"Error generating metrics summary: {e}")
-            return {"error": str(e)}
-    
-    def _get_health_status(self) -> str:
-        """Determine overall system health"""
-        try:
-            # Check error rates
-            recent_errors = sum(1 for e in self.events 
-                              if e.name == "error" and 
-                              datetime.now() - e.timestamp < timedelta(minutes=5))
-            
-            if recent_errors > 10:
-                return "unhealthy"
-            elif recent_errors > 5:
-                return "degraded"
-            else:
-                return "healthy"
-                
-        except Exception:
-            return "unknown"
-    
-    def _get_performance_summary(self) -> Dict[str, Any]:
-        """Get performance metrics summary"""
-        try:
-            if not self.request_times:
-                return {"status": "no_data"}
-            
-            request_times = list(self.request_times)
-            
-            return {
-                "avg_response_time": round(sum(request_times) / len(request_times), 3),
-                "max_response_time": round(max(request_times), 3),
-                "min_response_time": round(min(request_times), 3),
-                "p95_response_time": round(sorted(request_times)[int(len(request_times) * 0.95)], 3),
-                "total_requests": len(request_times)
-            }
-            
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def _get_upload_summary(self) -> Dict[str, Any]:
-        """Get upload statistics summary"""
-        try:
-            if not self.upload_stats:
-                return {"status": "no_data"}
-            
-            successful_uploads = [s for s in self.upload_stats if s["success"]]
-            
-            return {
-                "total_uploads": len(self.upload_stats),
-                "successful_uploads": len(successful_uploads),
-                "success_rate": round(len(successful_uploads) / len(self.upload_stats) * 100, 2),
-                "avg_file_size_mb": round(sum(s["file_size"] for s in successful_uploads) / len(successful_uploads) / (1024*1024), 2) if successful_uploads else 0,
-                "avg_processing_time": round(sum(s["processing_time"] for s in successful_uploads) / len(successful_uploads), 2) if successful_uploads else 0
-            }
-            
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def _get_processing_summary(self) -> Dict[str, Any]:
-        """Get processing statistics summary"""
-        try:
-            if not self.processing_stats:
-                return {"status": "no_data"}
-            
-            successful_processing = [s for s in self.processing_stats if s["success"]]
-            
-            return {
-                "total_processed": len(self.processing_stats),
-                "successful_processed": len(successful_processing),
-                "success_rate": round(len(successful_processing) / len(self.processing_stats) * 100, 2),
-                "avg_efficiency": round(sum(s["efficiency"] for s in successful_processing) / len(successful_processing), 2) if successful_processing else 0,
-                "total_clips_generated": sum(s["clips_generated"] for s in successful_processing)
-            }
-            
-        except Exception as e:
-            return {"error": str(e)}
-    
-    async def close(self):
-        """Clean up metrics collector"""
-        try:
-            logger.info(f"Metrics collector closing - {len(self.events)} events recorded")
-            self.events.clear()
-            self.counters.clear()
-            self.gauges.clear()
-            self.histograms.clear()
-            self.timers.clear()
-            self.request_times.clear()
-            self.upload_stats.clear()
-            self.processing_stats.clear()
-            
-        except Exception as e:
-            logger.error(f"Error closing metrics collector: {e}")
+
+        return {
+            "uptime_seconds": round(uptime, 2),
+            "requests": {
+                "total": self.request_count,
+                "errors": self.error_count,
+                "error_rate": (self.error_count / max(self.request_count, 1)) * 100,
+                "response_times": percentiles
+            },
+            "uploads": {
+                "total": self.uploads_count,
+                "successful": self.counters.get("uploads_successful", 0),
+                "failed": self.counters.get("uploads_failed", 0),
+                "success_rate": (self.counters.get("uploads_successful", 0) / max(self.uploads_count, 1)) * 100
+            },
+            "processing": {
+                "total": self.processing_count,
+                "completed": self.completed_count,
+                "failed": self.failed_count,
+                "success_rate": (self.completed_count / max(self.processing_count, 1)) * 100
+            },
+            "websockets": {
+                "active_connections": self.websocket_connections,
+                "total_messages": self.websocket_messages
+            },
+            "gauges": dict(self.gauges),
+            "counters": dict(self.counters)
+        }
+
+    def get_detailed_metrics(self, metric_type: str = None) -> Dict[str, Any]:
+        """Get detailed metrics for analysis"""
+        if metric_type:
+            return {metric_type: list(self.metrics.get(metric_type, []))}
+
+        return {key: list(values) for key, values in self.metrics.items()}
+
+    async def export_metrics(self, file_path: Optional[str] = None) -> str:
+        """Export metrics to JSON file"""
+        if not file_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = f"logs/metrics_{timestamp}.json"
+
+        metrics_data = {
+            "timestamp": datetime.now().isoformat(),
+            "summary": self.get_summary(),
+            "detailed": self.get_detailed_metrics()
+        }
+
+        Path(file_path).parent.mkdir(exist_ok=True)
+        with open(file_path, 'w') as f:
+            json.dump(metrics_data, f, indent=2, default=str)
+
+        logger.info(f"Metrics exported to {file_path}")
+        return file_path
+
+    def _sanitize_path(self, path: str) -> str:
+        """Sanitize URL path for metric keys"""
+        # Replace dynamic parts with placeholders
+        import re
+        path = re.sub(r'/\d+', '/{id}', path)
+        path = re.sub(r'/[a-f0-9-]{32,}', '/{uuid}', path)
+        return path.replace('/', '_').replace('-', '_')
+
+    def _calculate_average(self, metric_type: str, field: str) -> float:
+        """Calculate average for a specific field in metrics"""
+        values = [m[field] for m in self.metrics[metric_type] if field in m]
+        return sum(values) / len(values) if values else 0.0
+
+    def _percentile(self, data: List[float], percentile: int) -> float:
+        """Calculate percentile from sorted data"""
+        if not data:
+            return 0.0
+        index = int((percentile / 100) * len(data))
+        index = min(index, len(data) - 1)
+        return data[index]
+
+    async def _cleanup_old_metrics(self):
+        """Cleanup old metrics to prevent memory bloat"""
+        while True:
+            try:
+                await asyncio.sleep(3600)  # Every hour
+                cutoff_time = time.time() - (self.retention_hours * 3600)
+
+                for metric_type, values in self.metrics.items():
+                    # Remove old entries
+                    while values and values[0].get("timestamp", 0) < cutoff_time:
+                        values.popleft()
+
+                logger.debug("Cleaned up old metrics")
+
+            except Exception as e:
+                logger.error(f"Error cleaning up metrics: {e}")

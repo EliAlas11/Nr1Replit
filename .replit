@@ -5,10 +5,10 @@ channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 
 [deployment]
-run = ["sh", "-c", "python3 nr1copilot/nr1-main/app/main.py"]
+run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1"]
 
 [workflows]
-runButton = "Netflix ViralClip Pro Server"
+runButton = "Netflix ViralClip Pro v4.0"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -147,6 +147,23 @@ args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0
 [[workflows.workflow]]
 name = "Netflix ViralClip Pro Server"
 author = 43362756
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --upgrade pip"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install -r requirements.txt"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
+
+[[workflows.workflow]]
+name = "Netflix ViralClip Pro v4.0"
+author = 43366290
 mode = "sequential"
 
 [[workflows.workflow.tasks]]

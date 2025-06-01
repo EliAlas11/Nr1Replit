@@ -1,5 +1,5 @@
 
-# Core FastAPI dependencies
+# Core FastAPI dependencies - Production Ready
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
@@ -9,14 +9,20 @@ websockets==12.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 
-# System monitoring
+# System monitoring and health
 psutil==5.9.6
 
-# Async support
-asyncio-throttle==1.0.2
+# Security and performance
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 
-# Optional dependencies for future enhancements
-# Pillow==10.1.0  # For image processing
-# ffmpeg-python==0.2.0  # For video processing
-# redis==5.0.1  # For caching
-# celery==5.3.4  # For background tasks
+# Async support and utilities
+asyncio-throttle==1.0.2
+aiofiles==23.2.1
+
+# Development dependencies (optional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.9.1
+isort==5.12.0
+flake8==6.1.0
