@@ -1,4 +1,3 @@
-
 """
 Production-grade FastAPI application for Viral Clip Generator
 World-class implementation with comprehensive error handling, logging, and security
@@ -36,24 +35,24 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info("🚀 Starting Viral Clip Generator API...")
-    
+
     # Startup checks
     settings = get_settings()
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
-    
+
     # Verify critical environment variables
     critical_vars = ["MONGODB_URI", "REDIS_URL", "JWT_SECRET"]
     missing_vars = [var for var in critical_vars if not os.getenv(var)]
     if missing_vars:
         logger.warning(f"Missing environment variables: {missing_vars}")
-    
+
     # Create necessary directories
     os.makedirs("videos", exist_ok=True)
     os.makedirs("uploads", exist_ok=True)
-    
+
     yield
-    
+
     logger.info("👋 Shutting down Viral Clip Generator API...")
 
 # Initialize FastAPI app
