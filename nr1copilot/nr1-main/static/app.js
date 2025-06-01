@@ -54,24 +54,50 @@ class ViralClipApp {
         const uploadZone = document.getElementById('upload-zone');
         if (!uploadZone) return;
 
+        // Prevent default drag behaviors on document
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             uploadZone.addEventListener(eventName, this.preventDefaults, false);
             document.body.addEventListener(eventName, this.preventDefaults, false);
         });
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            uploadZone.addEventListener(eventName, () => {
-                uploadZone.classList.add('dragover');
-            }, false);
+        // Visual feedback for drag states
+        uploadZone.addEventListener('dragenter', (e) => {
+            uploadZone.classList.add('drag-active');
+            this.showDragOverlay();
         });
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            uploadZone.addEventListener(eventName, () => {
-                uploadZone.classList.remove('dragover');
-            }, false);
+        uploadZone.addEventListener('dragover', (e) => {
+            uploadZone.classList.add('drag-active');
         });
 
-        uploadZone.addEventListener('drop', (e) => this.handleDrop(e), false);
+        uploadZone.addEventListener('dragleave', (e) => {
+            // Only remove if we're leaving the upload zone completely
+            if (!uploadZone.contains(e.relatedTarget)) {
+                uploadZone.classList.remove('drag-active');
+                this.hideDragOverlay();
+            }
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            uploadZone.classList.remove('drag-active');
+            this.hideDragOverlay();
+            this.handleDrop(e);
+        }, false);
+
+        // Click to upload
+        uploadZone.addEventListener('click', () => {
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) fileInput.click();
+        });
+
+        // Touch support for mobile
+        uploadZone.addEventListener('touchstart', (e) => {
+            uploadZone.classList.add('touch-active');
+        });
+
+        uploadZone.addEventListener('touchend', (e) => {
+            uploadZone.classList.remove('touch-active');
+        });
     }
 
     setupWebSocket() {
@@ -153,52 +179,160 @@ class ViralClipApp {
     async handleFileSelect(event) {
         const file = event.target.files[0];
         if (file) {
-            await this.uploadFile(file);
+            await this.processFileWithPreview(file);
         }
     }
 
     async handleDrop(event) {
         const files = event.dataTransfer.files;
         if (files.length > 0) {
-            await this.uploadFile(files[0]);
+            await this.processFileWithPreview(files[0]);
         }
     }
 
-    async uploadFile(file) {
-        // Validate file
-        if (!file.type.startsWith('video/')) {
-            this.showNotification('Please select a video file', 'error');
-            return;
-        }
-
-        if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB
-            this.showNotification('File size must be less than 2GB', 'error');
-            return;
-        }
-
-        const progressContainer = document.getElementById('upload-progress');
-        const progressFill = document.getElementById('progress-fill');
-        const progressText = document.getElementById('progress-text');
-
-        if (progressContainer) {
-            progressContainer.style.display = 'block';
-        }
-
+    async processFileWithPreview(file) {
         try {
+            // Validate file first
+            if (!this.validateFile(file)) return;
+
+            // Show instant preview
+            await this.showInstantPreview(file);
+
+            // Start upload with preview
+            await this.uploadFileWithPreview(file);
+
+        } catch (error) {
+            console.error('File processing error:', error);
+            this.showNotification(`File processing failed: ${error.message}`, 'error');
+            this.hideInstantPreview();
+        }
+    }
+
+    validateFile(file) {
+        // Check file type
+        if (!file.type.startsWith('video/')) {
+            this.showNotification('Please select a video file (MP4, MOV, AVI, MKV)', 'error');
+            return false;
+        }
+
+        // Check file size (2GB limit)
+        const maxSize = 2 * 1024 * 1024 * 1024;
+        if (file.size > maxSize) {
+            this.showNotification('File size must be less than 2GB', 'error');
+            return false;
+        }
+
+        // Check duration (estimate from file size)
+        const estimatedDuration = file.size / (1024 * 1024); // Rough estimate
+        if (estimatedDuration > 3600) { // 1 hour max
+            this.showNotification('Video must be less than 1 hour long', 'error');
+            return false;
+        }
+
+        return true;
+    }
+
+    async showInstantPreview(file) {
+        const uploadZone = document.getElementById('upload-zone');
+        if (!uploadZone) return;
+
+        // Create preview container
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'instant-preview';
+        previewContainer.id = 'instant-preview';
+
+        // Create video preview
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.controls = true;
+        video.muted = true;
+        video.className = 'preview-video';
+
+        // Create file info overlay
+        const infoOverlay = document.createElement('div');
+        infoOverlay.className = 'preview-overlay';
+        infoOverlay.innerHTML = `
+            <div class="preview-info">
+                <div class="file-details">
+                    <h4>${file.name}</h4>
+                    <p class="file-stats">
+                        <span class="file-size">${this.formatFileSize(file.size)}</span>
+                        <span class="file-type">${file.type}</span>
+                    </p>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn btn-primary btn-small" onclick="app.confirmUpload()">
+                        ✅ Upload This Video
+                    </button>
+                    <button class="btn btn-secondary btn-small" onclick="app.cancelUpload()">
+                        ❌ Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+
+        previewContainer.appendChild(video);
+        previewContainer.appendChild(infoOverlay);
+        uploadZone.appendChild(previewContainer);
+
+        // Animate preview in
+        setTimeout(() => {
+            previewContainer.classList.add('show');
+        }, 100);
+
+        // Store file reference
+        this.currentFile = file;
+    }
+
+    hideInstantPreview() {
+        const preview = document.getElementById('instant-preview');
+        if (preview) {
+            preview.classList.remove('show');
+            setTimeout(() => {
+                if (preview.parentNode) {
+                    preview.parentNode.removeChild(preview);
+                }
+            }, 300);
+        }
+        this.currentFile = null;
+    }
+
+    async confirmUpload() {
+        if (this.currentFile) {
+            await this.uploadFileWithPreview(this.currentFile);
+        }
+    }
+
+    cancelUpload() {
+        this.hideInstantPreview();
+        this.showNotification('Upload cancelled', 'info');
+    }
+
+    async uploadFileWithPreview(file) {
+        const progressContainer = this.createAdvancedProgressIndicator();
+        
+        try {
+            // Initialize WebSocket for real-time updates
+            const uploadId = this.generateUploadId();
+            this.initializeUploadWebSocket(uploadId);
+
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('upload_id', uploadId);
 
             const xhr = new XMLHttpRequest();
 
+            // Enhanced progress tracking
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
                     const percentComplete = (e.loaded / e.total) * 100;
-                    if (progressFill) {
-                        progressFill.style.width = percentComplete + '%';
-                    }
-                    if (progressText) {
-                        progressText.textContent = Math.round(percentComplete) + '%';
-                    }
+                    this.updateAdvancedProgress({
+                        stage: 'uploading',
+                        progress: percentComplete,
+                        loaded: e.loaded,
+                        total: e.total,
+                        speed: this.calculateUploadSpeed(e.loaded)
+                    });
                 }
             });
 
@@ -206,19 +340,28 @@ class ViralClipApp {
                 if (xhr.status === 200) {
                     const response = JSON.parse(xhr.responseText);
                     if (response.success) {
-                        this.showNotification('File uploaded successfully!', 'success');
-                        // Process the uploaded file
+                        this.updateAdvancedProgress({
+                            stage: 'processing',
+                            progress: 100,
+                            message: 'Upload complete! Processing video...'
+                        });
+                        
+                        this.hideInstantPreview();
                         this.processUploadedFile(response);
                     } else {
                         throw new Error(response.message || 'Upload failed');
                     }
                 } else {
-                    throw new Error('Upload failed');
+                    throw new Error(`Upload failed with status ${xhr.status}`);
                 }
             });
 
             xhr.addEventListener('error', () => {
-                throw new Error('Upload failed');
+                throw new Error('Network error during upload');
+            });
+
+            xhr.addEventListener('abort', () => {
+                throw new Error('Upload was cancelled');
             });
 
             xhr.open('POST', '/api/v2/upload-video');
@@ -227,10 +370,237 @@ class ViralClipApp {
         } catch (error) {
             console.error('Upload error:', error);
             this.showNotification(`Upload failed: ${error.message}`, 'error');
-            if (progressContainer) {
-                progressContainer.style.display = 'none';
+            this.hideAdvancedProgress();
+            this.hideInstantPreview();
+        }
+    }
+
+    generateUploadId() {
+        return 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    calculateUploadSpeed(bytesLoaded) {
+        const now = Date.now();
+        if (!this.uploadStartTime) {
+            this.uploadStartTime = now;
+            this.lastBytesLoaded = 0;
+            return 0;
+        }
+
+        const elapsedTime = (now - this.uploadStartTime) / 1000; // seconds
+        const speed = bytesLoaded / elapsedTime; // bytes per second
+        return speed;
+    }
+
+    createAdvancedProgressIndicator() {
+        const existingProgress = document.getElementById('advanced-progress');
+        if (existingProgress) {
+            existingProgress.remove();
+        }
+
+        const progressContainer = document.createElement('div');
+        progressContainer.id = 'advanced-progress';
+        progressContainer.className = 'advanced-progress-container';
+        progressContainer.innerHTML = `
+            <div class="progress-header">
+                <h4>Uploading Video</h4>
+                <button class="progress-close" onclick="app.cancelCurrentUpload()">×</button>
+            </div>
+            <div class="progress-body">
+                <div class="progress-visual">
+                    <div class="progress-circle">
+                        <svg class="progress-ring" width="80" height="80">
+                            <circle class="progress-ring-bg" cx="40" cy="40" r="36"/>
+                            <circle class="progress-ring-fill" cx="40" cy="40" r="36"/>
+                        </svg>
+                        <span class="progress-percentage">0%</span>
+                    </div>
+                    <div class="progress-details">
+                        <div class="progress-stage">Preparing upload...</div>
+                        <div class="progress-stats">
+                            <span class="bytes-info">0 / 0 MB</span>
+                            <span class="speed-info">0 MB/s</span>
+                        </div>
+                        <div class="progress-eta">Calculating...</div>
+                    </div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-advanced">
+                        <div class="progress-fill-advanced" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(progressContainer);
+        
+        // Animate in
+        setTimeout(() => {
+            progressContainer.classList.add('show');
+        }, 100);
+
+        return progressContainer;
+    }
+
+    updateAdvancedProgress(data) {
+        const container = document.getElementById('advanced-progress');
+        if (!container) return;
+
+        const { stage, progress, loaded, total, speed, message } = data;
+
+        // Update percentage
+        const percentageEl = container.querySelector('.progress-percentage');
+        if (percentageEl) {
+            percentageEl.textContent = Math.round(progress) + '%';
+        }
+
+        // Update progress ring
+        const ring = container.querySelector('.progress-ring-fill');
+        if (ring) {
+            const circumference = 2 * Math.PI * 36;
+            const strokeDasharray = `${(progress / 100) * circumference} ${circumference}`;
+            ring.style.strokeDasharray = strokeDasharray;
+        }
+
+        // Update progress bar
+        const progressFill = container.querySelector('.progress-fill-advanced');
+        if (progressFill) {
+            progressFill.style.width = progress + '%';
+        }
+
+        // Update stage
+        const stageEl = container.querySelector('.progress-stage');
+        if (stageEl) {
+            stageEl.textContent = message || this.getStageMessage(stage);
+        }
+
+        // Update stats
+        if (loaded && total) {
+            const bytesEl = container.querySelector('.bytes-info');
+            if (bytesEl) {
+                bytesEl.textContent = `${this.formatFileSize(loaded)} / ${this.formatFileSize(total)}`;
             }
         }
+
+        if (speed) {
+            const speedEl = container.querySelector('.speed-info');
+            if (speedEl) {
+                speedEl.textContent = `${this.formatFileSize(speed)}/s`;
+            }
+
+            // Calculate ETA
+            const etaEl = container.querySelector('.progress-eta');
+            if (etaEl && loaded && total) {
+                const remaining = total - loaded;
+                const eta = remaining / speed;
+                etaEl.textContent = `ETA: ${this.formatDuration(eta)}`;
+            }
+        }
+    }
+
+    getStageMessage(stage) {
+        const messages = {
+            'uploading': 'Uploading video file...',
+            'processing': 'Processing uploaded video...',
+            'analyzing': 'AI analyzing content...',
+            'complete': 'Upload complete!'
+        };
+        return messages[stage] || 'Processing...';
+    }
+
+    hideAdvancedProgress() {
+        const container = document.getElementById('advanced-progress');
+        if (container) {
+            container.classList.remove('show');
+            setTimeout(() => {
+                if (container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+            }, 300);
+        }
+    }
+
+    initializeUploadWebSocket(uploadId) {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v2/upload-progress/${uploadId}`;
+            
+            this.uploadWs = new WebSocket(wsUrl);
+            
+            this.uploadWs.onopen = () => {
+                console.log('Upload WebSocket connected');
+            };
+            
+            this.uploadWs.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                this.handleUploadWebSocketMessage(message);
+            };
+            
+            this.uploadWs.onclose = () => {
+                console.log('Upload WebSocket disconnected');
+            };
+            
+            this.uploadWs.onerror = (error) => {
+                console.error('Upload WebSocket error:', error);
+            };
+            
+            // Send periodic pings
+            this.uploadPingInterval = setInterval(() => {
+                if (this.uploadWs && this.uploadWs.readyState === WebSocket.OPEN) {
+                    this.uploadWs.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 25000);
+            
+        } catch (error) {
+            console.error('Failed to initialize upload WebSocket:', error);
+        }
+    }
+
+    handleUploadWebSocketMessage(message) {
+        switch (message.type) {
+            case 'upload_started':
+                console.log('Upload WebSocket confirmed connection');
+                break;
+            case 'upload_progress':
+                // Handle upload progress if server sends it
+                break;
+            case 'upload_complete':
+                this.closeUploadWebSocket();
+                break;
+            case 'pong':
+                // Heartbeat response
+                break;
+            case 'keep_alive':
+                // Server keep-alive
+                break;
+        }
+    }
+
+    closeUploadWebSocket() {
+        if (this.uploadWs) {
+            this.uploadWs.close();
+            this.uploadWs = null;
+        }
+        if (this.uploadPingInterval) {
+            clearInterval(this.uploadPingInterval);
+            this.uploadPingInterval = null;
+        }
+    }
+
+    cancelCurrentUpload() {
+        // Close WebSocket
+        this.closeUploadWebSocket();
+        
+        // Hide UI elements
+        this.hideAdvancedProgress();
+        this.hideInstantPreview();
+        
+        // Reset upload state
+        this.currentFile = null;
+        this.uploadStartTime = null;
+        this.lastBytesLoaded = 0;
+        
+        this.showNotification('Upload cancelled', 'info');
     }
 
     processUploadedFile(uploadResponse) {
@@ -631,6 +1001,38 @@ class ViralClipApp {
         }
     }
 
+    // Drag overlay methods
+    showDragOverlay() {
+        const existing = document.getElementById('drag-overlay');
+        if (existing) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'drag-overlay';
+        overlay.className = 'drag-overlay';
+        overlay.innerHTML = `
+            <div class="drag-content">
+                <div class="drag-icon">📁</div>
+                <h3>Drop Video File Here</h3>
+                <p>Release to upload your video file</p>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        setTimeout(() => overlay.classList.add('show'), 10);
+    }
+
+    hideDragOverlay() {
+        const overlay = document.getElementById('drag-overlay');
+        if (overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => {
+                if (overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
+            }, 200);
+        }
+    }
+
     // Utility methods
     setButtonLoading(buttonId, loading) {
         const button = document.getElementById(buttonId);
@@ -639,9 +1041,23 @@ class ViralClipApp {
         if (loading) {
             button.classList.add('loading');
             button.disabled = true;
+            
+            // Add loading spinner to button
+            const btnText = button.querySelector('.btn-text');
+            const btnLoading = button.querySelector('.btn-loading');
+            
+            if (btnText) btnText.style.display = 'none';
+            if (btnLoading) btnLoading.style.display = 'flex';
         } else {
             button.classList.remove('loading');
             button.disabled = false;
+            
+            // Remove loading spinner
+            const btnText = button.querySelector('.btn-text');
+            const btnLoading = button.querySelector('.btn-loading');
+            
+            if (btnText) btnText.style.display = 'inline';
+            if (btnLoading) btnLoading.style.display = 'none';
         }
     }
 
