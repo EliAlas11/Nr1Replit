@@ -1,0 +1,21 @@
+/*
+  This CSS file is for the frontend UI only. All backend logic, video processing, and API endpoints are implemented in Python using FastAPI.
+*/
+
+:root {
+  --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  --error: linear-gradient(135deg, #fd746c 0%, #ff9068 100%);
+  --dark: #1a1a2e;
+  --light: #f8f9fa;
+  --text-dark: #2c3e50;
+  --text-light: #ecf0f1;
+  --border: #e0e6ed;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  --radius: 16px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ...rest of CSS from index.html <style> block... */

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: viral-clip-generator
+    env: python
+    buildCommand: cd nr1-main && pip install -r requirements.txt
+    startCommand: cd nr1-main && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: '1'
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: viral-clips-data
+      mountPath: /opt/render/project/src/nr1-main/videos
+      sizeGB: 1

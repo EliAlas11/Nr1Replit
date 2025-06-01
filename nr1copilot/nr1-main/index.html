@@ -1,0 +1,521 @@
+<!--
+  This HTML file is for the frontend UI only. All backend logic, video processing, and API endpoints are implemented in Python using FastAPI. 
+  For backend details, see the FastAPI app and service modules in the `app/` directory.
+-->
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' wss: https:; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Viral Clip Generator - AI-Powered YouTube to TikTok Converter</title>
+    <meta
+      name="description"
+      content="Transform YouTube videos into viral clips perfect for TikTok, Instagram Reels, and YouTube Shorts with AI-powered editing."
+    />
+    <meta
+      name="keywords"
+      content="AI, YouTube, TikTok, Viral Clips, Video Editing, Shorts, Reels"
+    />
+    <meta name="author" content="EliAlas11" />
+    <link rel="icon" href="favicon.ico" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/public/styles.css" />
+    <link rel="manifest" href="/public/manifest.json" />
+    <meta name="theme-color" content="#667eea" />
+  </head>
+  <body>
+    <noscript
+      ><div style="background: #fd746c; color: #fff; padding: 10px; text-align: center">
+        JavaScript is required for this app to function. Please enable JavaScript in your browser.
+      </div></noscript
+    >
+
+    <!-- Improved: Added skip link for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+      <i class="fas fa-moon" aria-hidden="true"></i>
+    </button>
+
+    <div class="container" role="main">
+      <header class="header" role="banner">
+        <h1>
+          <i class="fas fa-fire" aria-label="Viral Clip Generator Logo"></i>
+          <span>Viral Clip Generator</span>
+        </h1>
+        <p>
+          Transform YouTube videos into viral clips perfect for TikTok, Instagram Reels, and YouTube
+          Shorts with AI-powered editing
+        </p>
+      </header>
+
+      <nav
+        class="site-nav"
+        aria-label="Site navigation"
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 30px;
+          gap: 20px;
+        "
+      >
+        <div style="display: flex; align-items: center; gap: 15px">
+          <a
+            href="#"
+            class="site-logo"
+            aria-label="Home"
+            style="
+              font-weight: 700;
+              font-size: 1.3rem;
+              color: #667eea;
+              text-decoration: none;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            "
+            ><i class="fas fa-fire" aria-hidden="true"></i> ViralClip</a
+          >
+          <button
+            class="btn btn-link"
+            id="dashboardBtn"
+            aria-label="Analytics Dashboard"
+            onclick="showDashboard()"
+            style="
+              background: none;
+              border: none;
+              color: #764ba2;
+              font-weight: 600;
+              cursor: pointer;
+            "
+          >
+            Dashboard
+          </button>
+          <button
+            class="btn btn-link"
+            id="blogBtn"
+            aria-label="Blog & News"
+            onclick="window.open('/blog','_blank')"
+            style="
+              background: none;
+              border: none;
+              color: #764ba2;
+              font-weight: 600;
+              cursor: pointer;
+            "
+          >
+            Blog
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px">
+          <select
+            id="languageSelect"
+            aria-label="Select language"
+            style="padding: 6px 12px; border-radius: 8px; border: 1px solid #e0e6ed"
+          >
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="zh">中文</option>
+          </select>
+          <button
+            class="btn btn-link"
+            id="helpBtn"
+            aria-label="Help & FAQ"
+            onclick="showHelpModal()"
+            style="
+              background: none;
+              border: none;
+              color: #764ba2;
+              font-weight: 600;
+              cursor: pointer;
+            "
+          >
+            Help
+          </button>
+          <button
+            class="btn btn-link"
+            id="feedbackBtn"
+            aria-label="Send Feedback"
+            onclick="showFeedbackModal()"
+            style="
+              background: none;
+              border: none;
+              color: #764ba2;
+              font-weight: 600;
+              cursor: pointer;
+            "
+          >
+            Feedback
+          </button>
+          <button
+            class="btn btn-link"
+            id="loginBtn"
+            aria-label="Login or Sign Up"
+            onclick="showAuthModal()"
+            style="
+              background: none;
+              border: none;
+              color: #667eea;
+              font-weight: 700;
+              cursor: pointer;
+            "
+          >
+            Login / Sign Up
+          </button>
+        </div>
+      </nav>
+
+      <section class="input-section" aria-label="YouTube URL Input">
+        <div class="input-group">
+          <input
+            type="text"
+            id="youtubeUrl"
+            placeholder="Paste YouTube URL here... (e.g., https://www.youtube.com/watch?v=...)"
+            aria-label="YouTube video URL"
+            autocomplete="off"
+          />
+          <i class="fab fa-youtube" aria-label="YouTube icon"></i>
+        </div>
+        <div class="validation-status" id="validationStatus" role="status" aria-live="polite">
+          <i class="fas fa-check-circle" aria-hidden="true"></i>
+          <span id="validationText">URL validation status</span>
+        </div>
+      </section>
+
+      <section class="video-info" id="videoInfo" aria-label="Video Information">
+        <!-- Video info will be displayed here -->
+      </section>
+
+      <nav class="buttons" aria-label="Main actions">
+        <button
+          class="btn btn-primary"
+          onclick="processVideo()"
+          id="processBtn"
+          aria-label="Create Viral Clip"
+        >
+          <i class="fas fa-magic" aria-hidden="true"></i>
+          <span>Create Viral Clip</span>
+        </button>
+        <button
+          class="btn btn-secondary"
+          onclick="showExample()"
+          id="exampleBtn"
+          aria-label="View Example Clip"
+        >
+          <i class="fas fa-play" aria-hidden="true"></i>
+          <span>View Example</span>
+        </button>
+      </nav>
+
+      <div class="progress-container" id="progressContainer" aria-label="Progress Bar">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText">0%</div>
+      </div>
+
+      <div class="loader" id="loader" aria-label="Loading" role="status"></div>
+
+      <section class="result" id="result" aria-label="Result Area" aria-live="polite" tabindex="0">
+        <!-- Results will be displayed here -->
+      </section>
+    </div>
+
+    <main id="main-content">
+      <script src="/public/main.js" defer></script>
+    </main>
+
+    <!-- Modals and overlays for new features -->
+    <div
+      id="authModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="authModalTitle"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close" onclick="closeModal('authModal')">
+          &times;
+        </button>
+        <h2 id="authModalTitle">Login or Sign Up</h2>
+        <form id="authForm" autocomplete="off">
+          <input
+            type="email"
+            id="authEmail"
+            placeholder="Email"
+            aria-label="Email"
+            required
+            style="margin-bottom: 10px"
+          />
+          <input
+            type="password"
+            id="authPassword"
+            placeholder="Password"
+            aria-label="Password"
+            required
+            style="margin-bottom: 10px"
+          />
+          <button type="submit" class="btn btn-primary" style="width: 100%">Login</button>
+          <div style="margin: 10px 0; text-align: center">or</div>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick="switchAuthMode()"
+            style="width: 100%"
+          >
+            Sign Up
+          </button>
+        </form>
+      </div>
+    </div>
+    <div
+      id="helpModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="helpModalTitle"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close" onclick="closeModal('helpModal')">
+          &times;
+        </button>
+        <h2 id="helpModalTitle">Help & FAQ</h2>
+        <ul style="margin: 20px 0 0 0; padding: 0; list-style: none">
+          <li>
+            <strong>How do I use this site?</strong><br />Paste a YouTube URL, validate, and click
+            Create Viral Clip.
+          </li>
+          <li>
+            <strong>What platforms are supported?</strong><br />TikTok, Instagram Reels, YouTube
+            Shorts, X (Twitter).
+          </li>
+          <li>
+            <strong>How do I customize my clip?</strong><br />Click the Customize button before
+            processing.
+          </li>
+          <li>
+            <strong>Is my data private?</strong><br />See our
+            <a href="#" onclick="showPrivacyModal()">Privacy Policy</a>.
+          </li>
+          <li>
+            <strong>Need more help?</strong><br />Email
+            <a href="mailto:support@example.com">support@example.com</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div
+      id="feedbackModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="feedbackModalTitle"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close" onclick="closeModal('feedbackModal')">
+          &times;
+        </button>
+        <h2 id="feedbackModalTitle">Send Feedback</h2>
+        <form id="feedbackForm">
+          <textarea
+            id="feedbackText"
+            rows="4"
+            placeholder="Your feedback..."
+            aria-label="Feedback"
+            required
+            style="width: 100%; margin-bottom: 10px"
+          ></textarea>
+          <button type="submit" class="btn btn-primary" style="width: 100%">Submit</button>
+        </form>
+      </div>
+    </div>
+    <div
+      id="privacyModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="privacyModalTitle"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close" onclick="closeModal('privacyModal')">
+          &times;
+        </button>
+        <h2 id="privacyModalTitle">Privacy Policy</h2>
+        <p>
+          Your privacy is important. We do not share your data. See our full policy on our website.
+        </p>
+      </div>
+    </div>
+    <div
+      id="tosModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tosModalTitle"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close" onclick="closeModal('tosModal')">
+          &times;
+        </button>
+        <h2 id="tosModalTitle">Terms of Service</h2>
+        <p>By using this site, you agree to our terms. See our full TOS on our website.</p>
+      </div>
+    </div>
+    <div
+      id="customizeModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customizeModalTitle"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close" onclick="closeModal('customizeModal')">
+          &times;
+        </button>
+        <h2 id="customizeModalTitle">Customize Your Clip</h2>
+        <form id="customizeForm">
+          <label for="startTime">Start Time (sec):</label>
+          <input
+            type="number"
+            id="startTime"
+            min="0"
+            value="0"
+            style="margin-bottom: 10px; width: 100%"
+          />
+          <label for="endTime">End Time (sec):</label>
+          <input
+            type="number"
+            id="endTime"
+            min="1"
+            value="60"
+            style="margin-bottom: 10px; width: 100%"
+          />
+          <label for="aspectRatio">Aspect Ratio:</label>
+          <select id="aspectRatio" style="margin-bottom: 10px; width: 100%">
+            <option value="9:16">9:16 (Vertical)</option>
+            <option value="1:1">1:1 (Square)</option>
+            <option value="16:9">16:9 (Horizontal)</option>
+          </select>
+          <label for="captions">Add Captions:</label>
+          <input
+            type="text"
+            id="captions"
+            placeholder="Enter captions (optional)"
+            style="margin-bottom: 10px; width: 100%"
+          />
+          <button type="submit" class="btn btn-primary" style="width: 100%">Apply</button>
+        </form>
+      </div>
+    </div>
+    <div id="dashboardSection" style="display: none">
+      <h2>Analytics Dashboard</h2>
+      <div id="dashboardContent">
+        <p>Loading analytics...</p>
+      </div>
+    </div>
+
+    <!-- Add Open Graph and SEO meta tags -->
+    <meta
+      property="og:title"
+      content="Viral Clip Generator - AI-Powered YouTube to TikTok Converter"
+    />
+    <meta
+      property="og:description"
+      content="Transform YouTube videos into viral clips perfect for TikTok, Instagram Reels, and YouTube Shorts with AI-powered editing."
+    />
+    <meta property="og:image" content="/favicon.ico" />
+    <meta property="og:url" content="https://viralclip.example.com" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Add PWA install prompt and offline notice -->
+    <div
+      id="pwaPrompt"
+      style="
+        display: none;
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #fff;
+        padding: 18px 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        z-index: 10001;
+      "
+    >
+      <span>Install this app for offline use!</span>
+      <button onclick="installPWA()" class="btn btn-primary" style="margin-left: 15px">
+        Install
+      </button>
+      <button
+        onclick="document.getElementById('pwaPrompt').style.display='none'"
+        class="btn btn-link"
+        style="margin-left: 10px"
+      >
+        Dismiss
+      </button>
+    </div>
+    <div
+      id="offlineNotice"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        background: #fd746c;
+        color: #fff;
+        text-align: center;
+        padding: 10px 0;
+        z-index: 10002;
+      "
+    >
+      You are offline. Some features may be unavailable.
+    </div>
+
+    <footer
+      style="text-align: center; margin-top: 40px; color: #888; font-size: 0.95rem"
+      role="contentinfo"
+    >
+      &copy; 2025 Viral Clip Generator &mdash; Created by EliAlas11. For support, contact
+      <a href="mailto:support@example.com" style="color: #667eea">support@example.com</a> &mdash;
+      <a href="#" onclick="showPrivacyModal()">Privacy Policy</a> &mdash;
+      <a href="#" onclick="showTOSModal()">Terms</a> &mdash;
+      <a href="/blog" target="_blank">Blog</a>
+    </footer>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/service-worker.js').then(
+            function (registration) {
+              // Registration successful
+            },
+            function (err) {
+              // Registration failed
+            },
+          );
+        });
+      }
+    </script>
+  </body>
+</html>

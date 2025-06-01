@@ -1,0 +1,34 @@
+<!--
+  This HTML file is for the frontend UI only. All backend logic, video processing, and API endpoints are implemented in Python using FastAPI.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Offline - Viral Clip Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/public/styles.css" />
+    <style>
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background: #667eea;
+        color: #fff;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>You're Offline</h1>
+      <p>
+        It looks like you're not connected to the internet.<br />
+        You can still browse previously loaded content.<br />
+        Please reconnect to use all features.
+      </p>
+      <a href="/" class="btn btn-primary" style="margin-top: 20px">Go Home</a>
+    </div>
+  </body>
+</html>
