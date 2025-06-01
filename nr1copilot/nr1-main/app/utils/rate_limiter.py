@@ -582,3 +582,134 @@ class RateLimiter:
             stats["redis_connected"] = False
         
         return stats
+"""
+Rate Limiting System
+Netflix-level request throttling
+"""
+
+import asyncio
+import time
+from typing import Dict, Tuple, Optional, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+class RateLimiter:
+    """Netflix-level rate limiting"""
+    
+    def __init__(self, redis_client: Optional[Any] = None):
+        self.redis_client = redis_client
+        self.local_cache: Dict[str, Dict[str, Any]] = {}
+        self.cleanup_interval = 60  # Clean up every minute
+        
+        # Start cleanup task
+        asyncio.create_task(self._cleanup_task())
+    
+    async def check_rate_limit(
+        self,
+        key: str,
+        limit: int,
+        window: int
+    ) -> Tuple[bool, int]:
+        """
+        Check if request is within rate limit
+        Returns (is_allowed, remaining_requests)
+        """
+        try:
+            if self.redis_client:
+                return await self._check_redis_rate_limit(key, limit, window)
+            else:
+                return await self._check_local_rate_limit(key, limit, window)
+        except Exception as e:
+            logger.error(f"Rate limit check failed: {e}")
+            # Allow request on error
+            return True, limit
+    
+    async def _check_redis_rate_limit(
+        self,
+        key: str,
+        limit: int,
+        window: int
+    ) -> Tuple[bool, int]:
+        """Redis-based rate limiting"""
+        try:
+            current_time = int(time.time())
+            pipe = self.redis_client.pipeline()
+            
+            # Remove old entries
+            pipe.zremrangebyscore(key, 0, current_time - window)
+            
+            # Count current requests
+            pipe.zcard(key)
+            
+            # Add current request
+            pipe.zadd(key, {str(current_time): current_time})
+            
+            # Set expiration
+            pipe.expire(key, window)
+            
+            results = await pipe.execute()
+            current_count = results[1]
+            
+            remaining = max(0, limit - current_count)
+            is_allowed = current_count < limit
+            
+            return is_allowed, remaining
+            
+        except Exception as e:
+            logger.error(f"Redis rate limit error: {e}")
+            return True, limit
+    
+    async def _check_local_rate_limit(
+        self,
+        key: str,
+        limit: int,
+        window: int
+    ) -> Tuple[bool, int]:
+        """Local memory-based rate limiting"""
+        current_time = time.time()
+        
+        if key not in self.local_cache:
+            self.local_cache[key] = {
+                "requests": [],
+                "last_cleanup": current_time
+            }
+        
+        cache_entry = self.local_cache[key]
+        
+        # Remove old requests
+        cutoff_time = current_time - window
+        cache_entry["requests"] = [
+            req_time for req_time in cache_entry["requests"]
+            if req_time > cutoff_time
+        ]
+        
+        # Check limit
+        current_count = len(cache_entry["requests"])
+        is_allowed = current_count < limit
+        
+        if is_allowed:
+            cache_entry["requests"].append(current_time)
+        
+        remaining = max(0, limit - current_count)
+        
+        return is_allowed, remaining
+    
+    async def _cleanup_task(self):
+        """Cleanup old entries from local cache"""
+        while True:
+            try:
+                await asyncio.sleep(self.cleanup_interval)
+                current_time = time.time()
+                
+                # Clean up old cache entries
+                keys_to_remove = []
+                for key, data in self.local_cache.items():
+                    if current_time - data.get("last_cleanup", 0) > 300:  # 5 minutes
+                        keys_to_remove.append(key)
+                
+                for key in keys_to_remove:
+                    del self.local_cache[key]
+                
+            except Exception as e:
+                logger.error(f"Rate limiter cleanup error: {e}")

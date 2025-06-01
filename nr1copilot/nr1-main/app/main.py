@@ -32,9 +32,10 @@ import shutil
 import hashlib
 
 try:
-    import PyJWT as jwt
+    import jwt
 except ImportError:
     jwt = None
+    logger.warning("PyJWT not available, JWT functionality disabled")
 
 # Make Redis optional
 try:
@@ -42,6 +43,7 @@ try:
     Redis = redis.Redis
 except ImportError:
     Redis = None
+    logger.warning("Redis not available, using local cache only")
 
 from .config import get_settings, is_production
 from .logging_config import setup_logging

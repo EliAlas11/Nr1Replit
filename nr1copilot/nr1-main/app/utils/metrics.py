@@ -510,3 +510,182 @@ class MetricsCollector:
         ], maxlen=self.max_entries)
         
         logger.info(f"Metrics aggregated: {len(self.request_metrics)} requests, {len(self.processing_metrics)} processing, {len(self.error_metrics)} errors")
+"""
+Metrics Collection System
+Netflix-level performance monitoring
+"""
+
+import asyncio
+import logging
+import time
+from collections import defaultdict, deque
+from typing import Dict, Any, Optional
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
+
+class MetricsCollector:
+    """Netflix-level metrics collection"""
+    
+    def __init__(self, max_history: int = 1000):
+        self.max_history = max_history
+        self.request_metrics = deque(maxlen=max_history)
+        self.processing_metrics = deque(maxlen=max_history)
+        self.error_metrics = deque(maxlen=max_history)
+        
+        # Counters
+        self.request_count = defaultdict(int)
+        self.status_codes = defaultdict(int)
+        self.response_times = []
+        
+        # System metrics
+        self.start_time = time.time()
+        
+    async def record_request(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        duration: float
+    ):
+        """Record request metrics"""
+        timestamp = time.time()
+        
+        metric = {
+            "timestamp": timestamp,
+            "method": method,
+            "path": path,
+            "status_code": status_code,
+            "duration": duration
+        }
+        
+        self.request_metrics.append(metric)
+        self.request_count[f"{method} {path}"] += 1
+        self.status_codes[status_code] += 1
+        self.response_times.append(duration)
+        
+        # Keep only recent response times
+        if len(self.response_times) > self.max_history:
+            self.response_times = self.response_times[-self.max_history:]
+    
+    async def record_processing(
+        self,
+        task_type: str,
+        duration: float,
+        success: bool,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        """Record processing metrics"""
+        metric = {
+            "timestamp": time.time(),
+            "task_type": task_type,
+            "duration": duration,
+            "success": success,
+            "details": details or {}
+        }
+        
+        self.processing_metrics.append(metric)
+    
+    async def record_error(
+        self,
+        error_type: str,
+        message: str,
+        path: Optional[str] = None
+    ):
+        """Record error metrics"""
+        metric = {
+            "timestamp": time.time(),
+            "error_type": error_type,
+            "message": message,
+            "path": path
+        }
+        
+        self.error_metrics.append(metric)
+    
+    async def get_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive metrics"""
+        now = time.time()
+        uptime = now - self.start_time
+        
+        # Calculate response time percentiles
+        response_times = sorted(self.response_times)
+        percentiles = {}
+        
+        if response_times:
+            percentiles = {
+                "p50": self._percentile(response_times, 50),
+                "p90": self._percentile(response_times, 90),
+                "p95": self._percentile(response_times, 95),
+                "p99": self._percentile(response_times, 99),
+                "avg": sum(response_times) / len(response_times),
+                "min": min(response_times),
+                "max": max(response_times)
+            }
+        
+        # Recent error rate
+        recent_errors = [
+            m for m in self.error_metrics
+            if m["timestamp"] > now - 300  # Last 5 minutes
+        ]
+        
+        recent_requests = [
+            m for m in self.request_metrics
+            if m["timestamp"] > now - 300
+        ]
+        
+        error_rate = (
+            len(recent_errors) / max(len(recent_requests), 1) * 100
+            if recent_requests else 0
+        )
+        
+        return {
+            "uptime": uptime,
+            "timestamp": now,
+            "requests": {
+                "total": len(self.request_metrics),
+                "recent": len(recent_requests),
+                "by_endpoint": dict(self.request_count),
+                "by_status": dict(self.status_codes)
+            },
+            "response_times": percentiles,
+            "processing": {
+                "total_tasks": len(self.processing_metrics),
+                "success_rate": self._calculate_success_rate(),
+                "avg_duration": self._calculate_avg_processing_time()
+            },
+            "errors": {
+                "total": len(self.error_metrics),
+                "recent": len(recent_errors),
+                "error_rate": error_rate
+            }
+        }
+    
+    def _percentile(self, data: list, percentile: float) -> float:
+        """Calculate percentile"""
+        if not data:
+            return 0.0
+        
+        index = (percentile / 100) * (len(data) - 1)
+        lower = int(index)
+        upper = min(lower + 1, len(data) - 1)
+        
+        if lower == upper:
+            return data[lower]
+        
+        return data[lower] + (data[upper] - data[lower]) * (index - lower)
+    
+    def _calculate_success_rate(self) -> float:
+        """Calculate processing success rate"""
+        if not self.processing_metrics:
+            return 100.0
+        
+        successful = sum(1 for m in self.processing_metrics if m["success"])
+        return (successful / len(self.processing_metrics)) * 100
+    
+    def _calculate_avg_processing_time(self) -> float:
+        """Calculate average processing time"""
+        if not self.processing_metrics:
+            return 0.0
+        
+        total_time = sum(m["duration"] for m in self.processing_metrics)
+        return total_time / len(self.processing_metrics)

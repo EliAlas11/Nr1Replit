@@ -512,3 +512,189 @@ class CacheManager:
         """Get cached video analysis results"""
         cache_key = self.cache_key_for_video_analysis(url, params)
         return await self.get(cache_key, namespace="video_analysis")
+"""
+Caching System
+Netflix-level caching with fallbacks
+"""
+
+import asyncio
+import json
+import logging
+import time
+from typing import Any, Optional, Dict
+import hashlib
+
+logger = logging.getLogger(__name__)
+
+class CacheManager:
+    """Netflix-level caching system"""
+    
+    def __init__(self, redis_client: Optional[Any] = None):
+        self.redis_client = redis_client
+        self.local_cache: Dict[str, Dict[str, Any]] = {}
+        self.max_local_entries = 1000
+        
+    async def get(self, key: str) -> Optional[Any]:
+        """Get value from cache"""
+        try:
+            if self.redis_client:
+                value = await self._get_from_redis(key)
+                if value is not None:
+                    return value
+            
+            # Fallback to local cache
+            return await self._get_from_local(key)
+            
+        except Exception as e:
+            logger.error(f"Cache get error: {e}")
+            return None
+    
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        ttl: int = 3600
+    ) -> bool:
+        """Set value in cache"""
+        try:
+            success = False
+            
+            if self.redis_client:
+                success = await self._set_in_redis(key, value, ttl)
+            
+            # Always set in local cache as fallback
+            await self._set_in_local(key, value, ttl)
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Cache set error: {e}")
+            return False
+    
+    async def delete(self, key: str) -> bool:
+        """Delete value from cache"""
+        try:
+            success = False
+            
+            if self.redis_client:
+                success = await self._delete_from_redis(key)
+            
+            # Also delete from local cache
+            if key in self.local_cache:
+                del self.local_cache[key]
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Cache delete error: {e}")
+            return False
+    
+    async def clear(self) -> bool:
+        """Clear all cache"""
+        try:
+            success = False
+            
+            if self.redis_client:
+                await self.redis_client.flushdb()
+                success = True
+            
+            self.local_cache.clear()
+            return success
+            
+        except Exception as e:
+            logger.error(f"Cache clear error: {e}")
+            return False
+    
+    async def _get_from_redis(self, key: str) -> Optional[Any]:
+        """Get from Redis"""
+        try:
+            value = await self.redis_client.get(key)
+            if value:
+                return json.loads(value)
+            return None
+        except Exception as e:
+            logger.error(f"Redis get error: {e}")
+            return None
+    
+    async def _set_in_redis(
+        self,
+        key: str,
+        value: Any,
+        ttl: int
+    ) -> bool:
+        """Set in Redis"""
+        try:
+            serialized = json.dumps(value)
+            await self.redis_client.setex(key, ttl, serialized)
+            return True
+        except Exception as e:
+            logger.error(f"Redis set error: {e}")
+            return False
+    
+    async def _delete_from_redis(self, key: str) -> bool:
+        """Delete from Redis"""
+        try:
+            result = await self.redis_client.delete(key)
+            return result > 0
+        except Exception as e:
+            logger.error(f"Redis delete error: {e}")
+            return False
+    
+    async def _get_from_local(self, key: str) -> Optional[Any]:
+        """Get from local cache"""
+        if key in self.local_cache:
+            entry = self.local_cache[key]
+            
+            # Check if expired
+            if time.time() > entry["expires"]:
+                del self.local_cache[key]
+                return None
+            
+            return entry["value"]
+        
+        return None
+    
+    async def _set_in_local(
+        self,
+        key: str,
+        value: Any,
+        ttl: int
+    ):
+        """Set in local cache"""
+        # Clean up if too many entries
+        if len(self.local_cache) >= self.max_local_entries:
+            await self._cleanup_local_cache()
+        
+        self.local_cache[key] = {
+            "value": value,
+            "expires": time.time() + ttl,
+            "created": time.time()
+        }
+    
+    async def _cleanup_local_cache(self):
+        """Clean up expired local cache entries"""
+        current_time = time.time()
+        expired_keys = [
+            key for key, entry in self.local_cache.items()
+            if current_time > entry["expires"]
+        ]
+        
+        for key in expired_keys:
+            del self.local_cache[key]
+        
+        # If still too many, remove oldest entries
+        if len(self.local_cache) >= self.max_local_entries:
+            sorted_entries = sorted(
+                self.local_cache.items(),
+                key=lambda x: x[1]["created"]
+            )
+            
+            # Remove oldest 25%
+            remove_count = len(sorted_entries) // 4
+            for key, _ in sorted_entries[:remove_count]:
+                del self.local_cache[key]
+    
+    def generate_cache_key(self, *args) -> str:
+        """Generate cache key from arguments"""
+        key_data = ":".join(str(arg) for arg in args)
+        return hashlib.md5(key_data.encode()).hexdigest()

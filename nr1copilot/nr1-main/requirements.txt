@@ -1,7 +1,7 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
-pydantic-settings==2.9.1
+pydantic-settings==2.1.0
 python-multipart==0.0.6
 aiofiles==23.2.1
 yt-dlp==2023.11.16
@@ -17,8 +17,11 @@ structlog==23.2.0
 itsdangerous==2.1.2
 moviepy==1.0.3
 ffmpeg-python==0.2.0
-opencv-python==4.8.1.78
+opencv-python-headless==4.8.1.78
 numpy==1.24.3
 scipy==1.11.4
-PyJWT==2.10.1
-websockets==15.0.1
+PyJWT==2.8.0
+websockets==12.0
+requests==2.31.0
+Jinja2==3.1.2
+email-validator==2.1.0

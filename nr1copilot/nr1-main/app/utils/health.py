@@ -208,3 +208,103 @@ async def check_dependencies() -> Dict[str, str]:
         dependencies["ffmpeg"] = "error"
 
     return dependencies
+"""
+Health Check Utilities
+Netflix-level health monitoring
+"""
+
+import asyncio
+import logging
+import os
+import psutil
+import time
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
+
+def health_check() -> Dict[str, Any]:
+    """Basic health check"""
+    return {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "version": "3.0.0",
+        "uptime": get_uptime()
+    }
+
+async def detailed_health_check(redis_client: Optional[Any] = None) -> Dict[str, Any]:
+    """Detailed health check with system metrics"""
+    try:
+        # System metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        # Redis health
+        redis_status = "unknown"
+        if redis_client:
+            try:
+                await redis_client.ping()
+                redis_status = "healthy"
+            except Exception:
+                redis_status = "unhealthy"
+        
+        # Check disk space
+        disk_health = "healthy" if disk.percent < 90 else "warning"
+        
+        # Check memory usage
+        memory_health = "healthy" if memory.percent < 90 else "warning"
+        
+        # Overall status
+        overall_status = "healthy"
+        if disk_health == "warning" or memory_health == "warning":
+            overall_status = "warning"
+        if redis_status == "unhealthy":
+            overall_status = "degraded"
+        
+        return {
+            "status": overall_status,
+            "timestamp": time.time(),
+            "version": "3.0.0",
+            "uptime": get_uptime(),
+            "system": {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_available": memory.available,
+                "disk_percent": disk.percent,
+                "disk_free": disk.free
+            },
+            "services": {
+                "redis": redis_status,
+                "ffmpeg": check_ffmpeg_availability()
+            },
+            "health_indicators": {
+                "disk": disk_health,
+                "memory": memory_health,
+                "cpu": "healthy" if cpu_percent < 80 else "warning"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "timestamp": time.time(),
+            "error": str(e)
+        }
+
+def get_uptime() -> float:
+    """Get system uptime in seconds"""
+    try:
+        return time.time() - psutil.boot_time()
+    except Exception:
+        return 0.0
+
+def check_ffmpeg_availability() -> str:
+    """Check if ffmpeg is available"""
+    try:
+        import subprocess
+        result = subprocess.run(['ffmpeg', '-version'], 
+                              capture_output=True, timeout=5)
+        return "available" if result.returncode == 0 else "unavailable"
+    except Exception:
+        return "unavailable"

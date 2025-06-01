@@ -1,28 +1,24 @@
-
 """
-Video Service Layer - Netflix Level Implementation
+Netflix-Level Video Processing Service
+Advanced video downloading, processing, and optimization
 """
 
-import os
-import logging
 import asyncio
-import aiofiles
-from typing import Dict, Any, Optional, List
-import yt_dlp
+import logging
+import os
 import hashlib
-from datetime import datetime, timedelta
-from ..config import get_settings
+import time
+import subprocess
+from typing import Dict, Any, List, Optional, Tuple
+from datetime import datetime
+import yt_dlp
+import json
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
-
-class VideoServiceError(Exception):
-    """Custom exception for video service errors"""
-    pass
 
 class VideoProcessor:
     """Netflix-level video processing service"""
-    
+
     def __init__(self):
         self.cache = {}
         self.processing_stats = {
@@ -31,24 +27,43 @@ class VideoProcessor:
             "failed": 0,
             "average_time": 0
         }
-    
+
+        # Check system capabilities
+        self.ffmpeg_available = self._check_ffmpeg()
+        self.temp_dir = "temp"
+        self.output_dir = "output"
+
+        # Create directories
+        os.makedirs(self.temp_dir, exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
+
+    def _check_ffmpeg(self) -> bool:
+        """Check if ffmpeg is available"""
+        try:
+            result = subprocess.run(['ffmpeg', '-version'], 
+                                  capture_output=True, text=True, timeout=5)
+            return result.returncode == 0
+        except Exception:
+            logger.warning("ffmpeg not available, using fallback processing")
+            return False
+
     async def download_video_optimized(self, url: str, output_path: str, quality: str = "best") -> Dict[str, Any]:
         """
         Netflix-level optimized video download
         """
         try:
             os.makedirs(output_path, exist_ok=True)
-            
+
             # Generate cache key
             cache_key = hashlib.md5(f"{url}_{quality}".encode()).hexdigest()
-            
+
             # Check cache
             if cache_key in self.cache:
                 cached_result = self.cache[cache_key]
                 if os.path.exists(cached_result.get("file_path", "")):
                     logger.info(f"Using cached download: {cache_key}")
                     return cached_result
-            
+
             # Advanced yt-dlp configuration
             ydl_opts = {
                 'outtmpl': os.path.join(output_path, '%(title)s_%(id)s.%(ext)s'),
@@ -60,655 +75,333 @@ class VideoProcessor:
                 'ignoreerrors': False,
                 'no_warnings': False,
                 'extract_flat': False,
-                'writethumbnail': True,
-                'writeinfojson': True,
+                'youtube_include_dash_manifest': False,
+                'quiet': True
             }
-            
-            start_time = datetime.now()
-            
+
+            start_time = time.time()
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 # Extract info first
                 info = ydl.extract_info(url, download=False)
-                
-                # Validate video
-                await self._validate_video(info)
-                
-                # Download
+
+                # Download the video
                 ydl.download([url])
-                
-                video_title = info.get('title', 'Unknown')
-                video_id = info.get('id', 'unknown')
-                duration = info.get('duration', 0)
-                
-                # Find downloaded file
-                import glob
-                pattern = os.path.join(output_path, f"*{video_id}*")
-                files = glob.glob(pattern)
-                video_file = next((f for f in files if f.endswith(('.mp4', '.webm', '.mkv'))), None)
-                
-                if not video_file:
-                    raise VideoServiceError("Downloaded file not found")
-                
-                processing_time = (datetime.now() - start_time).total_seconds()
-                
-                result = {
-                    'success': True,
-                    'title': video_title,
-                    'duration': duration,
-                    'file_path': video_file,
-                    'file_size': os.path.getsize(video_file),
-                    'quality': quality,
-                    'processing_time': processing_time,
-                    'video_info': info,
-                    'subtitles': info.get('subtitles', {}),
-                    'thumbnail': info.get('thumbnail'),
-                    'uploader': info.get('uploader'),
-                    'view_count': info.get('view_count', 0)
-                }
-                
-                # Cache result
-                self.cache[cache_key] = result
-                
-                # Update stats
-                self._update_stats(processing_time, True)
-                
-                logger.info(f"Successfully downloaded: {video_title} ({processing_time:.2f}s)")
-                return result
-                
-        except yt_dlp.DownloadError as e:
-            logger.error(f"yt-dlp download error: {e}")
-            self._update_stats(0, False)
-            raise VideoServiceError(f"Download failed: {e}")
+
+                # Find the downloaded file
+                expected_filename = ydl.prepare_filename(info)
+
+                if os.path.exists(expected_filename):
+                    download_time = time.time() - start_time
+
+                    result = {
+                        "success": True,
+                        "file_path": expected_filename,
+                        "video_info": {
+                            "title": info.get("title", "Unknown"),
+                            "duration": info.get("duration", 0),
+                            "uploader": info.get("uploader", "Unknown"),
+                            "view_count": info.get("view_count", 0),
+                            "like_count": info.get("like_count", 0),
+                            "upload_date": info.get("upload_date"),
+                            "thumbnail": info.get("thumbnail"),
+                            "description": info.get("description", "")[:500]
+                        },
+                        "download_time": download_time,
+                        "file_size": os.path.getsize(expected_filename)
+                    }
+
+                    # Cache result
+                    self.cache[cache_key] = result
+
+                    return result
+                else:
+                    raise Exception("Download completed but file not found")
+
         except Exception as e:
-            logger.error(f"Unexpected error in download_video_optimized: {e}")
-            self._update_stats(0, False)
-            raise VideoServiceError(f"Download failed: {e}")
-    
-    async def get_video_info_advanced(self, url: str) -> Dict[str, Any]:
-        """
-        Get comprehensive video information
-        """
-        try:
-            cache_key = f"info_{hashlib.md5(url.encode()).hexdigest()}"
-            
-            if cache_key in self.cache:
-                return self.cache[cache_key]
-            
-            ydl_opts = {
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'writesubtitles': False,
-                'writeautomaticsub': False,
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                
-                result = {
-                    'success': True,
-                    'title': info.get('title', 'Unknown'),
-                    'duration': info.get('duration', 0),
-                    'thumbnail': info.get('thumbnail', ''),
-                    'uploader': info.get('uploader', 'Unknown'),
-                    'view_count': info.get('view_count', 0),
-                    'like_count': info.get('like_count', 0),
-                    'upload_date': info.get('upload_date', ''),
-                    'description': info.get('description', ''),
-                    'categories': info.get('categories', []),
-                    'tags': info.get('tags', []),
-                    'language': info.get('language', 'unknown'),
-                    'fps': info.get('fps'),
-                    'width': info.get('width'),
-                    'height': info.get('height'),
-                    'subtitles_available': bool(info.get('subtitles')),
-                    'formats_available': len(info.get('formats', [])),
-                    'is_live': info.get('is_live', False),
-                    'availability': info.get('availability', 'unknown')
-                }
-                
-                self.cache[cache_key] = result
-                return result
-                
-        except Exception as e:
-            logger.error(f"Error getting video info: {e}")
-            raise VideoServiceError(f"Failed to get video info: {e}")
-    
-    async def validate_youtube_url_advanced(self, url: str) -> Dict[str, Any]:
-        """
-        Advanced YouTube URL validation
-        """
-        try:
-            # Basic URL pattern validation
-            import re
-            youtube_patterns = [
-                r'(?:https?://)?(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/v/)([a-zA-Z0-9_-]{11})',
-                r'(?:https?://)?(?:www\.)?youtube\.com/shorts/([a-zA-Z0-9_-]{11})'
-            ]
-            
-            video_id = None
-            for pattern in youtube_patterns:
-                match = re.search(pattern, url)
-                if match:
-                    video_id = match.group(1)
-                    break
-            
-            if not video_id:
-                return {
-                    'valid': False,
-                    'error': 'Invalid YouTube URL format',
-                    'supported_formats': ['youtube.com/watch?v=', 'youtu.be/', 'youtube.com/shorts/']
-                }
-            
-            # Try to extract basic info
-            try:
-                info = await self.get_video_info_advanced(url)
-                
-                return {
-                    'valid': True,
-                    'video_id': video_id,
-                    'accessible': True,
-                    'title': info.get('title'),
-                    'duration': info.get('duration'),
-                    'availability': info.get('availability')
-                }
-            except Exception as e:
-                return {
-                    'valid': True,
-                    'video_id': video_id,
-                    'accessible': False,
-                    'error': str(e)
-                }
-                
-        except Exception as e:
+            logger.error(f"Download error: {e}")
             return {
-                'valid': False,
-                'error': f'Validation error: {str(e)}'
+                "success": False,
+                "error": str(e),
+                "file_path": None
             }
-    
+
     def _get_format_selector(self, quality: str) -> str:
-        """Get yt-dlp format selector based on quality"""
-        quality_formats = {
-            'highest': 'best',
-            'high': 'best[height<=1080]',
-            'medium': 'best[height<=720]',
-            'low': 'best[height<=480]',
-            'audio_only': 'bestaudio'
+        """Get format selector for yt-dlp"""
+        quality_map = {
+            "best": "best[height<=1080]/best",
+            "1080p": "best[height<=1080]",
+            "720p": "best[height<=720]",
+            "480p": "best[height<=480]",
+            "360p": "best[height<=360]"
         }
-        return quality_formats.get(quality, 'best[height<=1080]')
-    
-    async def _validate_video(self, info: Dict[str, Any]) -> None:
-        """Validate video before downloading"""
-        duration = info.get('duration', 0)
-        
-        if duration > settings.max_video_duration:
-            raise VideoServiceError(
-                f"Video too long: {duration}s (max: {settings.max_video_duration}s)"
-            )
-        
-        if info.get('is_live', False):
-            raise VideoServiceError("Live streams are not supported")
-        
-        availability = info.get('availability', 'unknown')
-        if availability not in ['public', 'unlisted', 'unknown']:
-            raise VideoServiceError(f"Video not accessible: {availability}")
-    
-    def _update_stats(self, processing_time: float, success: bool) -> None:
-        """Update processing statistics"""
-        self.processing_stats['total_processed'] += 1
-        
-        if success:
-            self.processing_stats['successful'] += 1
-            # Update average time
-            current_avg = self.processing_stats['average_time']
-            current_count = self.processing_stats['successful']
-            self.processing_stats['average_time'] = (
-                (current_avg * (current_count - 1) + processing_time) / current_count
-            )
-        else:
-            self.processing_stats['failed'] += 1
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get processing statistics"""
-        total = self.processing_stats['total_processed']
-        return {
-            **self.processing_stats,
-            'success_rate': (
-                self.processing_stats['successful'] / total * 100 
-                if total > 0 else 0
-            ),
-            'cache_size': len(self.cache)
-        }
-    
-    async def cleanup_cache(self, max_age_hours: int = 24) -> None:
-        """Clean up old cache entries"""
-        # This is a simplified cleanup - in production, you'd track timestamps
-        if len(self.cache) > 1000:  # Simple size-based cleanup
-            # Keep only the most recent 500 entries
-            keys_to_remove = list(self.cache.keys())[:-500]
-            for key in keys_to_remove:
-                del self.cache[key]
-            logger.info(f"Cleaned up {len(keys_to_remove)} cache entries")
+        return quality_map.get(quality, "best[height<=1080]/best")
 
-# Global video processor instance
-video_processor = VideoProcessor()
-
-# Convenience functions for backwards compatibility
-async def download_video(url: str, output_path: str) -> Dict[str, Any]:
-    """Download video using the global processor"""
-    return await video_processor.download_video_optimized(url, output_path)
-
-async def get_video_info(url: str) -> Dict[str, Any]:
-    """Get video info using the global processor"""
-    return await video_processor.get_video_info_advanced(url)
-
-async def validate_youtube_url(url: str) -> bool:
-    """Validate YouTube URL using the global processor"""
-    result = await video_processor.validate_youtube_url_advanced(url)
-    return result.get('valid', False)
-
-async def process_video_clip(input_path: str, output_path: str, start_time: float, end_time: float) -> Dict[str, Any]:
-    """Process video clip - placeholder for FFmpeg integration"""
-    try:
-        # This would integrate with the CloudVideoProcessor
-        duration = end_time - start_time
-        
-        if duration <= 0:
-            raise VideoServiceError("Invalid time range")
-        
-        if duration > 300:  # 5 minutes max
-            raise VideoServiceError("Clip duration too long (max 5 minutes)")
-        
-        # Placeholder for actual processing
-        return {
-            'success': True,
-            'output_path': output_path,
-            'duration': duration,
-            'message': 'Clip processing would happen here'
-        }
-        
-    except Exception as e:
-        logger.error(f"Video clip processing error: {e}")
-        raise VideoServiceError(f"Processing failed: {e}")
-"""
-Video Processing Service
-Core video processing functionality
-"""
-
-import logging
-import os
-import asyncio
-from typing import Dict, Any, Optional
-
-logger = logging.getLogger(__name__)
-
-class VideoProcessor:
-    """Core video processing service"""
-    
-    def __init__(self):
-        self.active_jobs = {}
-        
-    async def validate_video_url(self, url: str) -> Dict[str, Any]:
-        """Validate if URL is a valid video URL"""
-        try:
-            # Basic URL validation
-            if not url or len(url) < 10:
-                return {"valid": False, "error": "Invalid URL"}
-            
-            # Check for supported platforms
-            supported_platforms = [
-                "youtube.com", "youtu.be", "vimeo.com", 
-                "dailymotion.com", "twitch.tv"
-            ]
-            
-            is_supported = any(platform in url.lower() for platform in supported_platforms)
-            
-            return {
-                "valid": is_supported,
-                "platform": self._detect_platform(url),
-                "error": None if is_supported else "Unsupported platform"
-            }
-            
-        except Exception as e:
-            logger.error(f"URL validation error: {e}")
-            return {"valid": False, "error": str(e)}
-    
-    def _detect_platform(self, url: str) -> str:
-        """Detect video platform from URL"""
-        url_lower = url.lower()
-        
-        if "youtube.com" in url_lower or "youtu.be" in url_lower:
-            return "youtube"
-        elif "vimeo.com" in url_lower:
-            return "vimeo"
-        elif "dailymotion.com" in url_lower:
-            return "dailymotion"
-        elif "twitch.tv" in url_lower:
-            return "twitch"
-        else:
-            return "unknown"
-    
-    async def extract_metadata(self, url: str) -> Dict[str, Any]:
-        """Extract metadata from video URL"""
-        try:
-            # Simulate metadata extraction
-            await asyncio.sleep(0.5)
-            
-            return {
-                "title": "Sample Video Title",
-                "duration": 180,
-                "thumbnail": "https://example.com/thumb.jpg",
-                "description": "Sample video description",
-                "uploader": "Sample Channel",
-                "view_count": 1000,
-                "upload_date": "2024-01-01"
-            }
-            
-        except Exception as e:
-            logger.error(f"Metadata extraction error: {e}")
-            return {}
-    
     async def process_video_clip(
         self,
-        url: str,
+        input_path: str,
         start_time: float,
         end_time: float,
         output_path: str,
-        quality: str = "720p"
+        **kwargs
     ) -> Dict[str, Any]:
-        """Process video clip with specified parameters"""
+        """Process video clip with advanced options"""
         try:
-            # Ensure output directory exists
+            if not os.path.exists(input_path):
+                raise FileNotFoundError(f"Input file not found: {input_path}")
+
+            # Create output directory
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            
-            # Simulate video processing
-            await asyncio.sleep(3)
-            
-            # Create placeholder output file
-            with open(output_path, 'w') as f:
-                f.write(f"Video clip: {start_time}s - {end_time}s")
-            
+
+            processing_start = time.time()
+
+            if self.ffmpeg_available:
+                result = await self._process_with_ffmpeg(
+                    input_path, start_time, end_time, output_path, **kwargs
+                )
+            else:
+                # Fallback processing
+                result = await self._process_fallback(
+                    input_path, start_time, end_time, output_path
+                )
+
+            processing_time = time.time() - processing_start
+
+            # Update statistics
+            self.processing_stats["total_processed"] += 1
+            if result["success"]:
+                self.processing_stats["successful"] += 1
+            else:
+                self.processing_stats["failed"] += 1
+
+            # Update average time
+            total = self.processing_stats["total_processed"]
+            current_avg = self.processing_stats["average_time"]
+            self.processing_stats["average_time"] = (
+                (current_avg * (total - 1) + processing_time) / total
+            )
+
+            result["processing_time"] = processing_time
+            return result
+
+        except Exception as e:
+            logger.error(f"Video processing error: {e}")
+            self.processing_stats["failed"] += 1
+
+            return {
+                "success": False,
+                "error": str(e),
+                "processing_time": 0
+            }
+
+    async def _process_with_ffmpeg(
+        self,
+        input_path: str,
+        start_time: float,
+        end_time: float,
+        output_path: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Advanced processing with ffmpeg"""
+        try:
+            duration = end_time - start_time
+
+            # Build ffmpeg command
+            cmd = [
+                'ffmpeg',
+                '-i', input_path,
+                '-ss', str(start_time),
+                '-t', str(duration),
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-y',  # Overwrite output
+                output_path
+            ]
+
+            # Add quality settings
+            quality = kwargs.get('quality', '720p')
+            aspect_ratio = kwargs.get('aspect_ratio', '16:9')
+
+            if quality == '1080p':
+                if aspect_ratio == '9:16':
+                    cmd.extend(['-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2'])
+                else:
+                    cmd.extend(['-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2'])
+            elif quality == '720p':
+                if aspect_ratio == '9:16':
+                    cmd.extend(['-vf', 'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2'])
+                else:
+                    cmd.extend(['-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2'])
+
+            # Add frame rate optimization
+            cmd.extend(['-r', '30'])
+
+            # Run ffmpeg
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0 and os.path.exists(output_path):
+                return {
+                    "success": True,
+                    "output_path": output_path,
+                    "duration": duration,
+                    "file_size": os.path.getsize(output_path),
+                    "processing_method": "ffmpeg"
+                }
+            else:
+                raise Exception(f"ffmpeg failed: {stderr.decode()}")
+
+        except Exception as e:
+            logger.error(f"ffmpeg processing error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def _process_fallback(
+        self,
+        input_path: str,
+        start_time: float,
+        end_time: float,
+        output_path: str
+    ) -> Dict[str, Any]:
+        """Fallback processing without ffmpeg"""
+        try:
+            # Simple file copy as fallback
+            import shutil
+            shutil.copy2(input_path, output_path)
+
+            logger.warning("Using fallback processing (file copy)")
+
             return {
                 "success": True,
                 "output_path": output_path,
                 "duration": end_time - start_time,
-                "quality": quality,
-                "file_size": 1024 * 1024  # 1MB placeholder
+                "file_size": os.path.getsize(output_path),
+                "processing_method": "fallback",
+                "warning": "Advanced processing unavailable"
             }
-            
+
         except Exception as e:
-            logger.error(f"Video processing error: {e}")
             return {
                 "success": False,
                 "error": str(e)
             }
-"""
-Netflix-Level Video Processing Service
-"""
 
-import asyncio
-import os
-import logging
-from typing import Dict, Any, List, Optional
-import yt_dlp
-import time
-
-logger = logging.getLogger(__name__)
-
-class VideoProcessor:
-    """Netflix-level video processing service"""
-    
-    def __init__(self):
-        self.active_downloads = {}
-        self.processing_queue = {}
-        
-    async def download_video(
-        self,
-        url: str,
-        output_path: str,
-        quality: str = "best[height<=1080]"
-    ) -> Dict[str, Any]:
-        """Download video with advanced options"""
+    async def get_video_info(self, url: str) -> Dict[str, Any]:
+        """Get video information without downloading"""
         try:
-            logger.info(f"Starting video download: {url}")
-            
             ydl_opts = {
-                'outtmpl': output_path,
-                'format': quality,
-                'writesubtitles': True,
-                'writeautomaticsub': True,
-                'extract_flat': False,
+                'quiet': True,
                 'no_warnings': True,
-                'quiet': True
+                'extract_flat': False
             }
-            
-            start_time = time.time()
-            
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-            
-            download_time = time.time() - start_time
-            
-            # Find downloaded file
-            import glob
-            downloaded_files = glob.glob(f"{output_path}*")
-            
-            if downloaded_files:
-                actual_path = downloaded_files[0]
-                file_size = os.path.getsize(actual_path)
-                
+                info = ydl.extract_info(url, download=False)
+
                 return {
                     "success": True,
-                    "file_path": actual_path,
-                    "file_size": file_size,
-                    "download_time": download_time,
-                    "video_info": {
-                        "title": info.get("title"),
-                        "duration": info.get("duration"),
-                        "uploader": info.get("uploader"),
-                        "view_count": info.get("view_count"),
-                        "like_count": info.get("like_count")
+                    "info": {
+                        "title": info.get("title", "Unknown"),
+                        "duration": info.get("duration", 0),
+                        "uploader": info.get("uploader", "Unknown"),
+                        "view_count": info.get("view_count", 0),
+                        "like_count": info.get("like_count", 0),
+                        "upload_date": info.get("upload_date"),
+                        "thumbnail": info.get("thumbnail"),
+                        "description": info.get("description", "")[:1000],
+                        "tags": info.get("tags", [])[:20],
+                        "categories": info.get("categories", []),
+                        "webpage_url": info.get("webpage_url", url)
                     }
                 }
-            else:
-                return {
-                    "success": False,
-                    "error": "No files downloaded"
-                }
-                
+
         except Exception as e:
-            logger.error(f"Video download error: {str(e)}")
+            logger.error(f"Error getting video info: {e}")
             return {
                 "success": False,
                 "error": str(e)
             }
-    
-    async def extract_audio(
-        self,
-        video_path: str,
-        output_path: str
-    ) -> Dict[str, Any]:
-        """Extract audio from video"""
+
+    async def validate_youtube_url(self, url: str) -> bool:
+        """Validate YouTube URL"""
         try:
-            cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-vn",  # No video
-                "-acodec", "mp3",
-                "-ab", "192k",
-                output_path
+            # Basic URL validation
+            if not url or len(url) < 10:
+                return False
+
+            # Check if it's a valid YouTube URL pattern
+            youtube_patterns = [
+                'youtube.com/watch',
+                'youtu.be/',
+                'youtube.com/embed/',
+                'youtube.com/v/',
+                'm.youtube.com/watch'
             ]
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+
+            if not any(pattern in url.lower() for pattern in youtube_patterns):
+                return False
+
+            # Try to extract info to validate
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': True
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                return info is not None
+
+        except Exception as e:
+            logger.error(f"URL validation error: {e}")
+            return False
+
+    def get_processing_stats(self) -> Dict[str, Any]:
+        """Get processing statistics"""
+        return {
+            **self.processing_stats,
+            "ffmpeg_available": self.ffmpeg_available,
+            "cache_size": len(self.cache),
+            "success_rate": (
+                self.processing_stats["successful"] / 
+                max(self.processing_stats["total_processed"], 1) * 100
             )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                return {
-                    "success": True,
-                    "audio_path": output_path,
-                    "file_size": os.path.getsize(output_path)
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": stderr.decode() if stderr else "Audio extraction failed"
-                }
-                
-        except Exception as e:
-            logger.error(f"Audio extraction error: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def generate_thumbnail(
-        self,
-        video_path: str,
-        output_path: str,
-        timestamp: float = 0
-    ) -> Dict[str, Any]:
-        """Generate thumbnail from video"""
-        try:
-            cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-ss", str(timestamp),
-                "-vframes", "1",
-                "-q:v", "2",
-                output_path
-            ]
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                return {
-                    "success": True,
-                    "thumbnail_path": output_path,
-                    "file_size": os.path.getsize(output_path)
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": stderr.decode() if stderr else "Thumbnail generation failed"
-                }
-                
-        except Exception as e:
-            logger.error(f"Thumbnail generation error: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def add_captions(
-        self,
-        video_path: str,
-        captions_text: str,
-        output_path: str
-    ) -> Dict[str, Any]:
-        """Add captions to video"""
-        try:
-            # Create temporary subtitle file
-            srt_path = f"{video_path}.srt"
-            
-            with open(srt_path, 'w') as f:
-                f.write(captions_text)
-            
-            cmd = [
-                "ffmpeg", "-y",
-                "-i", video_path,
-                "-i", srt_path,
-                "-c", "copy",
-                "-c:s", "mov_text",
-                output_path
-            ]
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            # Clean up temp file
-            if os.path.exists(srt_path):
-                os.remove(srt_path)
-            
-            if process.returncode == 0:
-                return {
-                    "success": True,
-                    "output_path": output_path,
-                    "file_size": os.path.getsize(output_path)
-                }
-            else:
-                return {
-                    "success": False,
-                    "error": stderr.decode() if stderr else "Caption addition failed"
-                }
-                
-        except Exception as e:
-            logger.error(f"Caption addition error: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    def validate_video_file(self, file_path: str) -> Dict[str, Any]:
-        """Validate video file"""
-        try:
-            if not os.path.exists(file_path):
-                return {
-                    "valid": False,
-                    "error": "File does not exist"
-                }
-            
-            file_size = os.path.getsize(file_path)
-            
-            if file_size == 0:
-                return {
-                    "valid": False,
-                    "error": "File is empty"
-                }
-            
-            # Check file extension
-            valid_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv']
-            file_ext = os.path.splitext(file_path)[1].lower()
-            
-            if file_ext not in valid_extensions:
-                return {
-                    "valid": False,
-                    "error": f"Unsupported file format: {file_ext}"
-                }
-            
-            return {
-                "valid": True,
-                "file_size": file_size,
-                "extension": file_ext
-            }
-            
-        except Exception as e:
-            return {
-                "valid": False,
-                "error": str(e)
-            }
-    
-    async def get_processing_status(self, task_id: str) -> Dict[str, Any]:
-        """Get processing status for a task"""
-        if task_id in self.processing_queue:
-            return self.processing_queue[task_id]
-        else:
-            return {
-                "status": "not_found",
-                "error": "Task not found"
-            }
+        }
+
+# Convenience functions
+async def download_video(url: str, output_path: str = "downloads") -> Dict[str, Any]:
+    """Download video from URL"""
+    processor = VideoProcessor()
+    return await processor.download_video_optimized(url, output_path)
+
+async def get_video_info(url: str) -> Dict[str, Any]:
+    """Get video information"""
+    processor = VideoProcessor()
+    return await processor.get_video_info(url)
+
+async def validate_youtube_url(url: str) -> bool:
+    """Validate YouTube URL"""
+    processor = VideoProcessor()
+    return await processor.validate_youtube_url(url)
+
+async def process_video_clip(
+    input_path: str,
+    start_time: float,
+    end_time: float,
+    output_path: str,
+    **kwargs
+) -> Dict[str, Any]:
+    """Process video clip"""
+    processor = VideoProcessor()
+    return await processor.process_video_clip(
+        input_path, start_time, end_time, output_path, **kwargs
+    )
