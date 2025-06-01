@@ -44,7 +44,15 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && pip install -r requirements.txt && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
+args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
 
 [[ports]]
 localPort = 5000

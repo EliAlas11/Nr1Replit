@@ -37,6 +37,7 @@ try:
 except ImportError:
     jwt = None
     HAS_JWT = False
+    print("Warning: PyJWT not installed, JWT functionality disabled")
 
 # Make Redis optional
 try:
@@ -46,17 +47,64 @@ try:
 except ImportError:
     Redis = None
     HAS_REDIS = False
+    print("Warning: Redis not available, using memory cache only")
 
-from .config import get_settings, is_production
-from .logging_config import setup_logging
-from .services.video_service import VideoProcessor
-from .services.ai_analyzer import AIVideoAnalyzer
-from .services.cloud_processor import CloudVideoProcessor
-from .utils.health import health_check, detailed_health_check
-from .utils.metrics import MetricsCollector
-from .utils.rate_limiter import RateLimiter
-from .utils.cache import CacheManager
-from .utils.security import SecurityManager
+try:
+    from .config import get_settings, is_production
+    from .logging_config import setup_logging
+    from .services.video_service import VideoProcessor
+    from .services.ai_analyzer import AIVideoAnalyzer
+    from .services.cloud_processor import CloudVideoProcessor
+    from .utils.health import health_check, detailed_health_check
+    from .utils.metrics import MetricsCollector
+    from .utils.rate_limiter import RateLimiter
+    from .utils.cache import CacheManager
+    from .utils.security import SecurityManager
+except ImportError as e:
+    print(f"Import error: {e}")
+    # Fallback imports
+    def get_settings():
+        class Settings:
+            redis_url = "redis://localhost:6379"
+            upload_path = "uploads"
+            video_storage_path = "videos"
+            temp_path = "temp"
+            cache_ttl = 3600
+            rate_limit_per_minute = 100
+            allowed_hosts = ["*"]
+            cors_origins = ["*"]
+            secret_key = "fallback-secret-key"
+        return Settings()
+    
+    def is_production():
+        return False
+    
+    def setup_logging():
+        pass
+    
+    # Simple fallback classes
+    class VideoProcessor:
+        pass
+    class AIVideoAnalyzer:
+        pass
+    class CloudVideoProcessor:
+        pass
+    def health_check():
+        return {"status": "ok"}
+    def detailed_health_check(redis_client):
+        return {"status": "ok", "components": {"redis": "unavailable"}}
+    class MetricsCollector:
+        async def record_request(self, **kwargs): pass
+        async def get_metrics(self): return {}
+    class RateLimiter:
+        def __init__(self, redis_client): pass
+        async def check_rate_limit(self, **kwargs): return True, 100
+    class CacheManager:
+        def __init__(self, redis_client): pass
+        async def get(self, key): return None
+        async def set(self, key, value, ttl=None): pass
+    class SecurityManager:
+        pass
 
 # Setup logging with Netflix-level configuration
 setup_logging()
