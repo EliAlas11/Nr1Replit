@@ -1,9 +1,0 @@
-node_modules
-npm-debug.log
-dist
-tmp
-.env
-server.log
-coverage
-*.test.js
-*.spec.js
