@@ -5,10 +5,10 @@ channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 
 [deployment]
-run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"]
+run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1"]
 
 [workflows]
-runButton = "FastAPI Server"
+runButton = "ViralClip Pro Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -36,3 +36,12 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "echo \"Transform workflow removed - use FastAPI Server instead\""
+
+[[workflows.workflow]]
+name = "ViralClip Pro Server"
+author = 43355439
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"

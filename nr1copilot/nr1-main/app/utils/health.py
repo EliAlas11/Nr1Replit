@@ -1,99 +1,149 @@
+
 """
-Health check utilities for FastAPI application.
-Provides health and dependency status endpoints.
+Netflix-Level Health Monitoring
 """
 
-import time
-import os
-import sys
+import asyncio
 import logging
-from typing import Dict, Any
+import os
+import time
+from typing import Dict, Any, Optional
+from datetime import datetime
+import psutil
 
 logger = logging.getLogger(__name__)
 
 def health_check() -> Dict[str, Any]:
-    """Basic health check for the application"""
+    """Basic health check"""
     return {
         "status": "healthy",
-        "timestamp": time.time(),
-        "version": "2.0.0",
-        "environment": os.getenv("ENVIRONMENT", "development"),
-        "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}.{os.sys.version_info.micro}"
+        "timestamp": datetime.now().isoformat(),
+        "service": "ViralClip Pro - SendShort.ai Killer",
+        "version": "3.0.0",
+        "uptime": time.time()
     }
 
-async def dependencies_check() -> Dict[str, Any]:
-    """Check external dependencies status"""
-    checks = {
-        "mongodb": await _check_mongodb(),
-        "redis": await _check_redis(),
-        "storage": _check_storage(),
-        "ffmpeg": _check_ffmpeg()
+async def detailed_health_check(redis_client=None) -> Dict[str, Any]:
+    """Netflix-level detailed health check"""
+    health_data = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "ViralClip Pro",
+        "version": "3.0.0",
+        "checks": {}
     }
     
-    all_healthy = all(check["status"] == "healthy" for check in checks.values())
-    
-    return {
-        "status": "healthy" if all_healthy else "degraded",
-        "timestamp": time.time(),
-        "dependencies": checks
-    }
-
-async def _check_mongodb() -> Dict[str, Any]:
-    """Check MongoDB connectivity"""
+    # System resources
     try:
-        # Import here to avoid circular imports
-        from ..db.session import get_database
-        db = get_database()
-        await db.admin.command('ping')
-        return {"status": "healthy", "message": "MongoDB connected"}
-    except Exception as e:
-        logger.error(f"MongoDB health check failed: {e}")
-        return {"status": "unhealthy", "message": str(e)}
-
-async def _check_redis() -> Dict[str, Any]:
-    """Check Redis connectivity"""
-    try:
-        import redis.asyncio as redis
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-        r = redis.from_url(redis_url)
-        await r.ping()
-        await r.close()
-        return {"status": "healthy", "message": "Redis connected"}
-    except Exception as e:
-        logger.error(f"Redis health check failed: {e}")
-        return {"status": "unhealthy", "message": str(e)}
-
-def _check_storage() -> Dict[str, Any]:
-    """Check storage directories"""
-    try:
-        directories = ["videos", "uploads", "logs"]
-        for directory in directories:
-            os.makedirs(directory, exist_ok=True)
-            # Test write access
-            test_file = os.path.join(directory, ".health_check")
-            with open(test_file, "w") as f:
-                f.write("test")
-            os.remove(test_file)
+        health_data["checks"]["system"] = {
+            "status": "healthy",
+            "cpu_percent": psutil.cpu_percent(interval=1),
+            "memory_percent": psutil.virtual_memory().percent,
+            "disk_percent": psutil.disk_usage('/').percent,
+            "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None
+        }
         
-        return {"status": "healthy", "message": "Storage accessible"}
+        # Check if resources are critical
+        if (health_data["checks"]["system"]["cpu_percent"] > 90 or 
+            health_data["checks"]["system"]["memory_percent"] > 90 or
+            health_data["checks"]["system"]["disk_percent"] > 95):
+            health_data["checks"]["system"]["status"] = "critical"
+            health_data["status"] = "degraded"
+            
     except Exception as e:
-        logger.error(f"Storage health check failed: {e}")
-        return {"status": "unhealthy", "message": str(e)}
-
-def _check_ffmpeg() -> Dict[str, Any]:
-    """Check FFmpeg availability"""
+        health_data["checks"]["system"] = {
+            "status": "error",
+            "error": str(e)
+        }
+        health_data["status"] = "degraded"
+    
+    # Redis connectivity
+    if redis_client:
+        try:
+            await redis_client.ping()
+            health_data["checks"]["redis"] = {
+                "status": "healthy",
+                "connected": True
+            }
+        except Exception as e:
+            health_data["checks"]["redis"] = {
+                "status": "error",
+                "connected": False,
+                "error": str(e)
+            }
+            health_data["status"] = "degraded"
+    
+    # File system checks
+    try:
+        directories = ["uploads", "output", "temp"]
+        filesystem_status = "healthy"
+        
+        for directory in directories:
+            if not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
+            
+            # Check write permissions
+            test_file = os.path.join(directory, "health_check_test.tmp")
+            try:
+                with open(test_file, 'w') as f:
+                    f.write("test")
+                os.remove(test_file)
+            except Exception:
+                filesystem_status = "error"
+                break
+        
+        health_data["checks"]["filesystem"] = {
+            "status": filesystem_status,
+            "directories": directories
+        }
+        
+        if filesystem_status == "error":
+            health_data["status"] = "degraded"
+            
+    except Exception as e:
+        health_data["checks"]["filesystem"] = {
+            "status": "error",
+            "error": str(e)
+        }
+        health_data["status"] = "degraded"
+    
+    # FFmpeg availability
     try:
         import subprocess
-        result = subprocess.run(
-            ["ffmpeg", "-version"], 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
-        if result.returncode == 0:
-            return {"status": "healthy", "message": "FFmpeg available"}
-        else:
-            return {"status": "unhealthy", "message": "FFmpeg not working"}
+        result = subprocess.run(['ffmpeg', '-version'], 
+                              capture_output=True, text=True, timeout=5)
+        
+        health_data["checks"]["ffmpeg"] = {
+            "status": "healthy" if result.returncode == 0 else "error",
+            "available": result.returncode == 0
+        }
+        
+        if result.returncode != 0:
+            health_data["status"] = "degraded"
+            
     except Exception as e:
-        logger.error(f"FFmpeg health check failed: {e}")
-        return {"status": "unhealthy", "message": str(e)}
+        health_data["checks"]["ffmpeg"] = {
+            "status": "error",
+            "available": False,
+            "error": str(e)
+        }
+        health_data["status"] = "degraded"
+    
+    return health_data
+
+def get_system_metrics() -> Dict[str, Any]:
+    """Get detailed system metrics"""
+    try:
+        return {
+            "cpu": {
+                "percent": psutil.cpu_percent(interval=1),
+                "count": psutil.cpu_count(),
+                "freq": psutil.cpu_freq()._asdict() if psutil.cpu_freq() else None
+            },
+            "memory": psutil.virtual_memory()._asdict(),
+            "disk": psutil.disk_usage('/')._asdict(),
+            "network": psutil.net_io_counters()._asdict(),
+            "processes": len(psutil.pids())
+        }
+    except Exception as e:
+        return {"error": str(e)}
