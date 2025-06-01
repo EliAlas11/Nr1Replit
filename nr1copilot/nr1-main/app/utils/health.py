@@ -11,6 +11,138 @@ import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class HealthChecker:
+    """Netflix-level health monitoring system"""
+    
+    def __init__(self):
+        self.start_time = time.time()
+        self.check_history = []
+        self.max_history = 100
+        
+    async def comprehensive_check(self) -> Dict[str, Any]:
+        """Comprehensive system health check"""
+        try:
+            start_time = time.time()
+            
+            # Perform all health checks
+            system_health = self._check_system_resources()
+            disk_health = self._check_disk_space()
+            memory_health = self._check_memory_usage()
+            
+            # Overall status determination
+            all_checks = [system_health, disk_health, memory_health]
+            failed_checks = [check for check in all_checks if check.get("status") != "healthy"]
+            
+            overall_status = "healthy" if not failed_checks else "degraded"
+            if len(failed_checks) >= len(all_checks) / 2:
+                overall_status = "unhealthy"
+            
+            # Calculate uptime
+            uptime = time.time() - self.start_time
+            
+            result = {
+                "status": overall_status,
+                "timestamp": datetime.now().isoformat(),
+                "uptime_seconds": round(uptime, 2),
+                "checks": {
+                    "system": system_health,
+                    "disk": disk_health,
+                    "memory": memory_health
+                },
+                "response_time_ms": round((time.time() - start_time) * 1000, 2)
+            }
+            
+            # Store in history
+            self._add_to_history(result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Health check failed: {str(e)}")
+            return {
+                "status": "unhealthy",
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e)
+            }
+    
+    def _check_system_resources(self) -> Dict[str, Any]:
+        """Check system resource usage"""
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            load_avg = psutil.getloadavg()[0] if hasattr(psutil, 'getloadavg') else 0
+            
+            status = "healthy"
+            if cpu_percent > 90:
+                status = "critical"
+            elif cpu_percent > 75:
+                status = "warning"
+            
+            return {
+                "status": status,
+                "cpu_percent": cpu_percent,
+                "load_average": load_avg,
+                "cpu_count": psutil.cpu_count()
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    def _check_disk_space(self) -> Dict[str, Any]:
+        """Check available disk space"""
+        try:
+            disk_usage = shutil.disk_usage(".")
+            total_gb = disk_usage.total / (1024**3)
+            free_gb = disk_usage.free / (1024**3)
+            used_percent = ((disk_usage.total - disk_usage.free) / disk_usage.total) * 100
+            
+            status = "healthy"
+            if used_percent > 95:
+                status = "critical"
+            elif used_percent > 85:
+                status = "warning"
+            
+            return {
+                "status": status,
+                "total_gb": round(total_gb, 2),
+                "free_gb": round(free_gb, 2),
+                "used_percent": round(used_percent, 2)
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    def _check_memory_usage(self) -> Dict[str, Any]:
+        """Check memory usage"""
+        try:
+            memory = psutil.virtual_memory()
+            
+            status = "healthy"
+            if memory.percent > 95:
+                status = "critical"
+            elif memory.percent > 85:
+                status = "warning"
+            
+            return {
+                "status": status,
+                "total_gb": round(memory.total / (1024**3), 2),
+                "available_gb": round(memory.available / (1024**3), 2),
+                "used_percent": memory.percent
+            }
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+    
+    def _add_to_history(self, result: Dict[str, Any]):
+        """Add check result to history"""
+        self.check_history.append(result)
+        if len(self.check_history) > self.max_history:
+            self.check_history.pop(0)
+    
+    def get_health_history(self) -> List[Dict[str, Any]]:
+        """Get health check history"""
+        return self.check_history.copy()
 
 class HealthChecker:
     """Comprehensive health monitoring system"""
