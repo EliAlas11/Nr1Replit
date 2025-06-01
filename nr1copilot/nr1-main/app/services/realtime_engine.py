@@ -42,7 +42,17 @@ class RealtimeEngine:
             "💫 The golden ratio for viral videos is 1.618:1 aspect ratio!",
             "🎭 Emotional content is 3x more likely to be shared!",
             "🌟 The first 3 seconds determine if 65% of viewers will keep watching!",
-            "🎪 Adding captions increases engagement by 85%!"
+            "🎪 Adding captions increases engagement by 85%!",
+            "🎨 High contrast visuals perform 67% better on mobile devices!",
+            "📱 Vertical videos get 9x more engagement than horizontal ones!",
+            "🎼 Videos synced to beat drops see 45% more shares!",
+            "🌈 Colors can increase brand recognition by up to 80%!",
+            "🔊 Videos with clear audio get 58% more completion rates!",
+            "📊 Data shows that surprise elements boost retention by 73%!",
+            "🎥 Quick cuts every 2-3 seconds keep viewers hooked!",
+            "🏆 Videos that evoke strong emotions are 30x more likely to be shared!",
+            "🌟 The 'rule of thirds' makes videos 40% more visually appealing!",
+            "🎯 Call-to-actions in the first 5 seconds increase conversion by 85%!"
         ]
 
     async def initialize(self):
@@ -273,32 +283,69 @@ class RealtimeEngine:
 
     async def generate_live_preview(self, session_id: str, start_time: float, end_time: float, quality: str = "preview") -> Dict:
         """Generate live preview with real-time viral analysis"""
+        generation_start = time.time()
+        
         try:
             if session_id not in self.active_sessions:
-                raise ValueError("Session not found")
+                raise ValueError(f"Session {session_id} not found or expired")
 
             file_path = self.active_sessions[session_id]["file_path"]
             
-            # Generate preview clip
+            # Validate file still exists
+            if not os.path.exists(file_path):
+                raise ValueError("Source video file not found")
+            
+            # Validate time range
+            metadata = await self._extract_video_metadata(file_path)
+            if start_time >= metadata.get("duration", 0):
+                raise ValueError("Start time exceeds video duration")
+            
+            # Generate preview clip with progress tracking
             preview_id = f"live_{uuid.uuid4().hex[:8]}"
+            logger.info(f"Generating preview clip: {preview_id} for session {session_id}")
+            
             preview_path = await self._generate_preview_clip(file_path, start_time, end_time, preview_id)
 
-            # Perform viral analysis
+            # Perform enhanced viral analysis
             viral_analysis = await self._detailed_viral_analysis(file_path, start_time, end_time)
 
-            # Generate optimization suggestions
+            # Generate contextual optimization suggestions
             suggestions = await self._generate_optimization_suggestions(viral_analysis)
 
+            # Calculate processing metrics
+            processing_time = time.time() - generation_start
+            
             return {
+                "success": True,
                 "preview_url": f"/api/v3/preview/{session_id}/{preview_id}.mp4",
                 "viral_analysis": viral_analysis,
                 "suggestions": suggestions,
-                "processing_time": time.time() - start_time
+                "processing_time": processing_time,
+                "metadata": {
+                    "preview_id": preview_id,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "duration": end_time - start_time,
+                    "quality": quality,
+                    "generated_at": datetime.now().isoformat()
+                }
             }
 
         except Exception as e:
-            logger.error(f"Live preview error: {e}")
-            raise
+            logger.error(f"Live preview generation failed for session {session_id}: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "processing_time": time.time() - generation_start,
+                "suggestions": [
+                    {
+                        "type": "error",
+                        "priority": "high",
+                        "suggestion": "Try selecting a different time range",
+                        "impact": "Restore preview functionality"
+                    }
+                ]
+            }
 
     async def _detailed_viral_analysis(self, file_path: str, start: float, end: float) -> Dict:
         """Detailed viral potential analysis"""

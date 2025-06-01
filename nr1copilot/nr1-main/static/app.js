@@ -1,4 +1,3 @@
-
 /**
  * ViralClip Pro v3.0 - Netflix-Level Frontend Application
  * Real-time viral clip generation with instant feedback and entertainment
@@ -95,13 +94,13 @@ class ViralClipPro {
     setupRealtimeComponents() {
         // Initialize viral score chart
         this.initializeViralChart();
-        
+
         // Initialize interactive timeline
         this.initializeInteractiveTimeline();
-        
+
         // Initialize preview player
         this.initializePreviewPlayer();
-        
+
         // Setup real-time event handlers
         this.setupRealtimeEventHandlers();
     }
@@ -152,7 +151,7 @@ class ViralClipPro {
                         <span class="timeline-time">00:00 / 00:00</span>
                     </div>
                 </div>
-                
+
                 <div class="timeline-track" id="timeline-track">
                     <div class="viral-heatmap" id="viral-heatmap"></div>
                     <div class="timeline-scrubber" id="timeline-scrubber">
@@ -160,7 +159,7 @@ class ViralClipPro {
                     </div>
                     <div class="clip-markers" id="clip-markers"></div>
                 </div>
-                
+
                 <div class="timeline-legends">
                     <div class="legend-item">
                         <span class="color-box viral-low"></span>
@@ -175,7 +174,7 @@ class ViralClipPro {
                         <span>High Viral (75%+)</span>
                     </div>
                 </div>
-                
+
                 <div class="timeline-insights" id="timeline-insights">
                     <div class="insight-card">
                         <span class="insight-icon">🎯</span>
@@ -208,7 +207,7 @@ class ViralClipPro {
     setupTimelineInteractions() {
         const scrubber = document.getElementById('timeline-scrubber');
         const track = document.getElementById('timeline-track');
-        
+
         if (!scrubber || !track) return;
 
         let isDragging = false;
@@ -257,7 +256,7 @@ class ViralClipPro {
         const rect = track.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-        
+
         const scrubber = document.getElementById('timeline-scrubber');
         if (scrubber) {
             scrubber.style.left = `${percentage}%`;
@@ -293,7 +292,7 @@ class ViralClipPro {
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="preview-analysis" id="preview-analysis">
                     <div class="analysis-header">
                         <h5>🎯 Live Analysis</h5>
@@ -302,7 +301,7 @@ class ViralClipPro {
                             <span class="status-text">Ready</span>
                         </div>
                     </div>
-                    
+
                     <div class="analysis-metrics">
                         <div class="metric">
                             <span class="metric-icon">⚡</span>
@@ -320,7 +319,7 @@ class ViralClipPro {
                             <span class="metric-value">--</span>
                         </div>
                     </div>
-                    
+
                     <div class="optimization-suggestions" id="optimization-suggestions">
                         <h6>💡 Optimization Suggestions</h6>
                         <div class="suggestions-list"></div>
@@ -427,7 +426,7 @@ class ViralClipPro {
         const newPosition = Math.max(0, Math.min(100, currentLeft + (direction * nudgeAmount)));
 
         scrubber.style.left = `${newPosition}%`;
-        
+
         const currentTime = (newPosition / 100) * this.state.timelineData.duration;
         this.updateTimelineDisplay(currentTime);
         this.debouncedPreviewGeneration(currentTime);
@@ -462,7 +461,7 @@ class ViralClipPro {
         uploadArea.addEventListener('drop', (e) => {
             dragCounter = 0;
             this.hideEnhancedDragOverlay();
-            
+
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 this.processFiles(files);
@@ -500,7 +499,7 @@ class ViralClipPro {
         `;
 
         document.body.appendChild(overlay);
-        
+
         setTimeout(() => {
             overlay.classList.add('show');
         }, 50);
@@ -554,7 +553,7 @@ class ViralClipPro {
 
     async showEnhancedInstantPreview(file) {
         const uploadArea = document.getElementById('upload-area');
-        
+
         // Remove existing preview
         const existingPreview = uploadArea.querySelector('.enhanced-instant-preview');
         if (existingPreview) {
@@ -588,7 +587,7 @@ class ViralClipPro {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="quick-analysis">
                         <div class="analysis-item">
                             <span class="analysis-icon">🎯</span>
@@ -604,7 +603,7 @@ class ViralClipPro {
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="info-section">
                     <div class="file-info-enhanced">
                         <h4 class="file-name">${this.truncateFileName(file.name, 30)}</h4>
@@ -623,7 +622,7 @@ class ViralClipPro {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="preview-actions-enhanced">
                         <button class="btn-action primary" onclick="app.startAnalysis()">
                             <span class="btn-icon">🎯</span>
@@ -634,7 +633,7 @@ class ViralClipPro {
                             <span>Remove</span>
                         </button>
                     </div>
-                    
+
                     <div class="upload-progress-enhanced">
                         <div class="progress-header">
                             <span class="progress-label">Ready to upload</span>
@@ -662,10 +661,10 @@ class ViralClipPro {
         // Enhanced video loading
         video.addEventListener('loadedmetadata', () => {
             video.classList.add('loaded');
-            
+
             // Start quick analysis simulation
             this.simulateQuickAnalysis(preview);
-            
+
             // Update duration
             const durationStat = document.createElement('div');
             durationStat.className = 'stat-item';
@@ -707,7 +706,7 @@ class ViralClipPro {
 
     async handleFileUpload(e) {
         e.preventDefault();
-        
+
         if (!this.state.currentFile) {
             this.showError('Please select a file to upload.');
             return;
@@ -715,13 +714,13 @@ class ViralClipPro {
 
         try {
             this.state.uploadId = this.generateId();
-            
+
             // Connect to enhanced upload WebSocket
             await this.connectEnhancedUploadWebSocket();
-            
+
             // Start enhanced upload with real-time features
             await this.uploadFileEnhanced(this.state.currentFile);
-            
+
         } catch (error) {
             console.error('Enhanced upload error:', error);
             this.showError(`Upload failed: ${error.message}`);
@@ -740,13 +739,13 @@ class ViralClipPro {
 
             if (response.success) {
                 this.state.sessionId = response.session_id;
-                
+
                 // Connect to real-time features
                 await this.connectRealtimeFeatures();
-                
+
                 // Update UI with enhanced analysis data
                 this.updateEnhancedProgress(100, 'Analysis complete! 🎉');
-                
+
                 setTimeout(() => {
                     this.hideEnhancedPreview();
                     this.showEnhancedAnalysisStep(response);
@@ -817,7 +816,7 @@ class ViralClipPro {
         // Update progress bar with enhanced animations
         if (progressFill) {
             progressFill.style.width = `${Math.min(progress, 100)}%`;
-            
+
             // Dynamic color transitions
             if (progress < 30) {
                 progressFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
@@ -864,9 +863,9 @@ class ViralClipPro {
                 <div class="celebration-subtext">Starting AI analysis...</div>
             </div>
         `;
-        
+
         preview.appendChild(celebration);
-        
+
         setTimeout(() => {
             celebration.classList.add('show');
         }, 100);
@@ -880,12 +879,12 @@ class ViralClipPro {
         try {
             // Connect to viral scores WebSocket
             await this.connectViralScoresWebSocket();
-            
+
             // Connect to timeline WebSocket
             await this.connectTimelineWebSocket();
-            
+
             console.log('✅ Real-time features connected');
-            
+
         } catch (error) {
             console.error('Real-time connection error:', error);
         }
@@ -1022,7 +1021,7 @@ class ViralClipPro {
         ctx.lineWidth = 1;
 
         // Horizontal lines
-        for (let i = 0; i <= 10; i++) {
+        for (let i <= 10; i++) {
             const y = (canvas.height / 10) * i;
             ctx.beginPath();
             ctx.moveTo(0, y);
@@ -1049,11 +1048,11 @@ class ViralClipPro {
         ctx.lineJoin = 'round';
 
         ctx.beginPath();
-        
+
         scores.forEach((score, index) => {
             const x = (index / (scores.length - 1)) * canvas.width;
             const y = canvas.height - ((score.score / 100) * canvas.height);
-            
+
             if (index === 0) {
                 ctx.moveTo(x, y);
             } else {
@@ -1073,7 +1072,7 @@ class ViralClipPro {
         scores.forEach((score, index) => {
             const x = (index / (scores.length - 1)) * canvas.width;
             const y = canvas.height - ((score.score / 100) * canvas.height);
-            
+
             ctx.beginPath();
             ctx.arc(x, y, 4, 0, 2 * Math.PI);
             ctx.fillStyle = score.score > 75 ? '#10b981' : score.score > 50 ? '#f59e0b' : '#ef4444';
@@ -1144,7 +1143,7 @@ class ViralClipPro {
 
         try {
             const endTime = Math.min(currentTime + 10, this.state.timelineData.duration);
-            
+
             const response = await fetch(`/api/${this.config.apiVersion}/generate-clip-preview`, {
                 method: 'POST',
                 headers: {
@@ -1194,7 +1193,7 @@ class ViralClipPro {
         if (!analysis) return;
 
         const metrics = document.querySelectorAll('.metric-value');
-        
+
         if (metrics[0]) { // Energy
             metrics[0].textContent = analysis.engagement_factors?.energy_level || '--';
         }
@@ -1254,10 +1253,10 @@ class ViralClipPro {
 
     showEnhancedAnalysisStep(response) {
         this.showStep('analysis');
-        
+
         // Load timeline data
         this.loadTimelineData();
-        
+
         // Initialize real-time features
         this.initializeRealtimeAnalysis(response);
     }
@@ -1282,29 +1281,29 @@ class ViralClipPro {
     renderInteractiveTimeline(timelineData) {
         const heatmap = document.getElementById('viral-heatmap');
         const markers = document.getElementById('clip-markers');
-        
+
         if (!heatmap || !markers) return;
 
         // Render viral heatmap
         this.renderViralHeatmap(heatmap, timelineData.viral_heatmap);
-        
+
         // Render clip markers
         this.renderClipMarkers(markers, timelineData.recommended_clips);
-        
+
         // Update insights
         this.updateTimelineInsights(timelineData);
     }
 
     renderViralHeatmap(container, viralScores) {
         container.innerHTML = '';
-        
+
         viralScores.forEach((score, index) => {
             const segment = document.createElement('div');
             segment.className = 'heatmap-segment';
             segment.style.width = `${100 / viralScores.length}%`;
             segment.style.backgroundColor = this.getViralColor(score.score);
             segment.title = `${score.timestamp}s: ${score.score}% viral`;
-            
+
             container.appendChild(segment);
         });
     }
@@ -1317,7 +1316,7 @@ class ViralClipPro {
 
     renderClipMarkers(container, clips) {
         container.innerHTML = '';
-        
+
         clips.forEach((clip, index) => {
             const marker = document.createElement('div');
             marker.className = 'clip-marker';
@@ -1328,7 +1327,7 @@ class ViralClipPro {
                 <div class="marker-score">${clip.viral_score}%</div>
             `;
             marker.onclick = () => this.selectClip(clip);
-            
+
             container.appendChild(marker);
         });
     }
@@ -1343,7 +1342,7 @@ class ViralClipPro {
 
         // Generate preview for this clip
         this.generateRealtimePreview(clip.start_time);
-        
+
         // Update time display
         this.updateTimelineDisplay(clip.start_time);
     }
@@ -1351,7 +1350,7 @@ class ViralClipPro {
     initializeRealtimeAnalysis(response) {
         // Start viral score tracking
         this.startViralScoreTracking();
-        
+
         // Initialize preview generation
         this.setupRealtimePreviewGeneration();
     }
@@ -1395,12 +1394,12 @@ class ViralClipPro {
 
     removePreview() {
         this.hideEnhancedPreview();
-        
+
         const fileInput = document.getElementById('file-input');
         if (fileInput) {
             fileInput.value = '';
         }
-        
+
         this.state.currentFile = null;
         this.showSuccess('Video removed. You can select another file.');
     }
@@ -1416,7 +1415,7 @@ class ViralClipPro {
     async startEnhancedProcessing(clips) {
         try {
             this.state.taskId = this.generateId();
-            
+
             const response = await fetch(`/api/${this.config.apiVersion}/process-clips`, {
                 method: 'POST',
                 headers: {
@@ -1481,7 +1480,7 @@ class ViralClipPro {
 
     showEnhancedProcessingStep() {
         this.showStep('processing');
-        
+
         const container = document.getElementById('processing-status');
         if (container) {
             container.innerHTML = `
@@ -1494,7 +1493,7 @@ class ViralClipPro {
                         <h3>Creating Your Viral Clips</h3>
                         <p class="processing-subtitle">Netflix-level AI is crafting perfect viral content...</p>
                     </div>
-                    
+
                     <div class="processing-progress-enhanced">
                         <div class="progress-ring">
                             <svg width="120" height="120">
@@ -1507,7 +1506,7 @@ class ViralClipPro {
                                 <span class="progress-label">Processing</span>
                             </div>
                         </div>
-                        
+
                         <div class="processing-details">
                             <div class="current-step">
                                 <span class="step-icon">⚡</span>
@@ -1519,7 +1518,7 @@ class ViralClipPro {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="entertainment-section">
                         <h4>🎭 Did You Know?</h4>
                         <div class="entertainment-content">
@@ -1533,7 +1532,7 @@ class ViralClipPro {
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="processing-features">
                         <div class="feature-list">
                             <div class="feature-item processing">
@@ -1603,7 +1602,7 @@ class ViralClipPro {
     animateEntertainmentFact(element) {
         element.style.opacity = '0';
         element.style.transform = 'translateY(10px)';
-        
+
         setTimeout(() => {
             element.style.transition = 'all 0.5s ease';
             element.style.opacity = '1';
@@ -1836,27 +1835,91 @@ class ViralClipPro {
         if (this.viralScoreTracker) {
             clearInterval(this.viralScoreTracker);
         }
-        
+
         if (this.realtimeScoreUpdater) {
             clearInterval(this.realtimeScoreUpdater);
         }
 
         // Reset UI
         this.showStep('upload');
-        
+
         // Clear forms
         document.querySelectorAll('form').forEach(form => form.reset());
-        
+
         console.log('🔄 Application restarted');
     }
 }
 
-// Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new ViralClipPro();
-});
+/* Add dynamic CSS animations */
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+    @keyframes sparkle {
+        0% {
+            opacity: 0;
+            transform: scale(0) rotate(0deg);
+        }
+        50% {
+            opacity: 1;
+            transform: scale(1.2) rotate(180deg);
+        }
+        100% {
+            opacity: 0;
+            transform: scale(0) rotate(360deg);
+        }
+    }
 
-// Service Worker for PWA capabilities
+    .feature-item.completed {
+        background: rgba(16, 185, 129, 0.1) !important;
+        border: 1px solid rgba(16, 185, 129, 0.3) !important;
+        animation: completePulse 0.5s ease-out;
+    }
+
+    @keyframes completePulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+
+    .viral-chart-container {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .viral-chart-container::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+        animation: chartGlow 3s ease-in-out infinite alternate;
+        pointer-events: none;
+    }
+
+    @keyframes chartGlow {
+        0% { opacity: 0.3; transform: scale(0.8); }
+        100% { opacity: 0.6; transform: scale(1.2); }
+    }
+
+    .timeline-track:hover .viral-heatmap {
+        transform: scaleY(1.1);
+        transition: transform 0.3s ease;
+    }
+
+    .insight-card:hover .insight-value {
+        color: var(--viral-high);
+        animation: valueHighlight 0.5s ease;
+    }
+
+    @keyframes valueHighlight {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+`;
+document.head.appendChild(styleSheet);
+
+/* Service Worker for PWA capabilities */
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
@@ -1868,3 +1931,7 @@ if ('serviceWorker' in navigator) {
             });
     });
 }
+// Initialize the application
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new ViralClipPro();
+});
