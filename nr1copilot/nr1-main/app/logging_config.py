@@ -79,3 +79,45 @@ def setup_logging():
     
     # Setup security logging
     logging.getLogger("app.security").setLevel(logging.WARNING)
+"""
+Logging Configuration
+Netflix-level structured logging
+"""
+
+import logging
+import sys
+from typing import Any
+
+def setup_logging():
+    """Setup Netflix-level logging configuration"""
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    
+    # Create file handler
+    try:
+        file_handler = logging.FileHandler('logs/app.log')
+        file_handler.setFormatter(formatter)
+    except:
+        file_handler = None
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(console_handler)
+    
+    if file_handler:
+        root_logger.addHandler(file_handler)
+    
+    # Configure specific loggers
+    logging.getLogger('uvicorn').setLevel(logging.WARNING)
+    logging.getLogger('fastapi').setLevel(logging.INFO)
+    
+    return root_logger

@@ -147,3 +147,50 @@ def get_system_metrics() -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e)}
+"""
+Health Check Utilities
+Netflix-level health monitoring
+"""
+
+import time
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+def health_check() -> Dict[str, Any]:
+    """Basic health check"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "uptime": time.time(),
+        "version": "3.0.0"
+    }
+
+async def detailed_health_check(redis_client=None) -> Dict[str, Any]:
+    """Detailed health check with dependencies"""
+    health = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "services": {},
+        "version": "3.0.0"
+    }
+    
+    # Check Redis
+    if redis_client:
+        try:
+            await redis_client.ping()
+            health["services"]["redis"] = "healthy"
+        except Exception:
+            health["services"]["redis"] = "unhealthy"
+            health["status"] = "degraded"
+    else:
+        health["services"]["redis"] = "not_configured"
+    
+    # Check disk space
+    import shutil
+    total, used, free = shutil.disk_usage("/")
+    disk_usage = (used / total) * 100
+    
+    health["services"]["disk"] = "healthy" if disk_usage < 90 else "warning"
+    health["disk_usage_percent"] = disk_usage
+    
+    return health

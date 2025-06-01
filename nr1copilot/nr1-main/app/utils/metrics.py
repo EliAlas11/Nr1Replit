@@ -139,3 +139,67 @@ class MetricsCollector:
             }
         except ImportError:
             return {"error": "psutil not available"}
+"""
+Metrics Collection Utilities
+Netflix-level performance monitoring
+"""
+
+import time
+from datetime import datetime
+from typing import Dict, Any
+from collections import defaultdict
+
+class MetricsCollector:
+    """Netflix-level metrics collection"""
+    
+    def __init__(self):
+        self.metrics = defaultdict(list)
+        self.counters = defaultdict(int)
+        self.start_time = time.time()
+    
+    async def record_request(
+        self, 
+        method: str, 
+        path: str, 
+        status_code: int, 
+        duration: float
+    ):
+        """Record HTTP request metrics"""
+        self.metrics["requests"].append({
+            "method": method,
+            "path": path,
+            "status_code": status_code,
+            "duration": duration,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        self.counters[f"requests_{method.lower()}"] += 1
+        self.counters[f"status_{status_code}"] += 1
+    
+    async def record_processing_time(self, task_type: str, duration: float):
+        """Record processing time metrics"""
+        self.metrics["processing"].append({
+            "task_type": task_type,
+            "duration": duration,
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    async def get_metrics(self) -> Dict[str, Any]:
+        """Get current metrics"""
+        uptime = time.time() - self.start_time
+        
+        # Calculate averages
+        request_durations = [r["duration"] for r in self.metrics["requests"]]
+        avg_response_time = sum(request_durations) / len(request_durations) if request_durations else 0
+        
+        processing_durations = [p["duration"] for p in self.metrics["processing"]]
+        avg_processing_time = sum(processing_durations) / len(processing_durations) if processing_durations else 0
+        
+        return {
+            "uptime_seconds": uptime,
+            "total_requests": len(self.metrics["requests"]),
+            "avg_response_time": avg_response_time,
+            "avg_processing_time": avg_processing_time,
+            "counters": dict(self.counters),
+            "recent_requests": self.metrics["requests"][-10:],  # Last 10 requests
+        }

@@ -65,3 +65,73 @@ class SecurityManager:
         # Only allow alphanumeric, dots, dashes, and underscores
         filename = re.sub(r'[^a-zA-Z0-9.\-_]', '', filename)
         return filename[:255]  # Limit length
+"""
+Security Utilities
+Netflix-level security implementation
+"""
+
+import hashlib
+import secrets
+from typing import Dict, Any, Optional
+
+class SecurityManager:
+    """Netflix-level security manager"""
+    
+    def __init__(self):
+        self.failed_attempts = {}
+    
+    def hash_password(self, password: str) -> str:
+        """Hash password with salt"""
+        salt = secrets.token_hex(32)
+        password_hash = hashlib.pbkdf2_hmac(
+            'sha256',
+            password.encode('utf-8'),
+            salt.encode('utf-8'),
+            100000
+        )
+        return salt + password_hash.hex()
+    
+    def verify_password(self, password: str, stored_hash: str) -> bool:
+        """Verify password against stored hash"""
+        salt = stored_hash[:64]
+        stored_password_hash = stored_hash[64:]
+        
+        password_hash = hashlib.pbkdf2_hmac(
+            'sha256',
+            password.encode('utf-8'),
+            salt.encode('utf-8'),
+            100000
+        )
+        
+        return password_hash.hex() == stored_password_hash
+    
+    def generate_api_key(self) -> str:
+        """Generate secure API key"""
+        return secrets.token_urlsafe(32)
+    
+    def validate_input(self, data: str, max_length: int = 1000) -> bool:
+        """Basic input validation"""
+        if not data or len(data) > max_length:
+            return False
+        
+        # Check for common injection patterns
+        dangerous_patterns = ['<script', 'javascript:', 'eval(', 'exec(']
+        data_lower = data.lower()
+        
+        return not any(pattern in data_lower for pattern in dangerous_patterns)
+    
+    def check_rate_limit_security(self, client_ip: str) -> bool:
+        """Check if client IP is rate limited for security"""
+        if client_ip in self.failed_attempts:
+            attempts = self.failed_attempts[client_ip]
+            if attempts.get('count', 0) > 10:  # Max 10 failed attempts
+                return False
+        
+        return True
+    
+    def record_failed_attempt(self, client_ip: str):
+        """Record failed authentication attempt"""
+        if client_ip not in self.failed_attempts:
+            self.failed_attempts[client_ip] = {'count': 0}
+        
+        self.failed_attempts[client_ip]['count'] += 1

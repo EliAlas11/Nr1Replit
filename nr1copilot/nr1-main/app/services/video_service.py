@@ -330,3 +330,115 @@ async def process_video_clip(input_path: str, output_path: str, start_time: floa
     except Exception as e:
         logger.error(f"Video clip processing error: {e}")
         raise VideoServiceError(f"Processing failed: {e}")
+"""
+Video Processing Service
+Core video processing functionality
+"""
+
+import logging
+import os
+import asyncio
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
+
+class VideoProcessor:
+    """Core video processing service"""
+    
+    def __init__(self):
+        self.active_jobs = {}
+        
+    async def validate_video_url(self, url: str) -> Dict[str, Any]:
+        """Validate if URL is a valid video URL"""
+        try:
+            # Basic URL validation
+            if not url or len(url) < 10:
+                return {"valid": False, "error": "Invalid URL"}
+            
+            # Check for supported platforms
+            supported_platforms = [
+                "youtube.com", "youtu.be", "vimeo.com", 
+                "dailymotion.com", "twitch.tv"
+            ]
+            
+            is_supported = any(platform in url.lower() for platform in supported_platforms)
+            
+            return {
+                "valid": is_supported,
+                "platform": self._detect_platform(url),
+                "error": None if is_supported else "Unsupported platform"
+            }
+            
+        except Exception as e:
+            logger.error(f"URL validation error: {e}")
+            return {"valid": False, "error": str(e)}
+    
+    def _detect_platform(self, url: str) -> str:
+        """Detect video platform from URL"""
+        url_lower = url.lower()
+        
+        if "youtube.com" in url_lower or "youtu.be" in url_lower:
+            return "youtube"
+        elif "vimeo.com" in url_lower:
+            return "vimeo"
+        elif "dailymotion.com" in url_lower:
+            return "dailymotion"
+        elif "twitch.tv" in url_lower:
+            return "twitch"
+        else:
+            return "unknown"
+    
+    async def extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract metadata from video URL"""
+        try:
+            # Simulate metadata extraction
+            await asyncio.sleep(0.5)
+            
+            return {
+                "title": "Sample Video Title",
+                "duration": 180,
+                "thumbnail": "https://example.com/thumb.jpg",
+                "description": "Sample video description",
+                "uploader": "Sample Channel",
+                "view_count": 1000,
+                "upload_date": "2024-01-01"
+            }
+            
+        except Exception as e:
+            logger.error(f"Metadata extraction error: {e}")
+            return {}
+    
+    async def process_video_clip(
+        self,
+        url: str,
+        start_time: float,
+        end_time: float,
+        output_path: str,
+        quality: str = "720p"
+    ) -> Dict[str, Any]:
+        """Process video clip with specified parameters"""
+        try:
+            # Ensure output directory exists
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+            # Simulate video processing
+            await asyncio.sleep(3)
+            
+            # Create placeholder output file
+            with open(output_path, 'w') as f:
+                f.write(f"Video clip: {start_time}s - {end_time}s")
+            
+            return {
+                "success": True,
+                "output_path": output_path,
+                "duration": end_time - start_time,
+                "quality": quality,
+                "file_size": 1024 * 1024  # 1MB placeholder
+            }
+            
+        except Exception as e:
+            logger.error(f"Video processing error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }

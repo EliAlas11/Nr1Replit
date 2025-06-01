@@ -230,3 +230,96 @@ class RateLimiter:
         
         if keys_to_remove:
             logger.info(f"Cleaned up {len(keys_to_remove)} expired rate limit entries")
+"""
+Rate Limiting Utilities
+Netflix-level rate limiting implementation
+"""
+
+import time
+from typing import Tuple, Optional
+from collections import defaultdict
+
+class RateLimiter:
+    """Netflix-level rate limiter with sliding window"""
+    
+    def __init__(self, redis_client=None):
+        self.redis_client = redis_client
+        self.local_cache = defaultdict(list)
+    
+    async def check_rate_limit(
+        self, 
+        key: str, 
+        limit: int, 
+        window: int
+    ) -> Tuple[bool, int]:
+        """
+        Check if request is within rate limit
+        Returns (is_allowed, remaining_requests)
+        """
+        current_time = time.time()
+        
+        if self.redis_client:
+            return await self._check_redis_rate_limit(key, limit, window, current_time)
+        else:
+            return self._check_local_rate_limit(key, limit, window, current_time)
+    
+    async def _check_redis_rate_limit(
+        self, 
+        key: str, 
+        limit: int, 
+        window: int, 
+        current_time: float
+    ) -> Tuple[bool, int]:
+        """Redis-based rate limiting"""
+        try:
+            # Use Redis for distributed rate limiting
+            pipe = self.redis_client.pipeline()
+            
+            # Remove old entries
+            pipe.zremrangebyscore(key, 0, current_time - window)
+            
+            # Count current requests
+            pipe.zcard(key)
+            
+            # Add current request
+            pipe.zadd(key, {str(current_time): current_time})
+            
+            # Set expiry
+            pipe.expire(key, window)
+            
+            results = await pipe.execute()
+            
+            current_count = results[1]
+            
+            if current_count < limit:
+                return True, limit - current_count - 1
+            else:
+                # Remove the request we just added since it's over limit
+                await self.redis_client.zrem(key, str(current_time))
+                return False, 0
+                
+        except Exception:
+            # Fallback to local rate limiting
+            return self._check_local_rate_limit(key, limit, window, current_time)
+    
+    def _check_local_rate_limit(
+        self, 
+        key: str, 
+        limit: int, 
+        window: int, 
+        current_time: float
+    ) -> Tuple[bool, int]:
+        """Local memory-based rate limiting"""
+        requests = self.local_cache[key]
+        
+        # Remove old requests
+        cutoff_time = current_time - window
+        self.local_cache[key] = [req_time for req_time in requests if req_time > cutoff_time]
+        
+        current_count = len(self.local_cache[key])
+        
+        if current_count < limit:
+            self.local_cache[key].append(current_time)
+            return True, limit - current_count - 1
+        else:
+            return False, 0

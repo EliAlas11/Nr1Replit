@@ -140,3 +140,78 @@ class CacheManager:
         
         if expired_keys:
             logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
+"""
+Caching Utilities
+Netflix-level caching implementation
+"""
+
+import json
+import time
+from typing import Any, Optional
+
+class CacheManager:
+    """Netflix-level cache manager with Redis fallback"""
+    
+    def __init__(self, redis_client=None):
+        self.redis_client = redis_client
+        self.local_cache = {}
+    
+    async def get(self, key: str) -> Optional[Any]:
+        """Get value from cache"""
+        if self.redis_client:
+            try:
+                value = await self.redis_client.get(key)
+                if value:
+                    return json.loads(value)
+            except Exception:
+                pass
+        
+        # Fallback to local cache
+        if key in self.local_cache:
+            entry = self.local_cache[key]
+            if entry["expires"] > time.time():
+                return entry["value"]
+            else:
+                del self.local_cache[key]
+        
+        return None
+    
+    async def set(self, key: str, value: Any, ttl: int = 3600):
+        """Set value in cache with TTL"""
+        if self.redis_client:
+            try:
+                await self.redis_client.setex(
+                    key, 
+                    ttl, 
+                    json.dumps(value, default=str)
+                )
+                return
+            except Exception:
+                pass
+        
+        # Fallback to local cache
+        self.local_cache[key] = {
+            "value": value,
+            "expires": time.time() + ttl
+        }
+    
+    async def delete(self, key: str):
+        """Delete value from cache"""
+        if self.redis_client:
+            try:
+                await self.redis_client.delete(key)
+            except Exception:
+                pass
+        
+        if key in self.local_cache:
+            del self.local_cache[key]
+    
+    async def clear(self):
+        """Clear all cache"""
+        if self.redis_client:
+            try:
+                await self.redis_client.flushdb()
+            except Exception:
+                pass
+        
+        self.local_cache.clear()
