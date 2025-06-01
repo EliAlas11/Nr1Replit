@@ -1,205 +1,221 @@
 
 """
-Netflix-Level Metrics Collection
-"""
-
-import time
-import json
-from typing import Dict, Any, List
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
-import asyncio
-
-class MetricsCollector:
-    """Netflix-level metrics collection and reporting"""
-    
-    def __init__(self):
-        self.request_metrics = deque(maxlen=10000)  # Last 10k requests
-        self.system_metrics = {}
-        self.performance_metrics = defaultdict(list)
-        self.error_metrics = defaultdict(int)
-        self.start_time = time.time()
-    
-    async def record_request(self, method: str, path: str, status_code: int, duration: float):
-        """Record request metrics"""
-        now = time.time()
-        
-        metric = {
-            "timestamp": now,
-            "method": method,
-            "path": path,
-            "status_code": status_code,
-            "duration": duration,
-            "date": datetime.now().isoformat()
-        }
-        
-        self.request_metrics.append(metric)
-        
-        # Track performance by endpoint
-        endpoint_key = f"{method}:{path}"
-        self.performance_metrics[endpoint_key].append(duration)
-        
-        # Keep only last 1000 measurements per endpoint
-        if len(self.performance_metrics[endpoint_key]) > 1000:
-            self.performance_metrics[endpoint_key] = self.performance_metrics[endpoint_key][-1000:]
-        
-        # Track errors
-        if status_code >= 400:
-            self.error_metrics[f"{status_code}"] += 1
-    
-    async def get_metrics(self) -> Dict[str, Any]:
-        """Get comprehensive metrics"""
-        now = time.time()
-        uptime = now - self.start_time
-        
-        # Calculate request stats
-        recent_requests = [r for r in self.request_metrics if now - r["timestamp"] < 3600]  # Last hour
-        
-        total_requests = len(self.request_metrics)
-        recent_request_count = len(recent_requests)
-        
-        # Response time percentiles
-        recent_durations = [r["duration"] for r in recent_requests]
-        recent_durations.sort()
-        
-        percentiles = {}
-        if recent_durations:
-            percentiles = {
-                "p50": self._percentile(recent_durations, 50),
-                "p90": self._percentile(recent_durations, 90),
-                "p95": self._percentile(recent_durations, 95),
-                "p99": self._percentile(recent_durations, 99)
-            }
-        
-        # Error rates
-        recent_errors = sum(1 for r in recent_requests if r["status_code"] >= 400)
-        error_rate = (recent_errors / recent_request_count * 100) if recent_request_count > 0 else 0
-        
-        # Status code distribution
-        status_distribution = defaultdict(int)
-        for request in recent_requests:
-            status_range = f"{request['status_code'] // 100}xx"
-            status_distribution[status_range] += 1
-        
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "uptime_seconds": uptime,
-            "uptime_human": self._format_duration(uptime),
-            "requests": {
-                "total": total_requests,
-                "last_hour": recent_request_count,
-                "requests_per_second": recent_request_count / 3600 if recent_request_count > 0 else 0
-            },
-            "performance": {
-                "response_times": percentiles,
-                "average_response_time": sum(recent_durations) / len(recent_durations) if recent_durations else 0
-            },
-            "errors": {
-                "error_rate_percent": round(error_rate, 2),
-                "total_errors": dict(self.error_metrics),
-                "recent_errors": recent_errors
-            },
-            "status_codes": dict(status_distribution),
-            "system": await self._get_system_metrics()
-        }
-    
-    def _percentile(self, data: List[float], percentile: int) -> float:
-        """Calculate percentile"""
-        if not data:
-            return 0.0
-        index = int(len(data) * percentile / 100)
-        return data[min(index, len(data) - 1)]
-    
-    def _format_duration(self, seconds: float) -> str:
-        """Format duration in human readable format"""
-        days = int(seconds // 86400)
-        hours = int((seconds % 86400) // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        
-        if days > 0:
-            return f"{days}d {hours}h {minutes}m {secs}s"
-        elif hours > 0:
-            return f"{hours}h {minutes}m {secs}s"
-        elif minutes > 0:
-            return f"{minutes}m {secs}s"
-        else:
-            return f"{secs}s"
-    
-    async def _get_system_metrics(self) -> Dict[str, Any]:
-        """Get system metrics"""
-        try:
-            import psutil
-            
-            return {
-                "cpu_percent": psutil.cpu_percent(),
-                "memory_percent": psutil.virtual_memory().percent,
-                "disk_percent": psutil.disk_usage('/').percent,
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None
-            }
-        except ImportError:
-            return {"error": "psutil not available"}
-"""
-Metrics Collection Utilities
+Metrics Collection System
 Netflix-level performance monitoring
 """
 
 import time
-from datetime import datetime
-from typing import Dict, Any
-from collections import defaultdict
+import asyncio
+import logging
+from typing import Dict, Any, List
+from datetime import datetime, timedelta
+from collections import defaultdict, deque
+
+logger = logging.getLogger(__name__)
 
 class MetricsCollector:
-    """Netflix-level metrics collection"""
+    """Netflix-level metrics collection and monitoring"""
     
     def __init__(self):
-        self.metrics = defaultdict(list)
-        self.counters = defaultdict(int)
-        self.start_time = time.time()
-    
-    async def record_request(
-        self, 
-        method: str, 
-        path: str, 
-        status_code: int, 
-        duration: float
-    ):
-        """Record HTTP request metrics"""
-        self.metrics["requests"].append({
-            "method": method,
-            "path": path,
-            "status_code": status_code,
-            "duration": duration,
-            "timestamp": datetime.now().isoformat()
+        self.request_metrics = defaultdict(list)
+        self.response_times = deque(maxlen=1000)
+        self.error_counts = defaultdict(int)
+        self.status_codes = defaultdict(int)
+        self.endpoint_metrics = defaultdict(lambda: {
+            "count": 0,
+            "total_time": 0,
+            "errors": 0
         })
+        self.start_time = datetime.now()
         
-        self.counters[f"requests_{method.lower()}"] += 1
-        self.counters[f"status_{status_code}"] += 1
-    
-    async def record_processing_time(self, task_type: str, duration: float):
-        """Record processing time metrics"""
-        self.metrics["processing"].append({
-            "task_type": task_type,
-            "duration": duration,
-            "timestamp": datetime.now().isoformat()
-        })
+    async def record_request(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        duration: float,
+        user_id: str = None
+    ) -> None:
+        """Record a request with its metrics"""
+        try:
+            timestamp = datetime.now()
+            
+            # Record response time
+            self.response_times.append(duration)
+            
+            # Record status code
+            self.status_codes[status_code] += 1
+            
+            # Record endpoint metrics
+            endpoint_key = f"{method} {path}"
+            self.endpoint_metrics[endpoint_key]["count"] += 1
+            self.endpoint_metrics[endpoint_key]["total_time"] += duration
+            
+            if status_code >= 400:
+                self.endpoint_metrics[endpoint_key]["errors"] += 1
+                self.error_counts[f"{status_code}"] += 1
+            
+            # Store detailed request data
+            self.request_metrics[timestamp.strftime("%Y-%m-%d %H:%M")].append({
+                "method": method,
+                "path": path,
+                "status_code": status_code,
+                "duration": duration,
+                "timestamp": timestamp.isoformat(),
+                "user_id": user_id
+            })
+            
+        except Exception as e:
+            logger.error(f"Error recording metrics: {e}")
     
     async def get_metrics(self) -> Dict[str, Any]:
-        """Get current metrics"""
-        uptime = time.time() - self.start_time
-        
-        # Calculate averages
-        request_durations = [r["duration"] for r in self.metrics["requests"]]
-        avg_response_time = sum(request_durations) / len(request_durations) if request_durations else 0
-        
-        processing_durations = [p["duration"] for p in self.metrics["processing"]]
-        avg_processing_time = sum(processing_durations) / len(processing_durations) if processing_durations else 0
-        
-        return {
-            "uptime_seconds": uptime,
-            "total_requests": len(self.metrics["requests"]),
-            "avg_response_time": avg_response_time,
-            "avg_processing_time": avg_processing_time,
-            "counters": dict(self.counters),
-            "recent_requests": self.metrics["requests"][-10:],  # Last 10 requests
-        }
+        """Get comprehensive metrics"""
+        try:
+            now = datetime.now()
+            uptime = (now - self.start_time).total_seconds()
+            
+            # Calculate request statistics
+            total_requests = sum(self.status_codes.values())
+            successful_requests = sum(
+                count for status, count in self.status_codes.items()
+                if 200 <= int(status) < 400
+            )
+            error_requests = sum(
+                count for status, count in self.status_codes.items()
+                if int(status) >= 400
+            )
+            
+            # Calculate response time statistics
+            if self.response_times:
+                avg_response_time = sum(self.response_times) / len(self.response_times)
+                min_response_time = min(self.response_times)
+                max_response_time = max(self.response_times)
+                
+                # Calculate percentiles
+                sorted_times = sorted(self.response_times)
+                p95_index = int(len(sorted_times) * 0.95)
+                p99_index = int(len(sorted_times) * 0.99)
+                p95_response_time = sorted_times[p95_index] if sorted_times else 0
+                p99_response_time = sorted_times[p99_index] if sorted_times else 0
+            else:
+                avg_response_time = 0
+                min_response_time = 0
+                max_response_time = 0
+                p95_response_time = 0
+                p99_response_time = 0
+            
+            # Calculate requests per minute
+            requests_per_minute = (
+                total_requests / (uptime / 60) if uptime > 0 else 0
+            )
+            
+            # Calculate success rate
+            success_rate = (
+                successful_requests / total_requests * 100 
+                if total_requests > 0 else 0
+            )
+            
+            # Top endpoints by request count
+            top_endpoints = sorted(
+                self.endpoint_metrics.items(),
+                key=lambda x: x[1]["count"],
+                reverse=True
+            )[:10]
+            
+            # Slowest endpoints
+            slowest_endpoints = sorted(
+                [
+                    (endpoint, metrics["total_time"] / metrics["count"])
+                    for endpoint, metrics in self.endpoint_metrics.items()
+                    if metrics["count"] > 0
+                ],
+                key=lambda x: x[1],
+                reverse=True
+            )[:10]
+            
+            return {
+                "timestamp": now.isoformat(),
+                "uptime_seconds": uptime,
+                "requests": {
+                    "total": total_requests,
+                    "successful": successful_requests,
+                    "errors": error_requests,
+                    "success_rate": success_rate,
+                    "requests_per_minute": requests_per_minute
+                },
+                "response_times": {
+                    "average": avg_response_time,
+                    "min": min_response_time,
+                    "max": max_response_time,
+                    "p95": p95_response_time,
+                    "p99": p99_response_time
+                },
+                "status_codes": dict(self.status_codes),
+                "error_counts": dict(self.error_counts),
+                "top_endpoints": [
+                    {
+                        "endpoint": endpoint,
+                        "count": metrics["count"],
+                        "avg_time": metrics["total_time"] / metrics["count"],
+                        "errors": metrics["errors"]
+                    }
+                    for endpoint, metrics in top_endpoints
+                ],
+                "slowest_endpoints": [
+                    {
+                        "endpoint": endpoint,
+                        "avg_time": avg_time
+                    }
+                    for endpoint, avg_time in slowest_endpoints
+                ]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting metrics: {e}")
+            return {"error": str(e)}
+    
+    def get_endpoint_stats(self, endpoint: str) -> Dict[str, Any]:
+        """Get statistics for a specific endpoint"""
+        if endpoint in self.endpoint_metrics:
+            metrics = self.endpoint_metrics[endpoint]
+            return {
+                "count": metrics["count"],
+                "average_time": (
+                    metrics["total_time"] / metrics["count"] 
+                    if metrics["count"] > 0 else 0
+                ),
+                "errors": metrics["errors"],
+                "error_rate": (
+                    metrics["errors"] / metrics["count"] * 100 
+                    if metrics["count"] > 0 else 0
+                )
+            }
+        return {"count": 0, "average_time": 0, "errors": 0, "error_rate": 0}
+    
+    def reset_metrics(self) -> None:
+        """Reset all metrics"""
+        self.request_metrics.clear()
+        self.response_times.clear()
+        self.error_counts.clear()
+        self.status_codes.clear()
+        self.endpoint_metrics.clear()
+        self.start_time = datetime.now()
+    
+    async def cleanup_old_metrics(self, hours: int = 24) -> None:
+        """Clean up metrics older than specified hours"""
+        try:
+            cutoff = datetime.now() - timedelta(hours=hours)
+            cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M")
+            
+            keys_to_remove = [
+                key for key in self.request_metrics.keys()
+                if key < cutoff_str
+            ]
+            
+            for key in keys_to_remove:
+                del self.request_metrics[key]
+            
+            logger.info(f"Cleaned up {len(keys_to_remove)} old metric entries")
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up metrics: {e}")

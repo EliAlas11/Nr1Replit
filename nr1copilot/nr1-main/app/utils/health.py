@@ -1,15 +1,14 @@
-
 """
-Netflix-Level Health Monitoring
+Health Check Utilities
+Netflix-level health monitoring and status checks
 """
 
+import psutil
 import asyncio
 import logging
-import os
-import time
 from typing import Dict, Any, Optional
 from datetime import datetime
-import psutil
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -18,179 +17,130 @@ def health_check() -> Dict[str, Any]:
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "service": "ViralClip Pro - SendShort.ai Killer",
         "version": "3.0.0",
-        "uptime": time.time()
+        "service": "ViralClip Pro"
     }
 
 async def detailed_health_check(redis_client=None) -> Dict[str, Any]:
-    """Netflix-level detailed health check"""
-    health_data = {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "service": "ViralClip Pro",
-        "version": "3.0.0",
-        "checks": {}
-    }
-    
-    # System resources
+    """Comprehensive health check with system metrics"""
     try:
-        health_data["checks"]["system"] = {
+        health_data = {
             "status": "healthy",
-            "cpu_percent": psutil.cpu_percent(interval=1),
-            "memory_percent": psutil.virtual_memory().percent,
-            "disk_percent": psutil.disk_usage('/').percent,
-            "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else None
+            "timestamp": datetime.now().isoformat(),
+            "version": "3.0.0",
+            "service": "ViralClip Pro",
+            "checks": {}
         }
-        
-        # Check if resources are critical
-        if (health_data["checks"]["system"]["cpu_percent"] > 90 or 
-            health_data["checks"]["system"]["memory_percent"] > 90 or
-            health_data["checks"]["system"]["disk_percent"] > 95):
-            health_data["checks"]["system"]["status"] = "critical"
-            health_data["status"] = "degraded"
-            
-    except Exception as e:
-        health_data["checks"]["system"] = {
-            "status": "error",
-            "error": str(e)
-        }
-        health_data["status"] = "degraded"
-    
-    # Redis connectivity
-    if redis_client:
+
+        # System health
         try:
-            await redis_client.ping()
-            health_data["checks"]["redis"] = {
-                "status": "healthy",
-                "connected": True
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+
+            health_data["system"] = {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_available_gb": round(memory.available / (1024**3), 2),
+                "disk_percent": disk.percent,
+                "disk_free_gb": round(disk.free / (1024**3), 2)
             }
+
+            health_data["checks"]["system"] = "healthy"
+
         except Exception as e:
-            health_data["checks"]["redis"] = {
-                "status": "error",
-                "connected": False,
-                "error": str(e)
-            }
-            health_data["status"] = "degraded"
-    
-    # File system checks
-    try:
-        directories = ["uploads", "output", "temp"]
-        filesystem_status = "healthy"
-        
-        for directory in directories:
-            if not os.path.exists(directory):
-                os.makedirs(directory, exist_ok=True)
-            
-            # Check write permissions
-            test_file = os.path.join(directory, "health_check_test.tmp")
+            logger.error(f"System health check failed: {e}")
+            health_data["checks"]["system"] = f"unhealthy: {e}"
+
+        # Redis health
+        if redis_client:
             try:
-                with open(test_file, 'w') as f:
-                    f.write("test")
-                os.remove(test_file)
-            except Exception:
-                filesystem_status = "error"
-                break
-        
-        health_data["checks"]["filesystem"] = {
-            "status": filesystem_status,
-            "directories": directories
-        }
-        
-        if filesystem_status == "error":
-            health_data["status"] = "degraded"
-            
-    except Exception as e:
-        health_data["checks"]["filesystem"] = {
-            "status": "error",
-            "error": str(e)
-        }
-        health_data["status"] = "degraded"
-    
-    # FFmpeg availability
-    try:
-        import subprocess
-        result = subprocess.run(['ffmpeg', '-version'], 
-                              capture_output=True, text=True, timeout=5)
-        
-        health_data["checks"]["ffmpeg"] = {
-            "status": "healthy" if result.returncode == 0 else "error",
-            "available": result.returncode == 0
-        }
-        
-        if result.returncode != 0:
-            health_data["status"] = "degraded"
-            
-    except Exception as e:
-        health_data["checks"]["ffmpeg"] = {
-            "status": "error",
-            "available": False,
-            "error": str(e)
-        }
-        health_data["status"] = "degraded"
-    
-    return health_data
+                await redis_client.ping()
+                health_data["checks"]["redis"] = "healthy"
+            except Exception as e:
+                logger.error(f"Redis health check failed: {e}")
+                health_data["checks"]["redis"] = f"unhealthy: {e}"
+        else:
+            health_data["checks"]["redis"] = "not_configured"
 
-def get_system_metrics() -> Dict[str, Any]:
-    """Get detailed system metrics"""
-    try:
-        return {
-            "cpu": {
-                "percent": psutil.cpu_percent(interval=1),
-                "count": psutil.cpu_count(),
-                "freq": psutil.cpu_freq()._asdict() if psutil.cpu_freq() else None
-            },
-            "memory": psutil.virtual_memory()._asdict(),
-            "disk": psutil.disk_usage('/')._asdict(),
-            "network": psutil.net_io_counters()._asdict(),
-            "processes": len(psutil.pids())
-        }
-    except Exception as e:
-        return {"error": str(e)}
-"""
-Health Check Utilities
-Netflix-level health monitoring
-"""
-
-import time
-from datetime import datetime
-from typing import Dict, Any, Optional
-
-def health_check() -> Dict[str, Any]:
-    """Basic health check"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "uptime": time.time(),
-        "version": "3.0.0"
-    }
-
-async def detailed_health_check(redis_client=None) -> Dict[str, Any]:
-    """Detailed health check with dependencies"""
-    health = {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "services": {},
-        "version": "3.0.0"
-    }
-    
-    # Check Redis
-    if redis_client:
+        # Disk space check
         try:
-            await redis_client.ping()
-            health["services"]["redis"] = "healthy"
-        except Exception:
-            health["services"]["redis"] = "unhealthy"
-            health["status"] = "degraded"
-    else:
-        health["services"]["redis"] = "not_configured"
-    
-    # Check disk space
-    import shutil
-    total, used, free = shutil.disk_usage("/")
-    disk_usage = (used / total) * 100
-    
-    health["services"]["disk"] = "healthy" if disk_usage < 90 else "warning"
-    health["disk_usage_percent"] = disk_usage
-    
-    return health
+            temp_space = psutil.disk_usage('/tmp')
+            health_data["storage"] = {
+                "temp_free_gb": round(temp_space.free / (1024**3), 2),
+                "temp_percent": temp_space.percent
+            }
+
+            if temp_space.percent > 90:
+                health_data["checks"]["storage"] = "warning: low disk space"
+            else:
+                health_data["checks"]["storage"] = "healthy"
+
+        except Exception as e:
+            logger.error(f"Storage health check failed: {e}")
+            health_data["checks"]["storage"] = f"unhealthy: {e}"
+
+        # FFmpeg availability
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                health_data["checks"]["ffmpeg"] = "healthy"
+            else:
+                health_data["checks"]["ffmpeg"] = "unhealthy: not available"
+
+        except Exception as e:
+            logger.error(f"FFmpeg health check failed: {e}")
+            health_data["checks"]["ffmpeg"] = f"unhealthy: {e}"
+
+        # Overall status
+        unhealthy_checks = [
+            check for check, status in health_data["checks"].items()
+            if status.startswith("unhealthy")
+        ]
+
+        if unhealthy_checks:
+            health_data["status"] = "degraded"
+            health_data["issues"] = unhealthy_checks
+
+        return health_data
+
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }
+
+async def check_dependencies() -> Dict[str, str]:
+    """Check external dependencies"""
+    dependencies = {}
+
+    # Check yt-dlp
+    try:
+        import yt_dlp
+        dependencies["yt-dlp"] = "available"
+    except ImportError:
+        dependencies["yt-dlp"] = "missing"
+
+    # Check FFmpeg
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.communicate()
+        dependencies["ffmpeg"] = "available" if process.returncode == 0 else "error"
+    except FileNotFoundError:
+        dependencies["ffmpeg"] = "missing"
+    except Exception:
+        dependencies["ffmpeg"] = "error"
+
+    return dependencies
