@@ -4,11 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ViralClip Pro - Netflix-level AI-powered viral video creation platform">
-    <meta name="keywords" content="viral videos, AI, TikTok, Instagram, YouTube Shorts">
-    <meta name="author" content="ViralClip Pro">
-    
-    <title>ViralClip Pro - AI-Powered Viral Video Creation</title>
+    <title>ViralClip Pro v4.0 - Netflix-Level Video Processing</title>
+    <meta name="description" content="AI-powered viral video clip generator with real-time preview and interactive timeline">
+    <meta name="keywords" content="video editing, viral clips, AI, social media, TikTok, Instagram">
     
     <!-- Preload critical resources -->
     <link rel="preload" href="/public/styles.css" as="style">
@@ -17,56 +15,29 @@
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/public/styles.css">
     
-    <!-- Progressive Web App -->
+    <!-- PWA Manifest -->
     <link rel="manifest" href="/public/manifest.json">
-    <meta name="theme-color" content="#4ecdc4">
     
-    <!-- Favicons -->
-    <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
-    <link rel="icon" type="image/png" href="/public/favicon.png">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
     
-    <!-- Open Graph -->
-    <meta property="og:title" content="ViralClip Pro - AI-Powered Viral Video Creation">
-    <meta property="og:description" content="Transform any video into viral clips with AI-powered analysis">
+    <!-- Meta tags for social sharing -->
+    <meta property="og:title" content="ViralClip Pro v4.0">
+    <meta property="og:description" content="Netflix-level AI-powered viral video clip generator">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://viralclip.pro">
-    
-    <!-- Performance optimizations -->
-    <link rel="dns-prefetch" href="//fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
-    <!-- Loading Screen -->
-    <div id="loadingScreen" class="loading-screen">
-        <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <h2>ViralClip Pro</h2>
-            <p>Initializing Netflix-level AI processing...</p>
-        </div>
-    </div>
-
-    <!-- Main Application -->
-    <div id="app" class="app-container">
+    <div class="app-container">
         <!-- Header -->
         <header class="app-header">
             <div class="header-content">
-                <div class="logo-section">
-                    <h1 class="app-title">
-                        <span class="logo-icon">🎬</span>
-                        ViralClip Pro
-                        <span class="version-badge">v3.0</span>
-                    </h1>
-                </div>
-                
-                <div class="header-controls">
-                    <div id="connectionStatus" class="connection-status disconnected">
-                        <span class="status-indicator"></span>
-                        <span class="status-text">Connecting...</span>
-                    </div>
-                    
-                    <button class="help-button" data-tooltip="Help & Documentation">
-                        <span>❓</span>
-                    </button>
+                <h1 class="app-title">
+                    <span>🎬</span>
+                    ViralClip Pro v4.0
+                </h1>
+                <div id="connectionStatus" class="connection-status disconnected">
+                    Connecting...
                 </div>
             </div>
         </header>
@@ -75,218 +46,267 @@
         <main class="main-content">
             <!-- Upload Section -->
             <section id="uploadSection" class="upload-section">
-                <div class="upload-container">
-                    <div id="uploadArea" class="upload-area">
-                        <div class="upload-content">
-                            <div class="upload-icon">📹</div>
-                            <h2>Upload Your Video</h2>
-                            <p>Drag & drop your video file here or click to browse</p>
-                            <p class="upload-info">Supports MP4, MOV, AVI, WebM up to 2GB</p>
-                            
-                            <input type="file" id="fileInput" accept="video/*" hidden>
-                            
-                            <div class="upload-progress" id="uploadProgressContainer" style="display: none;">
-                                <div class="progress-bar">
-                                    <div id="uploadProgress" class="progress-fill"></div>
-                                </div>
-                                <div id="uploadProgressText" class="progress-text">0%</div>
-                            </div>
-                        </div>
+                <div id="uploadArea" class="upload-area">
+                    <div class="upload-icon">📹</div>
+                    <div class="upload-text">
+                        Drop your video here or click to browse
                     </div>
+                    <div class="upload-hint">
+                        Supports MP4, MOV, AVI, WebM • Max 2GB • Netflix-level quality processing
+                    </div>
+                    <input type="file" id="fileInput" accept="video/*" style="display: none;">
                 </div>
-            </section>
-
-            <!-- Timeline Section -->
-            <section id="timelineSection" class="timeline-section" style="display: none;">
-                <div class="timeline-container">
-                    <h2>Interactive Timeline</h2>
-                    <p class="timeline-description">Click on the timeline to explore viral moments</p>
-                    
-                    <div class="timeline-wrapper">
-                        <div id="timelineVisualization" class="timeline-visualization"></div>
-                        
-                        <div class="timeline-controls">
-                            <button class="timeline-btn" data-action="play-pause">
-                                <span>⏯️</span> Play/Pause
-                            </button>
-                            <button class="timeline-btn" data-action="add-clip">
-                                <span>✂️</span> Add Clip
-                            </button>
-                            <button class="timeline-btn" data-action="export">
-                                <span>📤</span> Export
-                            </button>
-                        </div>
+                
+                <!-- Upload Progress -->
+                <div id="uploadProgressContainer" class="progress-container" style="display: none;">
+                    <div class="progress-bar-wrapper">
+                        <div id="uploadProgress" class="progress-bar" style="width: 0%"></div>
                     </div>
-                    
-                    <!-- Viral Score Display -->
-                    <div class="viral-score-display">
-                        <div class="score-container">
-                            <div class="score-label">Viral Score</div>
-                            <div id="viralScore" class="score-value">--</div>
-                            <div id="confidence" class="score-confidence">--</div>
-                        </div>
-                        
-                        <div id="viralFactors" class="viral-factors">
-                            <!-- Factors will be populated dynamically -->
-                        </div>
-                    </div>
+                    <div id="uploadProgressText" class="progress-text">0%</div>
                 </div>
             </section>
 
             <!-- Processing Section -->
-            <section id="processingSection" class="processing-section" style="display: none;">
-                <div class="processing-container">
-                    <h2>AI Processing</h2>
-                    
-                    <div class="processing-status">
-                        <div class="status-header">
-                            <span id="processingStatus" class="status-stage">Initializing...</span>
-                            <div class="status-spinner"></div>
-                        </div>
-                        
-                        <div id="processingMessage" class="status-message">
-                            Preparing your video for viral optimization...
-                        </div>
-                        
-                        <div class="progress-container">
-                            <div class="progress-bar">
-                                <div id="processingProgress" class="progress-fill"></div>
-                            </div>
+            <section id="processingSection" class="processing-section">
+                <div class="processing-header">
+                    <h2 class="processing-title">AI Analysis in Progress</h2>
+                    <div id="processingStatus" class="processing-stage">Initializing</div>
+                </div>
+                
+                <div id="processingContainer" class="processing-container">
+                    <div class="progress-container">
+                        <div class="progress-bar-wrapper">
+                            <div id="processingProgress" class="progress-bar" style="width: 0%"></div>
                         </div>
                     </div>
                     
-                    <!-- Entertaining Facts -->
-                    <div id="entertainingFact" class="entertaining-fact" style="display: none;">
-                        <!-- Facts will be populated dynamically -->
+                    <div id="processingMessage" class="processing-message">
+                        Preparing your video for viral optimization...
                     </div>
                     
-                    <!-- Processing Options -->
-                    <div class="processing-options">
-                        <div class="option-group">
-                            <label for="qualitySelect">Quality:</label>
-                            <select id="qualitySelect" class="quality-select">
-                                <option value="draft">Draft (Fast)</option>
-                                <option value="standard">Standard</option>
-                                <option value="high" selected>High Quality</option>
-                                <option value="premium">Premium (Slow)</option>
-                            </select>
-                        </div>
-                        
-                        <div class="option-group">
-                            <label>Platforms:</label>
-                            <div class="platform-options">
-                                <label class="platform-option">
-                                    <input type="checkbox" value="tiktok" checked class="platform-option">
-                                    <span>TikTok</span>
-                                </label>
-                                <label class="platform-option">
-                                    <input type="checkbox" value="instagram" checked class="platform-option">
-                                    <span>Instagram</span>
-                                </label>
-                                <label class="platform-option">
-                                    <input type="checkbox" value="youtube_shorts" class="platform-option">
-                                    <span>YouTube Shorts</span>
-                                </label>
-                                <label class="platform-option">
-                                    <input type="checkbox" value="twitter" class="platform-option">
-                                    <span>Twitter</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Action Buttons -->
-                    <div class="action-buttons">
-                        <button id="generateClipsBtn" class="btn btn-primary" data-action="generate-clips">
-                            <span>🚀</span> Generate Viral Clips
-                        </button>
-                        
-                        <button id="previewBtn" class="btn btn-secondary" data-action="preview" style="display: none;">
-                            <span>👁️</span> Preview Clips
-                        </button>
-                        
-                        <button id="downloadBtn" class="btn btn-success" data-action="download" style="display: none;">
-                            <span>📥</span> Download All
-                        </button>
+                    <!-- Entertaining Content -->
+                    <div id="entertainingContent" class="entertaining-content" style="display: none;">
+                        <!-- Dynamic content will be inserted here -->
                     </div>
                 </div>
             </section>
 
-            <!-- Results Section -->
-            <section id="resultsSection" class="results-section" style="display: none;">
-                <div class="results-container">
-                    <h2>Your Viral Clips</h2>
-                    
-                    <div id="clipsGrid" class="clips-grid">
-                        <!-- Clips will be populated dynamically -->
+            <!-- Live Preview Section -->
+            <section id="previewSection" class="preview-section">
+                <div class="preview-header">
+                    <h2 class="preview-title">🎬 Live Preview Studio</h2>
+                    <div class="preview-controls">
+                        <select id="previewQuality" class="control-select">
+                            <option value="preview">Preview Quality</option>
+                            <option value="high">High Quality</option>
+                            <option value="premium">Premium Quality</option>
+                        </select>
                     </div>
+                </div>
+                
+                <div id="livePreviewContainer" class="live-preview-container">
+                    <div class="preview-placeholder">
+                        <div class="placeholder-icon">🎬</div>
+                        <p>Select a timeline segment to generate live preview</p>
+                    </div>
+                </div>
+                
+                <!-- Preview Analysis -->
+                <div id="previewAnalysis" class="preview-analysis">
+                    <!-- Analysis data will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Interactive Timeline Section -->
+            <section id="timelineSection" class="timeline-section">
+                <div class="timeline-header">
+                    <h2 class="timeline-title">📊 Interactive Viral Timeline</h2>
+                    <div class="timeline-info">
+                        <span id="currentTime" class="time-display">0:00</span>
+                        <span class="time-separator">/</span>
+                        <span id="totalTime" class="time-display">0:00</span>
+                    </div>
+                </div>
+                
+                <!-- Timeline Visualization -->
+                <div id="timelineContainer" class="timeline-wrapper">
+                    <div id="timelineVisualization" class="timeline-visualization">
+                        <!-- Canvas will be inserted here by JavaScript -->
+                    </div>
+                    
+                    <!-- Timeline Controls -->
+                    <div class="timeline-controls">
+                        <button class="timeline-btn" data-action="play-pause">
+                            <span>⏯️</span> Play/Pause
+                        </button>
+                        <button class="timeline-btn" data-action="add-clip">
+                            <span>✂️</span> Add Clip
+                        </button>
+                        <button class="timeline-btn" data-action="export">
+                            <span>📤</span> Export
+                        </button>
+                        <button class="timeline-btn" data-action="fullscreen">
+                            <span>⛶</span> Fullscreen
+                        </button>
+                    </div>
+                    
+                    <!-- Timeline Legend -->
+                    <div class="timeline-legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--viral-excellent);"></div>
+                            <span>Excellent (90-100)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--viral-high);"></div>
+                            <span>High (75-89)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--viral-medium);"></div>
+                            <span>Medium (50-74)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--viral-low);"></div>
+                            <span>Low (0-49)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Timeline Analytics -->
+                <div class="timeline-analytics">
+                    <div class="analytics-grid">
+                        <div class="analytics-item">
+                            <div class="analytics-label">Peak Moments</div>
+                            <div id="peakMomentsCount" class="analytics-value">0</div>
+                        </div>
+                        <div class="analytics-item">
+                            <div class="analytics-label">Avg Viral Score</div>
+                            <div id="avgViralScore" class="analytics-value">0</div>
+                        </div>
+                        <div class="analytics-item">
+                            <div class="analytics-label">Key Moments</div>
+                            <div id="keyMomentsCount" class="analytics-value">0</div>
+                        </div>
+                        <div class="analytics-item">
+                            <div class="analytics-label">Recommended Clips</div>
+                            <div id="recommendedClipsCount" class="analytics-value">0</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Viral Score Display -->
+            <section class="viral-score-display">
+                <div class="score-container">
+                    <div class="score-label">Overall Viral Score</div>
+                    <div id="viralScore" class="score-value">--</div>
+                    <div id="confidence" class="score-confidence">Analyzing...</div>
+                </div>
+                
+                <!-- Viral Factors -->
+                <div class="factors-section">
+                    <h3>🚀 Viral Factors Detected</h3>
+                    <div id="viralFactors" class="viral-factors">
+                        <!-- Factors will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Platform Scores -->
+                <div class="platform-scores">
+                    <h3>📱 Platform Optimization Scores</h3>
+                    <div class="platform-grid">
+                        <div class="platform-item">
+                            <div class="platform-icon">📱</div>
+                            <div class="platform-name">TikTok</div>
+                            <div id="tiktokScore" class="platform-score">--</div>
+                        </div>
+                        <div class="platform-item">
+                            <div class="platform-icon">📷</div>
+                            <div class="platform-name">Instagram</div>
+                            <div id="instagramScore" class="platform-score">--</div>
+                        </div>
+                        <div class="platform-item">
+                            <div class="platform-icon">📺</div>
+                            <div class="platform-name">YouTube</div>
+                            <div id="youtubeScore" class="platform-score">--</div>
+                        </div>
+                        <div class="platform-item">
+                            <div class="platform-icon">🐦</div>
+                            <div class="platform-name">Twitter</div>
+                            <div id="twitterScore" class="platform-score">--</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Clip Generation Section -->
+            <section id="clipGenerationSection" class="clip-generation-section" style="display: none;">
+                <div class="section-header">
+                    <h2 class="section-title">✂️ Generate Viral Clips</h2>
+                    <div class="generation-controls">
+                        <select id="qualitySelect" class="control-select">
+                            <option value="draft">Draft (Fast)</option>
+                            <option value="standard">Standard</option>
+                            <option value="high" selected>High Quality</option>
+                            <option value="premium">Premium (Slow)</option>
+                        </select>
+                        <button id="generateClipsBtn" class="primary-btn" data-action="generate-clips">
+                            <span>🚀</span> Generate Clips
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Platform Selection -->
+                <div class="platform-selection">
+                    <h3>🎯 Target Platforms</h3>
+                    <div class="platform-checkboxes">
+                        <label class="platform-checkbox">
+                            <input type="checkbox" class="platform-option" value="tiktok" checked>
+                            <span class="checkmark"></span>
+                            TikTok (9:16)
+                        </label>
+                        <label class="platform-checkbox">
+                            <input type="checkbox" class="platform-option" value="instagram" checked>
+                            <span class="checkmark"></span>
+                            Instagram Reels
+                        </label>
+                        <label class="platform-checkbox">
+                            <input type="checkbox" class="platform-option" value="youtube_shorts">
+                            <span class="checkmark"></span>
+                            YouTube Shorts
+                        </label>
+                        <label class="platform-checkbox">
+                            <input type="checkbox" class="platform-option" value="twitter">
+                            <span class="checkmark"></span>
+                            Twitter
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Generated Clips -->
+                <div id="generatedClips" class="generated-clips">
+                    <!-- Clips will be populated by JavaScript -->
                 </div>
             </section>
         </main>
+    </div>
 
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-content">
-                <h3>Quick Actions</h3>
-                
-                <div class="quick-actions">
-                    <button class="quick-action-btn" data-action="new-upload">
-                        <span>📁</span> New Upload
-                    </button>
-                    
-                    <button class="quick-action-btn" data-action="history">
-                        <span>📜</span> History
-                    </button>
-                    
-                    <button class="quick-action-btn" data-action="templates">
-                        <span>🎨</span> Templates
-                    </button>
-                    
-                    <button class="quick-action-btn" data-action="analytics">
-                        <span>📊</span> Analytics
-                    </button>
-                </div>
-                
-                <div class="sidebar-stats">
-                    <h4>Session Stats</h4>
-                    <div class="stat-item">
-                        <span class="stat-label">Processing Time:</span>
-                        <span id="processingTime" class="stat-value">--</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Clips Generated:</span>
-                        <span id="clipsGenerated" class="stat-value">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Viral Score:</span>
-                        <span id="avgViralScore" class="stat-value">--</span>
-                    </div>
-                </div>
-            </div>
-        </aside>
+    <!-- Error Container -->
+    <div id="errorContainer" class="message-container">
+        <!-- Error messages will be inserted here -->
+    </div>
 
-        <!-- Notifications -->
-        <div class="notifications-container">
-            <div id="errorContainer" class="error-container"></div>
-            <div id="successContainer" class="success-container"></div>
+    <!-- Success Container -->
+    <div id="successContainer" class="message-container">
+        <!-- Success messages will be inserted here -->
+    </div>
+
+    <!-- Timeline Tooltip (created dynamically) -->
+    <!-- Loading Overlay (for full-page loading states) -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Processing with Netflix-level quality...</div>
         </div>
-
-        <!-- Footer -->
-        <footer class="app-footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <span class="footer-text">ViralClip Pro v3.0 - Netflix-Level AI Video Processing</span>
-                </div>
-                
-                <div class="footer-section">
-                    <div class="footer-links">
-                        <a href="#" class="footer-link">Help</a>
-                        <a href="#" class="footer-link">Privacy</a>
-                        <a href="#" class="footer-link">Terms</a>
-                    </div>
-                </div>
-            </div>
-        </footer>
     </div>
 
     <!-- Scripts -->
@@ -297,29 +317,20 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('📱 SW registered: ', registration);
+                    .then(registration => {
+                        console.log('📱 SW registered:', registration);
                     })
-                    .catch((registrationError) => {
-                        console.log('📱 SW registration failed:', registrationError);
+                    .catch(error => {
+                        console.log('📱 SW registration failed:', error);
                     });
             });
         }
     </script>
-
-    <!-- Hide loading screen after DOM is loaded -->
+    
+    <!-- Analytics (placeholder) -->
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const loadingScreen = document.getElementById('loadingScreen');
-            if (loadingScreen) {
-                setTimeout(() => {
-                    loadingScreen.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingScreen.style.display = 'none';
-                    }, 300);
-                }, 500);
-            }
-        });
+        // Analytics initialization would go here
+        console.log('📊 Analytics initialized');
     </script>
 </body>
 </html>
