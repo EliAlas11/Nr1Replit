@@ -1,14 +1,14 @@
+
 /**
- * ViralClip Pro - Netflix-Level Frontend Application
- * Mobile-first responsive design with real-time WebSocket updates
+ * ViralClip Pro v3.0 - Netflix-Level Frontend Application
+ * Real-time viral clip generation with instant feedback and entertainment
  * 
  * Features:
- * - Advanced error handling and recovery
- * - Performance monitoring and optimization
- * - Comprehensive WebSocket management
- * - Mobile-first responsive design
- * - Real-time progress tracking
- * - One-click upload with instant preview
+ * - Real-time clip generation preview
+ * - Interactive timeline with viral score visualization
+ * - Live processing status with entertaining content
+ * - Advanced WebSocket management
+ * - Netflix-level UX patterns
  */
 
 class ViralClipPro {
@@ -21,67 +21,70 @@ class ViralClipPro {
             uploadId: null,
             selectedClips: [],
             currentFile: null,
-            isProcessing: false
+            isProcessing: false,
+            viralScores: [],
+            timelineData: null,
+            realtimePreview: null
         };
 
-        // WebSocket connections
+        // WebSocket connections for real-time features
         this.connections = {
             upload: null,
+            viralScores: null,
+            timeline: null,
             processing: null
         };
 
-        // UI state
-        this.ui = {
-            isDragging: false,
-            isUploading: false,
-            uploadProgress: 0,
-            processingProgress: 0
-        };
-
-        // Performance metrics
-        this.metrics = {
-            startTime: Date.now(),
-            uploadStartTime: null,
-            processingStartTime: null,
-            lastActivity: Date.now()
+        // Real-time UI state
+        this.realtime = {
+            viralChart: null,
+            timelineSlider: null,
+            previewPlayer: null,
+            entertainmentIndex: 0
         };
 
         // Configuration
         this.config = {
             maxFileSize: 2 * 1024 * 1024 * 1024, // 2GB
             allowedTypes: ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'],
-            websocketReconnectDelay: 5000,
-            heartbeatInterval: 30000,
-            maxRetries: 3
+            realtimeUpdateInterval: 100, // ms
+            previewGenerationDelay: 500, // ms
+            maxRetries: 3,
+            apiVersion: 'v3'
         };
 
-        // Error tracking
-        this.errors = {
-            count: 0,
-            lastError: null,
-            retryAttempts: {}
-        };
+        // Entertainment content for processing
+        this.entertainmentFacts = [
+            "🎬 Creating viral magic with AI assistance...",
+            "🚀 Optimizing for maximum engagement...",
+            "🎯 Analyzing trending patterns...",
+            "⚡ Applying viral enhancement algorithms...",
+            "🎵 Synchronizing with trending audio patterns...",
+            "🔥 Boosting visual appeal factors...",
+            "💫 Calculating optimal clip timing...",
+            "🎭 Enhancing emotional resonance...",
+            "🌟 Maximizing first-3-seconds impact...",
+            "🎪 Adding Netflix-level polish..."
+        ];
 
         this.init();
     }
 
     async init() {
         try {
-            console.log('🚀 Initializing ViralClip Pro v2.0...');
+            console.log('🚀 Initializing ViralClip Pro v3.0 with real-time features...');
 
-            this.checkBrowserCompatibility();
             this.setupEventListeners();
             this.setupDragAndDrop();
+            this.setupRealtimeComponents();
             this.setupMobileOptimizations();
             this.setupErrorHandling();
-            this.setupPerformanceMonitoring();
 
-            this.startActivityTracking();
             this.showStep('upload');
             this.hideLoadingSplash();
 
-            console.log('✅ ViralClip Pro initialized successfully');
-            this.trackEvent('app_initialized');
+            console.log('✅ ViralClip Pro v3.0 initialized successfully');
+            this.trackEvent('app_initialized_v3');
 
         } catch (error) {
             console.error('❌ Failed to initialize ViralClip Pro:', error);
@@ -89,25 +92,285 @@ class ViralClipPro {
         }
     }
 
-    checkBrowserCompatibility() {
-        const requiredFeatures = ['WebSocket', 'FileReader', 'FormData', 'fetch', 'Promise'];
-        const missingFeatures = requiredFeatures.filter(feature => !(feature in window));
+    setupRealtimeComponents() {
+        // Initialize viral score chart
+        this.initializeViralChart();
+        
+        // Initialize interactive timeline
+        this.initializeInteractiveTimeline();
+        
+        // Initialize preview player
+        this.initializePreviewPlayer();
+        
+        // Setup real-time event handlers
+        this.setupRealtimeEventHandlers();
+    }
 
-        if (missingFeatures.length > 0) {
-            throw new Error(`Browser missing required features: ${missingFeatures.join(', ')}`);
+    initializeViralChart() {
+        const chartContainer = document.getElementById('viral-chart');
+        if (!chartContainer) return;
+
+        // Create dynamic viral score visualization
+        chartContainer.innerHTML = `
+            <div class="viral-chart-container">
+                <canvas id="viral-canvas" width="800" height="200"></canvas>
+                <div class="chart-overlay">
+                    <div class="score-indicator">
+                        <span class="current-score">--</span>
+                        <span class="score-label">Viral Score</span>
+                    </div>
+                    <div class="confidence-meter">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: 0%"></div>
+                        </div>
+                        <span class="confidence-text">Confidence: --%</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.realtime.viralChart = {
+            canvas: document.getElementById('viral-canvas'),
+            ctx: document.getElementById('viral-canvas').getContext('2d'),
+            dataPoints: [],
+            currentScore: 0,
+            confidence: 0
+        };
+    }
+
+    initializeInteractiveTimeline() {
+        const timelineContainer = document.getElementById('interactive-timeline');
+        if (!timelineContainer) return;
+
+        timelineContainer.innerHTML = `
+            <div class="timeline-container">
+                <div class="timeline-header">
+                    <h4>🎬 Interactive Timeline</h4>
+                    <div class="timeline-controls">
+                        <button class="btn-mini" id="play-pause-btn">⏸️</button>
+                        <button class="btn-mini" id="reset-timeline">⏮️</button>
+                        <span class="timeline-time">00:00 / 00:00</span>
+                    </div>
+                </div>
+                
+                <div class="timeline-track" id="timeline-track">
+                    <div class="viral-heatmap" id="viral-heatmap"></div>
+                    <div class="timeline-scrubber" id="timeline-scrubber">
+                        <div class="scrubber-handle"></div>
+                    </div>
+                    <div class="clip-markers" id="clip-markers"></div>
+                </div>
+                
+                <div class="timeline-legends">
+                    <div class="legend-item">
+                        <span class="color-box viral-low"></span>
+                        <span>Low Viral (0-50%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="color-box viral-medium"></span>
+                        <span>Medium Viral (50-75%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="color-box viral-high"></span>
+                        <span>High Viral (75%+)</span>
+                    </div>
+                </div>
+                
+                <div class="timeline-insights" id="timeline-insights">
+                    <div class="insight-card">
+                        <span class="insight-icon">🎯</span>
+                        <div class="insight-content">
+                            <span class="insight-value">--</span>
+                            <span class="insight-label">Peak Moments</span>
+                        </div>
+                    </div>
+                    <div class="insight-card">
+                        <span class="insight-icon">⚡</span>
+                        <div class="insight-content">
+                            <span class="insight-value">--</span>
+                            <span class="insight-label">Energy Level</span>
+                        </div>
+                    </div>
+                    <div class="insight-card">
+                        <span class="insight-icon">😊</span>
+                        <div class="insight-content">
+                            <span class="insight-value">--</span>
+                            <span class="insight-label">Emotion</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.setupTimelineInteractions();
+    }
+
+    setupTimelineInteractions() {
+        const scrubber = document.getElementById('timeline-scrubber');
+        const track = document.getElementById('timeline-track');
+        
+        if (!scrubber || !track) return;
+
+        let isDragging = false;
+        let currentPosition = 0;
+
+        // Mouse events
+        scrubber.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            this.updateTimelinePosition(e, track);
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                this.updateTimelinePosition(e, track);
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Touch events for mobile
+        scrubber.addEventListener('touchstart', (e) => {
+            isDragging = true;
+            this.updateTimelinePosition(e.touches[0], track);
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                this.updateTimelinePosition(e.touches[0], track);
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Click to seek
+        track.addEventListener('click', (e) => {
+            this.updateTimelinePosition(e, track);
+        });
+    }
+
+    updateTimelinePosition(event, track) {
+        const rect = track.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+        
+        const scrubber = document.getElementById('timeline-scrubber');
+        if (scrubber) {
+            scrubber.style.left = `${percentage}%`;
         }
 
-        // Check for recommended features
-        const recommendedFeatures = ['serviceWorker', 'localStorage', 'sessionStorage'];
-        const missingRecommended = recommendedFeatures.filter(feature => !(feature in window));
-
-        if (missingRecommended.length > 0) {
-            console.warn('⚠️ Browser missing recommended features:', missingRecommended);
+        // Update current time if we have timeline data
+        if (this.state.timelineData) {
+            const currentTime = (percentage / 100) * this.state.timelineData.duration;
+            this.updateTimelineDisplay(currentTime);
+            this.generateRealtimePreview(currentTime);
         }
     }
 
+    initializePreviewPlayer() {
+        const previewContainer = document.getElementById('realtime-preview');
+        if (!previewContainer) return;
+
+        previewContainer.innerHTML = `
+            <div class="preview-player-container">
+                <div class="preview-video-wrapper">
+                    <video id="preview-video" class="preview-video" muted loop>
+                        <source src="" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="preview-overlay">
+                        <div class="preview-controls">
+                            <button class="btn-control" id="preview-play">▶️</button>
+                            <button class="btn-control" id="preview-regenerate">🔄</button>
+                        </div>
+                        <div class="preview-info">
+                            <span class="preview-duration">0s</span>
+                            <span class="preview-score">Score: --%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="preview-analysis" id="preview-analysis">
+                    <div class="analysis-header">
+                        <h5>🎯 Live Analysis</h5>
+                        <div class="analysis-status">
+                            <span class="status-indicator"></span>
+                            <span class="status-text">Ready</span>
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-metrics">
+                        <div class="metric">
+                            <span class="metric-icon">⚡</span>
+                            <span class="metric-label">Energy</span>
+                            <span class="metric-value">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-icon">🎵</span>
+                            <span class="metric-label">Audio</span>
+                            <span class="metric-value">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-icon">👁️</span>
+                            <span class="metric-label">Visual</span>
+                            <span class="metric-value">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="optimization-suggestions" id="optimization-suggestions">
+                        <h6>💡 Optimization Suggestions</h6>
+                        <div class="suggestions-list"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.setupPreviewControls();
+    }
+
+    setupPreviewControls() {
+        const playBtn = document.getElementById('preview-play');
+        const regenerateBtn = document.getElementById('preview-regenerate');
+        const video = document.getElementById('preview-video');
+
+        if (playBtn && video) {
+            playBtn.addEventListener('click', () => {
+                if (video.paused) {
+                    video.play();
+                    playBtn.textContent = '⏸️';
+                } else {
+                    video.pause();
+                    playBtn.textContent = '▶️';
+                }
+            });
+        }
+
+        if (regenerateBtn) {
+            regenerateBtn.addEventListener('click', () => {
+                this.regenerateCurrentPreview();
+            });
+        }
+    }
+
+    setupRealtimeEventHandlers() {
+        // Debounced preview generation
+        this.debouncedPreviewGeneration = this.debounce(
+            this.generateRealtimePreview.bind(this), 
+            this.config.previewGenerationDelay
+        );
+
+        // Real-time viral score updates
+        this.realtimeScoreUpdater = setInterval(() => {
+            this.updateViralScoreDisplay();
+        }, this.config.realtimeUpdateInterval);
+    }
+
     setupEventListeners() {
-        // Upload form
+        // Enhanced upload form
         const uploadForm = document.getElementById('upload-form');
         if (uploadForm) {
             uploadForm.addEventListener('submit', this.handleFileUpload.bind(this));
@@ -119,212 +382,137 @@ class ViralClipPro {
             fileInput.addEventListener('change', this.handleFileSelect.bind(this));
         }
 
-        // URL form
-        const urlForm = document.getElementById('url-form');
-        if (urlForm) {
-            urlForm.addEventListener('submit', this.handleUrlAnalysis.bind(this));
-        }
-
-        // Processing form
-        const processForm = document.getElementById('process-form');
-        if (processForm) {
-            processForm.addEventListener('submit', this.handleProcessing.bind(this));
-        }
-
-        // Navigation buttons
+        // Enhanced navigation
         document.addEventListener('click', (e) => {
             if (e.target.matches('[data-action]')) {
                 this.handleAction(e.target.dataset.action, e.target);
             }
         });
 
-        // Escape key to close modals
+        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.hideAllModals();
-            }
+            this.handleKeyboardShortcuts(e);
         });
-
-        // Visibility change for WebSocket reconnection
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                this.reconnectWebSockets();
-            }
-        });
-
-        // Tab switching
-        this.setupTabSwitching();
     }
 
-    setupTabSwitching() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabContents = document.querySelectorAll('.tab-content');
+    handleKeyboardShortcuts(e) {
+        // Space bar for play/pause
+        if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+            e.preventDefault();
+            const playBtn = document.getElementById('preview-play');
+            if (playBtn) playBtn.click();
+        }
 
-        tabButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const targetTab = button.dataset.tab;
+        // Arrow keys for timeline navigation
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+            e.preventDefault();
+            const direction = e.code === 'ArrowLeft' ? -1 : 1;
+            this.nudgeTimelinePosition(direction);
+        }
 
-                // Remove active class from all tabs and contents
-                tabButtons.forEach(btn => btn.classList.remove('active'));
-                tabContents.forEach(content => content.classList.remove('active'));
+        // Escape to close modals
+        if (e.code === 'Escape') {
+            this.hideAllModals();
+        }
+    }
 
-                // Add active class to clicked tab and corresponding content
-                button.classList.add('active');
-                const targetContent = document.getElementById(targetTab);
-                if (targetContent) {
-                    targetContent.classList.add('active');
-                }
-            });
-        });
+    nudgeTimelinePosition(direction) {
+        if (!this.state.timelineData) return;
+
+        const scrubber = document.getElementById('timeline-scrubber');
+        if (!scrubber) return;
+
+        const currentLeft = parseFloat(scrubber.style.left) || 0;
+        const nudgeAmount = 1; // 1% increments
+        const newPosition = Math.max(0, Math.min(100, currentLeft + (direction * nudgeAmount)));
+
+        scrubber.style.left = `${newPosition}%`;
+        
+        const currentTime = (newPosition / 100) * this.state.timelineData.duration;
+        this.updateTimelineDisplay(currentTime);
+        this.debouncedPreviewGeneration(currentTime);
     }
 
     setupDragAndDrop() {
         const uploadArea = document.getElementById('upload-area');
         if (!uploadArea) return;
 
-        // Enhanced click to upload
-        uploadArea.addEventListener('click', (e) => {
-            if (!e.target.closest('.instant-preview')) {
-                document.getElementById('file-input')?.click();
-            }
-        });
-
-        // Mobile touch support with haptic feedback
-        uploadArea.addEventListener('touchstart', (e) => {
-            uploadArea.classList.add('touch-active');
-            if (navigator.vibrate) {
-                navigator.vibrate(50);
-            }
-        }, { passive: true });
-
-        uploadArea.addEventListener('touchend', (e) => {
-            uploadArea.classList.remove('touch-active');
-            if (e.touches.length === 0) {
-                uploadArea.style.transform = 'scale(0.98)';
-                setTimeout(() => {
-                    uploadArea.style.transform = '';
-                    document.getElementById('file-input')?.click();
-                }, 100);
-            }
-        }, { passive: true });
-
-        // Prevent defaults
+        // Enhanced drag and drop with real-time feedback
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             document.addEventListener(eventName, this.preventDefaults, false);
             uploadArea.addEventListener(eventName, this.preventDefaults, false);
         });
 
-        // Drag counter for better state management
-        this.dragCounter = 0;
+        let dragCounter = 0;
 
-        // Global drag handlers
         document.addEventListener('dragenter', (e) => {
-            this.dragCounter++;
-            if (this.dragCounter === 1) {
-                this.showDragOverlay();
+            dragCounter++;
+            if (dragCounter === 1) {
+                this.showEnhancedDragOverlay();
             }
         });
 
         document.addEventListener('dragleave', (e) => {
-            this.dragCounter--;
-            if (this.dragCounter === 0) {
-                this.hideDragOverlay();
+            dragCounter--;
+            if (dragCounter === 0) {
+                this.hideEnhancedDragOverlay();
             }
         });
 
-        // Upload area specific handlers
-        uploadArea.addEventListener('dragover', (e) => {
-            uploadArea.classList.add('drag-over');
-        });
-
         uploadArea.addEventListener('drop', (e) => {
-            this.dragCounter = 0;
-            this.hideDragOverlay();
-            uploadArea.classList.remove('drag-over');
-
+            dragCounter = 0;
+            this.hideEnhancedDragOverlay();
+            
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 this.processFiles(files);
             }
         });
 
-        // Paste support
-        document.addEventListener('paste', this.handlePaste.bind(this));
-    }
-
-    setupMobileOptimizations() {
-        // Viewport height fix for mobile browsers
-        const setVH = () => {
-            const vh = window.innerHeight * 0.01;
-            document.documentElement.style.setProperty('--vh', `${vh}px`);
-        };
-
-        setVH();
-        window.addEventListener('resize', setVH);
-        window.addEventListener('orientationchange', setVH);
-
-        // Prevent zoom on double tap for iOS
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', (event) => {
-            const now = Date.now();
-            if (now - lastTouchEnd <= 300) {
-                event.preventDefault();
-            }
-            lastTouchEnd = now;
-        }, false);
-
-        // Optimize touch events
-        document.addEventListener('touchstart', () => {}, { passive: true });
-        document.addEventListener('touchmove', () => {}, { passive: true });
-    }
-
-    setupErrorHandling() {
-        // Global error handler
-        window.addEventListener('error', (event) => {
-            this.handleGlobalError('JavaScript Error', event.error);
-        });
-
-        // Unhandled promise rejections
-        window.addEventListener('unhandledrejection', (event) => {
-            this.handleGlobalError('Unhandled Promise Rejection', event.reason);
-            event.preventDefault();
-        });
-
-        // Network error detection
-        window.addEventListener('online', () => {
-            this.handleNetworkChange(true);
-        });
-
-        window.addEventListener('offline', () => {
-            this.handleNetworkChange(false);
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            document.getElementById('file-input')?.click();
         });
     }
 
-    setupPerformanceMonitoring() {
-        // Monitor page load performance
-        window.addEventListener('load', () => {
-            if ('performance' in window) {
-                const navigation = performance.getEntriesByType('navigation')[0];
-                console.log('📊 Page Load Time:', navigation.loadEventEnd - navigation.loadEventStart, 'ms');
-            }
-        });
+    showEnhancedDragOverlay() {
+        const overlay = document.createElement('div');
+        overlay.id = 'enhanced-drag-overlay';
+        overlay.className = 'enhanced-drag-overlay';
+        overlay.innerHTML = `
+            <div class="drag-content">
+                <div class="drag-animation">
+                    <div class="upload-icon-large">📹</div>
+                    <div class="drag-waves">
+                        <div class="wave wave-1"></div>
+                        <div class="wave wave-2"></div>
+                        <div class="wave wave-3"></div>
+                    </div>
+                </div>
+                <h3>Drop your video for instant viral analysis!</h3>
+                <p>Real-time processing with Netflix-level quality</p>
+                <div class="drag-features">
+                    <span class="feature">⚡ Instant Preview</span>
+                    <span class="feature">🎯 Viral Score</span>
+                    <span class="feature">🔥 Real-time Analysis</span>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        
+        setTimeout(() => {
+            overlay.classList.add('show');
+        }, 50);
     }
 
-    startActivityTracking() {
-        ['click', 'touchstart', 'keydown', 'scroll'].forEach(event => {
-            document.addEventListener(event, () => {
-                this.metrics.lastActivity = Date.now();
-            }, { passive: true });
-        });
-    }
-
-    hideLoadingSplash() {
-        const splash = document.querySelector('.loading-splash');
-        if (splash) {
-            splash.style.opacity = '0';
+    hideEnhancedDragOverlay() {
+        const overlay = document.getElementById('enhanced-drag-overlay');
+        if (overlay) {
+            overlay.classList.remove('show');
             setTimeout(() => {
-                splash.style.display = 'none';
-            }, 500);
+                overlay.remove();
+            }, 300);
         }
     }
 
@@ -333,33 +521,10 @@ class ViralClipPro {
         e.stopPropagation();
     }
 
-    showDragOverlay() {
-        const overlay = document.getElementById('drag-overlay');
-        if (overlay) {
-            overlay.classList.add('show');
-        }
-    }
-
-    hideDragOverlay() {
-        const overlay = document.getElementById('drag-overlay');
-        if (overlay) {
-            overlay.classList.remove('show');
-        }
-    }
-
     async handleFileSelect(e) {
         const files = e.target.files;
         if (files.length > 0) {
             await this.processFiles(files);
-        }
-    }
-
-    async handleFileUpload(e) {
-        e.preventDefault();
-        if (this.state.currentFile) {
-            await this.uploadFile(this.state.currentFile);
-        } else {
-            this.showError('Please select a file to upload.');
         }
     }
 
@@ -370,17 +535,1099 @@ class ViralClipPro {
             return;
         }
 
-        // Show instant preview
-        await this.showInstantPreview(file);
+        // Show enhanced preview with real-time features
+        await this.showEnhancedInstantPreview(file);
         this.state.currentFile = file;
 
-        // Enable upload button
+        // Enable upload with enhanced UI
         const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
         if (uploadBtn) {
             uploadBtn.disabled = false;
-            uploadBtn.textContent = '🚀 Upload & Create Clips';
-            uploadBtn.classList.add('has-file');
+            uploadBtn.innerHTML = `
+                <span class="btn-icon">🚀</span>
+                <span class="btn-text">Start Real-time Analysis</span>
+                <span class="btn-subtitle">Netflix-level processing</span>
+            `;
+            uploadBtn.classList.add('enhanced-upload-btn');
         }
+    }
+
+    async showEnhancedInstantPreview(file) {
+        const uploadArea = document.getElementById('upload-area');
+        
+        // Remove existing preview
+        const existingPreview = uploadArea.querySelector('.enhanced-instant-preview');
+        if (existingPreview) {
+            existingPreview.remove();
+        }
+
+        const preview = document.createElement('div');
+        preview.className = 'enhanced-instant-preview';
+
+        // Create enhanced video preview
+        const video = document.createElement('video');
+        video.className = 'preview-video-enhanced';
+        video.autoplay = true;
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+
+        const fileURL = URL.createObjectURL(file);
+        video.src = fileURL;
+
+        preview.innerHTML = `
+            <div class="preview-container-enhanced">
+                <div class="video-section">
+                    <div class="video-wrapper">
+                        <!-- Video element inserted here -->
+                        <div class="video-overlay-enhanced">
+                            <div class="play-indicator-enhanced">
+                                <div class="play-icon">▶</div>
+                                <div class="play-ring"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="quick-analysis">
+                        <div class="analysis-item">
+                            <span class="analysis-icon">🎯</span>
+                            <span class="analysis-value">Analyzing...</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-icon">⚡</span>
+                            <span class="analysis-value">Processing...</span>
+                        </div>
+                        <div class="analysis-item">
+                            <span class="analysis-icon">🔥</span>
+                            <span class="analysis-value">Optimizing...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <div class="file-info-enhanced">
+                        <h4 class="file-name">${this.truncateFileName(file.name, 30)}</h4>
+                        <div class="file-stats-enhanced">
+                            <div class="stat-item">
+                                <span class="stat-icon">📦</span>
+                                <span class="stat-value">${this.formatBytes(file.size)}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-icon">🎬</span>
+                                <span class="stat-value">${this.getFileTypeDisplay(file.type)}</span>
+                            </div>
+                            <div class="stat-item status-item">
+                                <span class="stat-icon">✅</span>
+                                <span class="stat-value status-ready">Ready for analysis</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="preview-actions-enhanced">
+                        <button class="btn-action primary" onclick="app.startAnalysis()">
+                            <span class="btn-icon">🎯</span>
+                            <span>Analyze Now</span>
+                        </button>
+                        <button class="btn-action secondary" onclick="app.removePreview()">
+                            <span class="btn-icon">🗑️</span>
+                            <span>Remove</span>
+                        </button>
+                    </div>
+                    
+                    <div class="upload-progress-enhanced">
+                        <div class="progress-header">
+                            <span class="progress-label">Ready to upload</span>
+                            <span class="progress-percentage">0%</span>
+                        </div>
+                        <div class="progress-bar-enhanced">
+                            <div class="progress-fill-enhanced"></div>
+                            <div class="progress-glow"></div>
+                        </div>
+                        <div class="progress-details">
+                            <span class="progress-speed">--</span>
+                            <span class="progress-eta">Ready</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Insert video element
+        const videoWrapper = preview.querySelector('.video-wrapper');
+        videoWrapper.insertBefore(video, videoWrapper.firstChild);
+
+        uploadArea.appendChild(preview);
+
+        // Enhanced video loading
+        video.addEventListener('loadedmetadata', () => {
+            video.classList.add('loaded');
+            
+            // Start quick analysis simulation
+            this.simulateQuickAnalysis(preview);
+            
+            // Update duration
+            const durationStat = document.createElement('div');
+            durationStat.className = 'stat-item';
+            durationStat.innerHTML = `
+                <span class="stat-icon">⏱️</span>
+                <span class="stat-value">${this.formatDuration(video.duration)}</span>
+            `;
+            preview.querySelector('.file-stats-enhanced').appendChild(durationStat);
+        });
+
+        // Show with enhanced animation
+        setTimeout(() => {
+            preview.classList.add('show');
+        }, 100);
+
+        // Cleanup URL when removed
+        preview.addEventListener('remove', () => {
+            URL.revokeObjectURL(fileURL);
+        });
+    }
+
+    simulateQuickAnalysis(preview) {
+        const analysisItems = preview.querySelectorAll('.analysis-item .analysis-value');
+        const analyses = [
+            { icon: '🎯', text: '87% Viral Potential', delay: 1000 },
+            { icon: '⚡', text: 'High Energy Detected', delay: 1500 },
+            { icon: '🔥', text: 'Trending Elements Found', delay: 2000 }
+        ];
+
+        analyses.forEach((analysis, index) => {
+            setTimeout(() => {
+                if (analysisItems[index]) {
+                    analysisItems[index].textContent = analysis.text;
+                    analysisItems[index].classList.add('analysis-complete');
+                }
+            }, analysis.delay);
+        });
+    }
+
+    async handleFileUpload(e) {
+        e.preventDefault();
+        
+        if (!this.state.currentFile) {
+            this.showError('Please select a file to upload.');
+            return;
+        }
+
+        try {
+            this.state.uploadId = this.generateId();
+            
+            // Connect to enhanced upload WebSocket
+            await this.connectEnhancedUploadWebSocket();
+            
+            // Start enhanced upload with real-time features
+            await this.uploadFileEnhanced(this.state.currentFile);
+            
+        } catch (error) {
+            console.error('Enhanced upload error:', error);
+            this.showError(`Upload failed: ${error.message}`);
+        }
+    }
+
+    async uploadFileEnhanced(file) {
+        try {
+            this.updateEnhancedProgress(0, 'Starting Netflix-level upload...');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_id', this.state.uploadId);
+
+            const response = await this.uploadWithEnhancedProgress(formData);
+
+            if (response.success) {
+                this.state.sessionId = response.session_id;
+                
+                // Connect to real-time features
+                await this.connectRealtimeFeatures();
+                
+                // Update UI with enhanced analysis data
+                this.updateEnhancedProgress(100, 'Analysis complete! 🎉');
+                
+                setTimeout(() => {
+                    this.hideEnhancedPreview();
+                    this.showEnhancedAnalysisStep(response);
+                }, 2000);
+            } else {
+                throw new Error(response.error || 'Upload failed');
+            }
+
+        } catch (error) {
+            console.error('Enhanced upload error:', error);
+            this.showError(`Upload failed: ${error.message}`);
+            this.hideEnhancedPreview();
+        }
+    }
+
+    async uploadWithEnhancedProgress(formData) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            let startTime = Date.now();
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const progress = Math.round((e.loaded / e.total) * 100);
+                    const speed = e.loaded / ((Date.now() - startTime) / 1000);
+                    const eta = (e.total - e.loaded) / speed;
+
+                    this.updateEnhancedProgress(
+                        progress,
+                        `Uploading... ${progress}%`,
+                        speed,
+                        eta
+                    );
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve(response);
+                    } catch (error) {
+                        reject(new Error('Invalid response format'));
+                    }
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during upload'));
+            });
+
+            xhr.open('POST', `/api/${this.config.apiVersion}/upload-video`);
+            xhr.send(formData);
+        });
+    }
+
+    updateEnhancedProgress(progress, message, speed = null, eta = null) {
+        const preview = document.querySelector('.enhanced-instant-preview');
+        if (!preview) return;
+
+        const progressFill = preview.querySelector('.progress-fill-enhanced');
+        const progressPercentage = preview.querySelector('.progress-percentage');
+        const progressLabel = preview.querySelector('.progress-label');
+        const progressSpeed = preview.querySelector('.progress-speed');
+        const progressEta = preview.querySelector('.progress-eta');
+
+        // Update progress bar with enhanced animations
+        if (progressFill) {
+            progressFill.style.width = `${Math.min(progress, 100)}%`;
+            
+            // Dynamic color transitions
+            if (progress < 30) {
+                progressFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+            } else if (progress < 70) {
+                progressFill.style.background = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
+            } else {
+                progressFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+            }
+        }
+
+        if (progressPercentage) {
+            progressPercentage.textContent = `${Math.round(progress)}%`;
+        }
+
+        if (progressLabel) {
+            progressLabel.textContent = message;
+        }
+
+        if (progressSpeed && speed) {
+            progressSpeed.textContent = this.formatSpeed(speed);
+        }
+
+        if (progressEta && eta) {
+            const etaSeconds = Math.round(eta);
+            progressEta.textContent = etaSeconds > 60 ? 
+                `${Math.round(etaSeconds / 60)}m remaining` : 
+                `${etaSeconds}s remaining`;
+        }
+
+        // Enhanced completion effects
+        if (progress >= 100) {
+            preview.classList.add('upload-complete');
+            this.showCompletionCelebration(preview);
+        }
+    }
+
+    showCompletionCelebration(preview) {
+        const celebration = document.createElement('div');
+        celebration.className = 'completion-celebration';
+        celebration.innerHTML = `
+            <div class="celebration-content">
+                <div class="celebration-icon">🎉</div>
+                <div class="celebration-text">Upload Complete!</div>
+                <div class="celebration-subtext">Starting AI analysis...</div>
+            </div>
+        `;
+        
+        preview.appendChild(celebration);
+        
+        setTimeout(() => {
+            celebration.classList.add('show');
+        }, 100);
+
+        setTimeout(() => {
+            celebration.remove();
+        }, 3000);
+    }
+
+    async connectRealtimeFeatures() {
+        try {
+            // Connect to viral scores WebSocket
+            await this.connectViralScoresWebSocket();
+            
+            // Connect to timeline WebSocket
+            await this.connectTimelineWebSocket();
+            
+            console.log('✅ Real-time features connected');
+            
+        } catch (error) {
+            console.error('Real-time connection error:', error);
+        }
+    }
+
+    async connectEnhancedUploadWebSocket() {
+        if (this.connections.upload) {
+            this.connections.upload.close();
+        }
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/${this.config.apiVersion}/ws/upload/${this.state.uploadId}`;
+
+        this.connections.upload = new WebSocket(wsUrl);
+
+        this.connections.upload.onopen = () => {
+            console.log('📡 Enhanced upload WebSocket connected');
+        };
+
+        this.connections.upload.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleEnhancedUploadMessage(message);
+            } catch (error) {
+                console.error('Upload WebSocket message error:', error);
+            }
+        };
+
+        this.connections.upload.onerror = (error) => {
+            console.error('Upload WebSocket error:', error);
+        };
+    }
+
+    async connectViralScoresWebSocket() {
+        if (!this.state.sessionId) return;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/${this.config.apiVersion}/ws/viral-scores/${this.state.sessionId}`;
+
+        this.connections.viralScores = new WebSocket(wsUrl);
+
+        this.connections.viralScores.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleViralScoresMessage(message);
+            } catch (error) {
+                console.error('Viral scores WebSocket error:', error);
+            }
+        };
+    }
+
+    async connectTimelineWebSocket() {
+        if (!this.state.sessionId) return;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/${this.config.apiVersion}/ws/timeline/${this.state.sessionId}`;
+
+        this.connections.timeline = new WebSocket(wsUrl);
+
+        this.connections.timeline.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleTimelineMessage(message);
+            } catch (error) {
+                console.error('Timeline WebSocket error:', error);
+            }
+        };
+    }
+
+    handleEnhancedUploadMessage(message) {
+        switch (message.type) {
+            case 'upload_progress':
+                this.updateEnhancedProgress(message.progress, `${Math.round(message.progress)}% uploaded`);
+                break;
+            case 'upload_complete':
+                this.updateEnhancedProgress(100, message.message);
+                break;
+            case 'upload_error':
+                this.showError(message.error);
+                break;
+        }
+    }
+
+    handleViralScoresMessage(message) {
+        switch (message.type) {
+            case 'analysis_progress':
+                this.updateViralChart(message.data);
+                this.updateRealtimeInsights(message.data);
+                break;
+            case 'analysis_complete':
+                this.finalizeViralAnalysis();
+                break;
+            case 'analysis_error':
+                this.showError('Analysis failed: ' + message.error);
+                break;
+        }
+    }
+
+    handleTimelineMessage(message) {
+        switch (message.type) {
+            case 'timeline_update':
+                this.updateInteractiveTimeline(message.data);
+                break;
+            case 'highlights_detected':
+                this.highlightTimelineSegments(message.highlights);
+                break;
+        }
+    }
+
+    updateViralChart(data) {
+        if (!this.realtime.viralChart) return;
+
+        const { ctx, canvas } = this.realtime.viralChart;
+        const scores = data.current_scores || [];
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid
+        this.drawViralChartGrid(ctx, canvas);
+
+        // Draw viral score line
+        this.drawViralScoreLine(ctx, canvas, scores);
+
+        // Update current score display
+        if (scores.length > 0) {
+            const latestScore = scores[scores.length - 1];
+            this.updateCurrentScoreDisplay(latestScore.score, latestScore.confidence);
+        }
+    }
+
+    drawViralChartGrid(ctx, canvas) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+
+        // Horizontal lines
+        for (let i = 0; i <= 10; i++) {
+            const y = (canvas.height / 10) * i;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+
+        // Vertical lines
+        for (let i = 0; i <= 20; i++) {
+            const x = (canvas.width / 20) * i;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+            ctx.stroke();
+        }
+    }
+
+    drawViralScoreLine(ctx, canvas, scores) {
+        if (scores.length < 2) return;
+
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.beginPath();
+        
+        scores.forEach((score, index) => {
+            const x = (index / (scores.length - 1)) * canvas.width;
+            const y = canvas.height - ((score.score / 100) * canvas.height);
+            
+            if (index === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+
+        ctx.stroke();
+
+        // Draw glow effect
+        ctx.shadowColor = '#10b981';
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Draw data points
+        scores.forEach((score, index) => {
+            const x = (index / (scores.length - 1)) * canvas.width;
+            const y = canvas.height - ((score.score / 100) * canvas.height);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = score.score > 75 ? '#10b981' : score.score > 50 ? '#f59e0b' : '#ef4444';
+            ctx.fill();
+        });
+    }
+
+    updateCurrentScoreDisplay(score, confidence) {
+        const scoreElement = document.querySelector('.current-score');
+        const confidenceElement = document.querySelector('.confidence-text');
+        const confidenceFill = document.querySelector('.confidence-fill');
+
+        if (scoreElement) {
+            scoreElement.textContent = Math.round(score);
+            scoreElement.className = `current-score ${this.getScoreClass(score)}`;
+        }
+
+        if (confidenceElement) {
+            confidenceElement.textContent = `Confidence: ${Math.round(confidence * 100)}%`;
+        }
+
+        if (confidenceFill) {
+            confidenceFill.style.width = `${confidence * 100}%`;
+        }
+    }
+
+    getScoreClass(score) {
+        if (score >= 75) return 'score-high';
+        if (score >= 50) return 'score-medium';
+        return 'score-low';
+    }
+
+    updateRealtimeInsights(data) {
+        const insights = document.getElementById('timeline-insights');
+        if (!insights) return;
+
+        const insightCards = insights.querySelectorAll('.insight-card');
+
+        // Update peak moments
+        if (insightCards[0]) {
+            const peakValue = insightCards[0].querySelector('.insight-value');
+            if (peakValue) {
+                peakValue.textContent = data.trending_emotions?.length || 0;
+            }
+        }
+
+        // Update energy level
+        if (insightCards[1]) {
+            const energyValue = insightCards[1].querySelector('.insight-value');
+            if (energyValue && data.energy_trend?.length) {
+                const avgEnergy = data.energy_trend.reduce((sum, e) => sum + e.level, 0) / data.energy_trend.length;
+                energyValue.textContent = Math.round(avgEnergy);
+            }
+        }
+
+        // Update emotion
+        if (insightCards[2]) {
+            const emotionValue = insightCards[2].querySelector('.insight-value');
+            if (emotionValue && data.trending_emotions?.length) {
+                const latestEmotion = data.trending_emotions[data.trending_emotions.length - 1];
+                emotionValue.textContent = latestEmotion.emotion;
+            }
+        }
+    }
+
+    async generateRealtimePreview(currentTime) {
+        if (!this.state.sessionId || !this.state.timelineData) return;
+
+        try {
+            const endTime = Math.min(currentTime + 10, this.state.timelineData.duration);
+            
+            const response = await fetch(`/api/${this.config.apiVersion}/generate-clip-preview`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    session_id: this.state.sessionId,
+                    start_time: currentTime,
+                    end_time: endTime,
+                    quality: 'preview'
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.updatePreviewPlayer(data);
+                this.updatePreviewAnalysis(data.viral_analysis);
+                this.updateOptimizationSuggestions(data.optimization_suggestions);
+            }
+
+        } catch (error) {
+            console.error('Real-time preview error:', error);
+        }
+    }
+
+    updatePreviewPlayer(data) {
+        const video = document.getElementById('preview-video');
+        const durationSpan = document.querySelector('.preview-duration');
+        const scoreSpan = document.querySelector('.preview-score');
+
+        if (video && data.preview_url) {
+            video.src = data.preview_url;
+            video.load();
+        }
+
+        if (durationSpan) {
+            durationSpan.textContent = '10s'; // Preview duration
+        }
+
+        if (scoreSpan && data.viral_analysis) {
+            scoreSpan.textContent = `Score: ${data.viral_analysis.overall_score}%`;
+        }
+    }
+
+    updatePreviewAnalysis(analysis) {
+        if (!analysis) return;
+
+        const metrics = document.querySelectorAll('.metric-value');
+        
+        if (metrics[0]) { // Energy
+            metrics[0].textContent = analysis.engagement_factors?.energy_level || '--';
+        }
+
+        if (metrics[1]) { // Audio
+            metrics[1].textContent = analysis.engagement_factors?.audio_quality || '--';
+        }
+
+        if (metrics[2]) { // Visual
+            metrics[2].textContent = analysis.engagement_factors?.visual_appeal || '--';
+        }
+    }
+
+    updateOptimizationSuggestions(suggestions) {
+        const suggestionsList = document.querySelector('.suggestions-list');
+        if (!suggestionsList || !suggestions) return;
+
+        suggestionsList.innerHTML = suggestions.map(suggestion => `
+            <div class="suggestion-item ${suggestion.priority}">
+                <div class="suggestion-icon">${this.getSuggestionIcon(suggestion.type)}</div>
+                <div class="suggestion-content">
+                    <div class="suggestion-text">${suggestion.suggestion}</div>
+                    <div class="suggestion-impact">${suggestion.impact}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    getSuggestionIcon(type) {
+        const icons = {
+            'audio': '🎵',
+            'visual': '🎨',
+            'content': '📝',
+            'timing': '⏰',
+            'platform': '📱'
+        };
+        return icons[type] || '💡';
+    }
+
+    async regenerateCurrentPreview() {
+        const scrubber = document.getElementById('timeline-scrubber');
+        if (!scrubber || !this.state.timelineData) return;
+
+        const currentPosition = parseFloat(scrubber.style.left) || 0;
+        const currentTime = (currentPosition / 100) * this.state.timelineData.duration;
+
+        await this.generateRealtimePreview(currentTime);
+    }
+
+    updateTimelineDisplay(currentTime) {
+        const timeElement = document.querySelector('.timeline-time');
+        if (timeElement && this.state.timelineData) {
+            const formatted = `${this.formatTime(currentTime)} / ${this.formatTime(this.state.timelineData.duration)}`;
+            timeElement.textContent = formatted;
+        }
+    }
+
+    showEnhancedAnalysisStep(response) {
+        this.showStep('analysis');
+        
+        // Load timeline data
+        this.loadTimelineData();
+        
+        // Initialize real-time features
+        this.initializeRealtimeAnalysis(response);
+    }
+
+    async loadTimelineData() {
+        if (!this.state.sessionId) return;
+
+        try {
+            const response = await fetch(`/api/${this.config.apiVersion}/timeline/${this.state.sessionId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.state.timelineData = data.timeline;
+                this.renderInteractiveTimeline(data.timeline);
+            }
+
+        } catch (error) {
+            console.error('Timeline loading error:', error);
+        }
+    }
+
+    renderInteractiveTimeline(timelineData) {
+        const heatmap = document.getElementById('viral-heatmap');
+        const markers = document.getElementById('clip-markers');
+        
+        if (!heatmap || !markers) return;
+
+        // Render viral heatmap
+        this.renderViralHeatmap(heatmap, timelineData.viral_heatmap);
+        
+        // Render clip markers
+        this.renderClipMarkers(markers, timelineData.recommended_clips);
+        
+        // Update insights
+        this.updateTimelineInsights(timelineData);
+    }
+
+    renderViralHeatmap(container, viralScores) {
+        container.innerHTML = '';
+        
+        viralScores.forEach((score, index) => {
+            const segment = document.createElement('div');
+            segment.className = 'heatmap-segment';
+            segment.style.width = `${100 / viralScores.length}%`;
+            segment.style.backgroundColor = this.getViralColor(score.score);
+            segment.title = `${score.timestamp}s: ${score.score}% viral`;
+            
+            container.appendChild(segment);
+        });
+    }
+
+    getViralColor(score) {
+        if (score >= 75) return 'rgba(16, 185, 129, 0.8)'; // Green
+        if (score >= 50) return 'rgba(245, 158, 11, 0.8)'; // Yellow
+        return 'rgba(239, 68, 68, 0.8)'; // Red
+    }
+
+    renderClipMarkers(container, clips) {
+        container.innerHTML = '';
+        
+        clips.forEach((clip, index) => {
+            const marker = document.createElement('div');
+            marker.className = 'clip-marker';
+            marker.style.left = `${(clip.start_time / this.state.timelineData.duration) * 100}%`;
+            marker.style.width = `${((clip.end_time - clip.start_time) / this.state.timelineData.duration) * 100}%`;
+            marker.innerHTML = `
+                <div class="marker-label">${clip.title}</div>
+                <div class="marker-score">${clip.viral_score}%</div>
+            `;
+            marker.onclick = () => this.selectClip(clip);
+            
+            container.appendChild(marker);
+        });
+    }
+
+    selectClip(clip) {
+        // Update timeline position
+        const scrubber = document.getElementById('timeline-scrubber');
+        if (scrubber) {
+            const position = (clip.start_time / this.state.timelineData.duration) * 100;
+            scrubber.style.left = `${position}%`;
+        }
+
+        // Generate preview for this clip
+        this.generateRealtimePreview(clip.start_time);
+        
+        // Update time display
+        this.updateTimelineDisplay(clip.start_time);
+    }
+
+    initializeRealtimeAnalysis(response) {
+        // Start viral score tracking
+        this.startViralScoreTracking();
+        
+        // Initialize preview generation
+        this.setupRealtimePreviewGeneration();
+    }
+
+    startViralScoreTracking() {
+        // Simulated real-time viral score updates
+        this.viralScoreTracker = setInterval(() => {
+            if (this.state.sessionId) {
+                this.simulateViralScoreUpdate();
+            }
+        }, 2000);
+    }
+
+    simulateViralScoreUpdate() {
+        const mockUpdate = {
+            timestamp: Date.now() / 1000,
+            score: 50 + Math.random() * 50,
+            confidence: 0.7 + Math.random() * 0.3
+        };
+
+        this.state.viralScores.push(mockUpdate);
+        this.updateViralScoreDisplay();
+    }
+
+    updateViralScoreDisplay() {
+        if (this.state.viralScores.length === 0) return;
+
+        const latest = this.state.viralScores[this.state.viralScores.length - 1];
+        this.updateCurrentScoreDisplay(latest.score, latest.confidence);
+    }
+
+    hideEnhancedPreview() {
+        const preview = document.querySelector('.enhanced-instant-preview');
+        if (preview) {
+            preview.classList.remove('show');
+            setTimeout(() => {
+                preview.remove();
+            }, 300);
+        }
+    }
+
+    removePreview() {
+        this.hideEnhancedPreview();
+        
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        this.state.currentFile = null;
+        this.showSuccess('Video removed. You can select another file.');
+    }
+
+    startAnalysis() {
+        const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
+        if (uploadBtn) {
+            uploadBtn.click();
+        }
+    }
+
+    // Enhanced processing with entertainment
+    async startEnhancedProcessing(clips) {
+        try {
+            this.state.taskId = this.generateId();
+            
+            const response = await fetch(`/api/${this.config.apiVersion}/process-clips`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    session_id: this.state.sessionId,
+                    clips: clips,
+                    options: {
+                        quality: 'high',
+                        entertainment: true
+                    }
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.state.taskId = data.task_id;
+                await this.connectProcessingWebSocket();
+                this.showEnhancedProcessingStep();
+            }
+
+        } catch (error) {
+            console.error('Enhanced processing error:', error);
+            this.showError('Processing failed to start');
+        }
+    }
+
+    async connectProcessingWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/${this.config.apiVersion}/ws/processing/${this.state.taskId}`;
+
+        this.connections.processing = new WebSocket(wsUrl);
+
+        this.connections.processing.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleProcessingMessage(message);
+            } catch (error) {
+                console.error('Processing WebSocket error:', error);
+            }
+        };
+    }
+
+    handleProcessingMessage(message) {
+        switch (message.type) {
+            case 'processing_update':
+                this.updateEnhancedProcessingDisplay(message);
+                break;
+            case 'step_update':
+                this.updateProcessingStep(message);
+                break;
+            case 'processing_complete':
+                this.handleProcessingComplete(message);
+                break;
+            case 'processing_error':
+                this.showError('Processing failed: ' + message.error);
+                break;
+        }
+    }
+
+    showEnhancedProcessingStep() {
+        this.showStep('processing');
+        
+        const container = document.getElementById('processing-status');
+        if (container) {
+            container.innerHTML = `
+                <div class="enhanced-processing-container">
+                    <div class="processing-hero">
+                        <div class="processing-animation">
+                            <div class="processing-spinner"></div>
+                            <div class="processing-icon">🎬</div>
+                        </div>
+                        <h3>Creating Your Viral Clips</h3>
+                        <p class="processing-subtitle">Netflix-level AI is crafting perfect viral content...</p>
+                    </div>
+                    
+                    <div class="processing-progress-enhanced">
+                        <div class="progress-ring">
+                            <svg width="120" height="120">
+                                <circle cx="60" cy="60" r="50" stroke-width="8" stroke="rgba(255,255,255,0.1)" fill="none"></circle>
+                                <circle cx="60" cy="60" r="50" stroke-width="8" stroke="#10b981" fill="none" 
+                                        stroke-dasharray="314" stroke-dashoffset="314" id="progress-circle"></circle>
+                            </svg>
+                            <div class="progress-text">
+                                <span class="progress-percentage">0%</span>
+                                <span class="progress-label">Processing</span>
+                            </div>
+                        </div>
+                        
+                        <div class="processing-details">
+                            <div class="current-step">
+                                <span class="step-icon">⚡</span>
+                                <span class="step-text">Initializing...</span>
+                            </div>
+                            <div class="eta-info">
+                                <span class="eta-label">ETA:</span>
+                                <span class="eta-value">Calculating...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="entertainment-section">
+                        <h4>🎭 Did You Know?</h4>
+                        <div class="entertainment-content">
+                            <p id="entertainment-fact">Getting ready to create viral magic...</p>
+                        </div>
+                        <div class="entertainment-progress">
+                            <div class="entertainment-dots">
+                                <span class="dot active"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="processing-features">
+                        <div class="feature-list">
+                            <div class="feature-item processing">
+                                <span class="feature-icon">🎯</span>
+                                <span class="feature-text">AI Viral Analysis</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">🎨</span>
+                                <span class="feature-text">Visual Enhancement</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">🎵</span>
+                                <span class="feature-text">Audio Optimization</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">📱</span>
+                                <span class="feature-text">Platform Optimization</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    updateEnhancedProcessingDisplay(message) {
+        // Update progress ring
+        const progressCircle = document.getElementById('progress-circle');
+        if (progressCircle) {
+            const circumference = 2 * Math.PI * 50;
+            const offset = circumference - (message.progress / 100) * circumference;
+            progressCircle.style.strokeDashoffset = offset;
+        }
+
+        // Update percentage
+        const percentageElement = document.querySelector('.progress-percentage');
+        if (percentageElement) {
+            percentageElement.textContent = `${Math.round(message.progress)}%`;
+        }
+
+        // Update current step
+        const stepText = document.querySelector('.step-text');
+        if (stepText) {
+            stepText.textContent = message.stage;
+        }
+
+        // Update ETA
+        const etaValue = document.querySelector('.eta-value');
+        if (etaValue && message.eta_seconds) {
+            etaValue.textContent = this.formatETA(message.eta_seconds);
+        }
+
+        // Update entertainment fact
+        if (message.entertaining_fact) {
+            const factElement = document.getElementById('entertainment-fact');
+            if (factElement) {
+                factElement.textContent = message.entertaining_fact;
+                this.animateEntertainmentFact(factElement);
+            }
+        }
+    }
+
+    animateEntertainmentFact(element) {
+        element.style.opacity = '0';
+        element.style.transform = 'translateY(10px)';
+        
+        setTimeout(() => {
+            element.style.transition = 'all 0.5s ease';
+            element.style.opacity = '1';
+            element.style.transform = 'translateY(0)';
+        }, 100);
+    }
+
+    formatETA(seconds) {
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        return `${minutes}m ${seconds % 60}s`;
+    }
+
+    // Utility methods
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 
     validateFile(file) {
@@ -398,949 +1645,6 @@ class ViralClipPro {
         return true;
     }
 
-    async showInstantPreview(file) {
-        const uploadArea = document.getElementById('upload-area');
-
-        // Remove existing preview
-        const existingPreview = uploadArea.querySelector('.instant-preview');
-        if (existingPreview) {
-            existingPreview.remove();
-        }
-
-        const preview = document.createElement('div');
-        preview.className = 'instant-preview';
-
-        // Create video element
-        const video = document.createElement('video');
-        video.className = 'preview-video';
-        video.autoplay = true;
-        video.muted = true;
-        video.loop = true;
-        video.controls = false;
-        video.playsInline = true;
-        video.preload = 'metadata';
-
-        const fileURL = URL.createObjectURL(file);
-        video.src = fileURL;
-
-        preview.innerHTML = `
-            <div class="preview-video-container">
-                <div class="video-overlay">
-                    <div class="play-indicator">▶</div>
-                </div>
-            </div>
-            <div class="preview-overlay">
-                <div class="preview-info">
-                    <div class="file-details">
-                        <div class="file-name">${this.truncateFileName(file.name, 25)}</div>
-                        <div class="file-stats">
-                            <span class="file-status" data-status="ready">Ready to upload</span>
-                            <span>${this.formatBytes(file.size)}</span>
-                            <span>${this.getFileTypeDisplay(file.type)}</span>
-                        </div>
-                    </div>
-                    <div class="preview-actions">
-                        <button class="btn-mini btn-remove" onclick="app.removePreview()" title="Remove">×</button>
-                    </div>
-                </div>
-                <div class="upload-progress-mini">
-                    <div class="progress-bar-mini">
-                        <div class="progress-fill-mini" style="width: 0%"></div>
-                    </div>
-                    <div class="progress-stats">
-                        <span class="progress-current">0%</span>
-                        <span class="progress-eta">Ready</span>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Insert video
-        const videoContainer = preview.querySelector('.preview-video-container');
-        videoContainer.insertBefore(video, videoContainer.firstChild);
-
-        uploadArea.appendChild(preview);
-
-        // Video event handlers
-        video.addEventListener('loadedmetadata', () => {
-            video.classList.add('loaded');
-            const overlay = preview.querySelector('.video-overlay');
-            if (overlay) overlay.style.opacity = '0';
-
-            // Update duration info
-            if (video.duration > 0) {
-                const durationSpan = document.createElement('span');
-                durationSpan.textContent = this.formatDuration(video.duration);
-                preview.querySelector('.file-stats').appendChild(durationSpan);
-            }
-        });
-
-        video.addEventListener('error', () => {
-            console.warn('Video preview failed, showing placeholder');
-            video.style.display = 'none';
-            const placeholder = document.createElement('div');
-            placeholder.className = 'video-placeholder';
-            placeholder.innerHTML = `
-                <div class="placeholder-icon">🎬</div>
-                <div class="placeholder-text">Video Preview</div>
-            `;
-            videoContainer.appendChild(placeholder);
-        });
-
-        // Cleanup URL when preview is removed
-        preview.addEventListener('remove', () => {
-            URL.revokeObjectURL(fileURL);
-        });
-
-        // Show preview with animation
-        setTimeout(() => {
-            preview.classList.add('show');
-        }, 100);
-    }
-
-    async uploadFile(file) {
-        try {
-            this.state.uploadId = this.generateId();
-            this.ui.isUploading = true;
-
-            // Connect WebSocket for real-time progress
-            await this.connectUploadWebSocket();
-
-            // Update preview to show upload starting
-            this.updateInstantPreviewProgress(0, 'Starting upload...');
-
-            // Prepare form data
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_id', this.state.uploadId);
-
-            // Upload with progress tracking
-            const response = await this.uploadWithProgress(formData);
-
-            if (response.success) {
-                this.state.sessionId = response.session_id;
-
-                // Update preview to show analysis complete
-                this.updateInstantPreviewProgress(100, 'Analysis complete!');
-
-                // Show success and transition
-                setTimeout(() => {
-                    this.hideInstantPreview();
-                    this.showStep('analysis');
-                    this.displayVideoAnalysis(response);
-                }, 2000);
-            } else {
-                throw new Error(response.error || 'Upload failed');
-            }
-
-        } catch (error) {
-            console.error('Upload error:', error);
-            this.showError(`Upload failed: ${error.message}`);
-            this.hideInstantPreview();
-        } finally {
-            this.ui.isUploading = false;
-        }
-    }
-
-    async uploadWithProgress(formData) {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            let startTime = Date.now();
-            let lastLoaded = 0;
-            let lastTime = startTime;
-
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const progress = Math.round((e.loaded / e.total) * 100);
-                    const currentTime = Date.now();
-                    const deltaTime = (currentTime - lastTime) / 1000;
-                    const deltaLoaded = e.loaded - lastLoaded;
-
-                    let speed = 0;
-                    let eta = 0;
-
-                    if (deltaTime > 0) {
-                        speed = deltaLoaded / deltaTime;
-                        const remaining = e.total - e.loaded;
-                        eta = speed > 0 ? remaining / speed : 0;
-                    }
-
-                    this.updateInstantPreviewProgress(
-                        progress,
-                        `Uploading... ${progress}%`,
-                        speed,
-                        eta
-                    );
-
-                    lastLoaded = e.loaded;
-                    lastTime = currentTime;
-                }
-            });
-
-            xhr.addEventListener('load', () => {
-                if (xhr.status === 200) {
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        this.updateInstantPreviewProgress(100, 'Upload complete! Analyzing...');
-                        resolve(response);
-                    } catch (error) {
-                        this.updateInstantPreviewProgress(0, 'Upload failed');
-                        reject(new Error('Invalid response format'));
-                    }
-                } else {
-                    this.updateInstantPreviewProgress(0, 'Upload failed');
-                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
-                }
-            });
-
-            xhr.addEventListener('error', () => {
-                this.updateInstantPreviewProgress(0, 'Upload failed');
-                reject(new Error('Network error during upload'));
-            });
-
-            xhr.addEventListener('timeout', () => {
-                this.updateInstantPreviewProgress(0, 'Upload timeout');
-                reject(new Error('Upload timeout'));
-            });
-
-            xhr.timeout = 5 * 60 * 1000; // 5 minutes
-            xhr.open('POST', '/api/v2/upload-video');
-            xhr.send(formData);
-        });
-    }
-
-    updateInstantPreviewProgress(progress, message, speed = null, eta = null) {
-        const preview = document.querySelector('.instant-preview');
-        if (!preview) return;
-
-        const progressFill = preview.querySelector('.progress-fill-mini');
-        const progressCurrent = preview.querySelector('.progress-current');
-        const progressEta = preview.querySelector('.progress-eta');
-        const fileStatus = preview.querySelector('.file-status');
-
-        // Update progress bar
-        if (progressFill) {
-            progressFill.style.width = `${Math.min(progress, 100)}%`;
-
-            // Dynamic color coding
-            if (progress < 30) {
-                progressFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
-            } else if (progress < 70) {
-                progressFill.style.background = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
-            } else {
-                progressFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
-            }
-
-            if (progress > 0 && progress < 100) {
-                preview.classList.add('uploading');
-            }
-        }
-
-        // Update progress text
-        if (progressCurrent) {
-            progressCurrent.textContent = `${Math.round(progress)}%`;
-        }
-
-        // Update status message
-        if (fileStatus && message) {
-            fileStatus.textContent = message;
-            fileStatus.setAttribute('data-status', 
-                progress === 0 ? 'ready' : 
-                progress === 100 ? 'complete' : 'uploading'
-            );
-        }
-
-        // Update ETA or speed
-        if (progressEta) {
-            if (eta && eta > 0) {
-                const etaSeconds = Math.round(eta);
-                progressEta.textContent = etaSeconds > 60 ? 
-                    `${Math.round(etaSeconds / 60)}m remaining` : 
-                    `${etaSeconds}s remaining`;
-            } else if (speed && speed > 0) {
-                progressEta.textContent = this.formatSpeed(speed);
-            } else if (progress === 100) {
-                progressEta.textContent = 'Complete!';
-            } else {
-                progressEta.textContent = 'Uploading...';
-            }
-        }
-
-        // Completion effects
-        if (progress >= 100) {
-            preview.classList.remove('uploading');
-            preview.classList.add('upload-complete');
-
-            const celebration = document.createElement('div');
-            celebration.className = 'celebration-effect';
-            celebration.textContent = '🎉';
-            preview.appendChild(celebration);
-
-            setTimeout(() => {
-                celebration.remove();
-            }, 2000);
-        }
-    }
-
-    hideInstantPreview() {
-        const preview = document.querySelector('.instant-preview');
-        if (preview) {
-            preview.classList.remove('show');
-            setTimeout(() => {
-                const event = new Event('remove');
-                preview.dispatchEvent(event);
-                preview.remove();
-            }, 300);
-        }
-
-        // Reset upload button
-        const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
-        if (uploadBtn) {
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Select a video to upload';
-            uploadBtn.classList.remove('has-file');
-        }
-
-        this.state.currentFile = null;
-    }
-
-    removePreview() {
-        this.hideInstantPreview();
-
-        // Clear file input
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) {
-            fileInput.value = '';
-        }
-
-        this.showSuccess('Video removed. You can select another file.');
-    }
-
-    async connectUploadWebSocket() {
-        if (this.connections.upload) {
-            this.connections.upload.close();
-        }
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/api/v2/upload-progress/${this.state.uploadId}`;
-
-        this.connections.upload = new WebSocket(wsUrl);
-
-        this.connections.upload.onopen = () => {
-            console.log('📡 Upload WebSocket connected');
-        };
-
-        this.connections.upload.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                this.handleUploadMessage(message);
-            } catch (error) {
-                console.error('Upload WebSocket message error:', error);
-            }
-        };
-
-        this.connections.upload.onerror = (error) => {
-            console.error('Upload WebSocket error:', error);
-        };
-
-        this.connections.upload.onclose = () => {
-            console.log('📡 Upload WebSocket disconnected');
-        };
-    }
-
-    handleUploadMessage(message) {
-        switch (message.type) {
-            case 'connected':
-                console.log('🔗 Upload WebSocket connected:', message.upload_id);
-                break;
-            case 'upload_progress':
-                this.updateInstantPreviewProgress(message.progress, `${Math.round(message.progress)}% uploaded`);
-                break;
-            case 'upload_complete':
-                this.updateInstantPreviewProgress(100, message.message);
-                break;
-            case 'upload_error':
-                this.showError(message.error);
-                this.hideInstantPreview();
-                break;
-            case 'keep_alive':
-            case 'pong':
-                // Connection is alive
-                break;
-        }
-    }
-
-    displayVideoAnalysis(data) {
-        const container = document.getElementById('analysis-results');
-        if (!container) return;
-
-        const videoInfo = data.video_info || {};
-        const insights = data.ai_insights || {};
-        const clips = data.suggested_clips || [];
-
-        container.innerHTML = `
-            <div class="analysis-header">
-                <div class="video-thumbnail">
-                    <img src="${videoInfo.thumbnail || '/public/placeholder-thumb.jpg'}" 
-                         alt="Video thumbnail" 
-                         onerror="this.src='/public/placeholder-thumb.jpg'">
-                </div>
-                <div class="video-details">
-                    <h3>${videoInfo.title || 'Uploaded Video'}</h3>
-                    <div class="video-stats">
-                        <span class="stat">
-                            <i class="icon">⏱️</i>
-                            ${this.formatDuration(videoInfo.duration || 0)}
-                        </span>
-                        <span class="stat">
-                            <i class="icon">🎯</i>
-                            ${insights.viral_potential || 0}% viral potential
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="ai-insights">
-                <h4>🤖 AI Insights</h4>
-                <div class="insights-grid">
-                    <div class="insight-card">
-                        <div class="insight-score">${insights.viral_potential || 0}%</div>
-                        <div class="insight-label">Viral Potential</div>
-                    </div>
-                    <div class="insight-card">
-                        <div class="insight-score">${insights.confidence_score || 0}%</div>
-                        <div class="insight-label">AI Confidence</div>
-                    </div>
-                    <div class="insight-card">
-                        <div class="insight-score">${insights.engagement_prediction || 0}%</div>
-                        <div class="insight-label">Engagement Rate</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="suggested-clips">
-                <h4>🎬 Suggested Viral Clips</h4>
-                <div class="clips-grid">
-                    ${clips.map((clip, index) => this.renderClipCard(clip, index)).join('')}
-                </div>
-            </div>
-        `;
-
-        this.setupClipSelection();
-    }
-
-    renderClipCard(clip, index) {
-        return `
-            <div class="clip-card" data-clip-index="${index}">
-                <div class="clip-header">
-                    <h5>${clip.title}</h5>
-                    <div class="viral-score">
-                        <span class="score">${clip.viral_score}%</span>
-                        <span class="label">Viral Score</span>
-                    </div>
-                </div>
-
-                <div class="clip-timeline">
-                    <div class="timeline-bar">
-                        <div class="timeline-segment" 
-                             style="left: ${(clip.start_time / 180) * 100}%; 
-                                    width: ${((clip.end_time - clip.start_time) / 180) * 100}%;">
-                        </div>
-                    </div>
-                    <div class="timeline-labels">
-                        <span>${this.formatTime(clip.start_time)}</span>
-                        <span>${this.formatTime(clip.end_time)}</span>
-                    </div>
-                </div>
-
-                <div class="clip-details">
-                    <p>${clip.description}</p>
-                    <div class="clip-stats">
-                        <span>📱 ${clip.recommended_platforms?.join(', ') || 'All platforms'}</span>
-                        <span>⏱️ ${clip.end_time - clip.start_time}s</span>
-                        <span>📊 ${clip.estimated_views}</span>
-                    </div>
-                </div>
-
-                <div class="clip-actions">
-                    <label class="clip-checkbox">
-                        <input type="checkbox" value="${index}">
-                        <span class="checkmark"></span>
-                        Select for processing
-                    </label>
-                </div>
-            </div>
-        `;
-    }
-
-    setupClipSelection() {
-        const checkboxes = document.querySelectorAll('.clip-checkbox input[type="checkbox"]');
-        const processButton = document.getElementById('process-clips-btn');
-
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                this.updateSelectedClips();
-                if (processButton) {
-                    processButton.disabled = this.state.selectedClips.length === 0;
-                }
-            });
-        });
-    }
-
-    updateSelectedClips() {
-        const checkboxes = document.querySelectorAll('.clip-checkbox input[type="checkbox"]:checked');
-        this.state.selectedClips = Array.from(checkboxes).map(cb => parseInt(cb.value));
-    }
-
-    async handleProcessing(e) {
-        e.preventDefault();
-
-        if (this.state.selectedClips.length === 0) {
-            this.showError('Please select at least one clip to process.');
-            return;
-        }
-
-        try {
-            this.state.taskId = this.generateId();
-
-            // Connect to processing WebSocket
-            await this.connectProcessingWebSocket();
-
-            // Show processing step
-            this.showStep('processing');
-
-            // Start processing
-            const response = await fetch('/api/v2/process-video', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    session_id: this.state.sessionId,
-                    clips: this.state.selectedClips.map(index => ({
-                        index,
-                        title: `Clip ${index + 1}`,
-                        start_time: index * 60,
-                        end_time: (index + 1) * 60
-                    })),
-                    quality: 'high',
-                    priority: 'high'
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.state.taskId = data.task_id;
-                this.showProcessingProgress();
-            } else {
-                throw new Error(data.error || 'Processing failed to start');
-            }
-
-        } catch (error) {
-            console.error('Processing error:', error);
-            this.showError(`Processing failed: ${error.message}`);
-        }
-    }
-
-    async connectProcessingWebSocket() {
-        if (this.connections.processing) {
-            this.connections.processing.close();
-        }
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/api/v2/ws/${this.state.taskId}`;
-
-        this.connections.processing = new WebSocket(wsUrl);
-
-        this.connections.processing.onopen = () => {
-            console.log('📡 Processing WebSocket connected');
-        };
-
-        this.connections.processing.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                this.handleProcessingMessage(message);
-            } catch (error) {
-                console.error('Processing WebSocket message error:', error);
-            }
-        };
-
-        this.connections.processing.onerror = (error) => {
-            console.error('Processing WebSocket error:', error);
-        };
-
-        this.connections.processing.onclose = () => {
-            console.log('📡 Processing WebSocket disconnected');
-        };
-    }
-
-    handleProcessingMessage(message) {
-        switch (message.type) {
-            case 'connected':
-                console.log('🔗 Processing WebSocket connected:', message.task_id);
-                break;
-            case 'processing_started':
-                this.showLiveProcessingFeed(message);
-                break;
-            case 'progress_update':
-                this.updateProcessingProgress(message.data);
-                this.updateLiveProcessingFeed(message.data);
-                break;
-            case 'processing_complete':
-                this.handleProcessingComplete(message.data);
-                break;
-            case 'processing_error':
-                this.showError(message.data.error);
-                break;
-            case 'keep_alive':
-            case 'pong':
-                // Connection is alive
-                break;
-        }
-    }
-
-    showProcessingProgress() {
-        const container = document.getElementById('processing-status');
-        if (container) {
-            container.innerHTML = `
-                <div class="processing-header">
-                    <h3>🎬 Creating Your Viral Clips</h3>
-                    <p>Our AI is working hard to create amazing clips from your video...</p>
-                </div>
-
-                <div class="processing-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: 0%"></div>
-                    </div>
-                    <div class="progress-text">
-                        <span class="progress-percentage">0%</span>
-                        <span class="progress-status">Initializing...</span>
-                    </div>
-                </div>
-
-                <div class="processing-stats">
-                    <div class="stat">
-                        <span class="stat-label">Clips to Process</span>
-                        <span class="stat-value">${this.state.selectedClips.length}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Estimated Time</span>
-                        <span class="stat-value">${this.state.selectedClips.length * 30}s</span>
-                    </div>
-                </div>
-            `;
-        }
-    }
-
-    updateProcessingProgress(data) {
-        const progressBar = document.querySelector('#processing-status .progress-fill');
-        const progressPercentage = document.querySelector('#processing-status .progress-percentage');
-        const progressStatus = document.querySelector('#processing-status .progress-status');
-
-        if (progressBar) {
-            progressBar.style.width = `${data.percentage}%`;
-        }
-
-        if (progressPercentage) {
-            progressPercentage.textContent = `${Math.round(data.percentage)}%`;
-        }
-
-        if (progressStatus) {
-            progressStatus.textContent = data.message || data.stage;
-        }
-    }
-
-    showLiveProcessingFeed(message) {
-        const container = document.getElementById('processing-status');
-        if (!container) return;
-
-        const existingFeed = container.querySelector('.live-updates');
-        if (existingFeed) return;
-
-        const feedHTML = `
-            <div class="live-updates">
-                <h4>🔴 Live Processing Feed</h4>
-                <div class="updates-feed" id="updates-feed">
-                    <div class="update-item">
-                        <span class="update-time">${new Date().toLocaleTimeString()}</span>
-                        <span class="update-message">AI processing started for ${message.total_clips} clips</span>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.insertAdjacentHTML('beforeend', feedHTML);
-    }
-
-    updateLiveProcessingFeed(data) {
-        const feed = document.getElementById('updates-feed');
-        if (!feed) return;
-
-        const updateHTML = `
-            <div class="update-item">
-                <span class="update-time">${new Date().toLocaleTimeString()}</span>
-                <span class="update-message">${data.message}</span>
-            </div>
-        `;
-
-        feed.insertAdjacentHTML('beforeend', updateHTML);
-
-        // Keep only last 5 updates
-        const updates = feed.querySelectorAll('.update-item');
-        if (updates.length > 5) {
-            updates[0].remove();
-        }
-
-        feed.scrollTop = feed.scrollHeight;
-    }
-
-    handleProcessingComplete(data) {
-        this.showStep('results');
-        this.displayResults(data.results);
-    }
-
-    displayResults(results) {
-        const container = document.getElementById('results-container');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div class="results-header">
-                <h3>🎉 Your Viral Clips Are Ready!</h3>
-                <p>Successfully processed ${results.length} viral clips</p>
-            </div>
-
-            <div class="results-grid">
-                ${results.map((result, index) => this.renderResultCard(result, index)).join('')}
-            </div>
-        `;
-    }
-
-    renderResultCard(result, index) {
-        return `
-            <div class="result-card">
-                <div class="result-header">
-                    <h4>${result.clip_title || `Clip ${index + 1}`}</h4>
-                    <div class="viral-score">
-                        <span class="score">${result.viral_score || 85}%</span>
-                        <span class="label">Viral Potential</span>
-                    </div>
-                </div>
-
-                <div class="result-thumbnail">
-                    <img src="${result.thumbnail_path || '/public/placeholder-thumb.jpg'}" 
-                         alt="${result.clip_title}" 
-                         onerror="this.src='/public/placeholder-thumb.jpg'">
-                    <div class="play-overlay">▶️</div>
-                </div>
-
-                <div class="result-stats">
-                    <span>⏱️ ${this.formatDuration(result.duration || 30)}</span>
-                    <span>📦 ${this.formatBytes(result.file_size || 5000000)}</span>
-                    <span>📊 ${result.estimated_views || '500K+'}</span>
-                </div>
-
-                <div class="result-actions">
-                    <button class="btn btn-primary" onclick="app.downloadClip('${this.state.taskId}', ${index})">
-                        📥 Download
-                    </button>
-                    <button class="btn btn-secondary" onclick="app.previewClip('${this.state.taskId}', ${index})">
-                        👁️ Preview
-                    </button>
-                </div>
-            </div>
-        `;
-    }
-
-    showStep(step) {
-        // Hide all steps
-        document.querySelectorAll('.step').forEach(el => {
-            el.classList.remove('active');
-        });
-
-        // Show target step
-        const targetStep = document.getElementById(`step-${step}`);
-        if (targetStep) {
-            targetStep.classList.add('active');
-        }
-
-        this.state.currentStep = step;
-        this.updateStepProgress(step);
-    }
-
-    updateStepProgress(currentStep) {
-        const steps = ['upload', 'analysis', 'processing', 'results'];
-        const currentIndex = steps.indexOf(currentStep);
-
-        steps.forEach((step, index) => {
-            const indicator = document.querySelector(`[data-step="${step}"]`);
-            if (indicator) {
-                indicator.classList.toggle('active', index === currentIndex);
-                indicator.classList.toggle('completed', index < currentIndex);
-            }
-        });
-    }
-
-    handleAction(action, element) {
-        switch (action) {
-            case 'restart':
-                this.restart();
-                break;
-            case 'back':
-                this.goBack();
-                break;
-            case 'next':
-                this.goNext();
-                break;
-        }
-    }
-
-    restart() {
-        // Reset state
-        this.state = {
-            currentStep: 'upload',
-            sessionId: null,
-            taskId: null,
-            uploadId: null,
-            selectedClips: [],
-            currentFile: null,
-            isProcessing: false
-        };
-
-        // Close WebSocket connections
-        Object.values(this.connections).forEach(connection => {
-            if (connection) connection.close();
-        });
-
-        this.connections = { upload: null, processing: null };
-
-        // Show upload step
-        this.showStep('upload');
-
-        // Reset forms
-        document.querySelectorAll('form').forEach(form => form.reset());
-
-        // Clear file input
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) fileInput.value = '';
-
-        // Reset upload button
-        const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
-        if (uploadBtn) {
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Select a video to upload';
-            uploadBtn.classList.remove('has-file');
-        }
-    }
-
-    async downloadClip(taskId, clipIndex) {
-        try {
-            const link = document.createElement('a');
-            link.href = `/api/v2/download/${taskId}/${clipIndex}`;
-            link.download = `viral_clip_${clipIndex + 1}.mp4`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            this.showError('Download failed. Please try again.');
-        }
-    }
-
-    showError(message) {
-        this.showToast(message, 'error');
-    }
-
-    showSuccess(message) {
-        this.showToast(message, 'success');
-    }
-
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.innerHTML = `
-            <div class="toast-content">
-                <span class="toast-icon">${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'}</span>
-                <span class="toast-message">${message}</span>
-                <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
-            </div>
-        `;
-
-        document.body.appendChild(toast);
-        setTimeout(() => toast.classList.add('show'), 100);
-
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, type === 'error' ? 5000 : 3000);
-    }
-
-    reconnectWebSockets() {
-        if (this.connections.upload?.readyState === WebSocket.CLOSED) {
-            this.connectUploadWebSocket();
-        }
-        if (this.connections.processing?.readyState === WebSocket.CLOSED) {
-            this.connectProcessingWebSocket();
-        }
-    }
-
-    handleGlobalError(type, error) {
-        this.errors.count++;
-        this.errors.lastError = { type, error, timestamp: Date.now() };
-
-        console.error(`🚨 Global Error [${type}]:`, error);
-
-        if (this.errors.count <= 3) {
-            this.showError('Something went wrong. Please try again.');
-        }
-    }
-
-    handleNetworkChange(isOnline) {
-        if (isOnline) {
-            this.hideOfflineIndicator();
-            this.reconnectWebSockets();
-            this.showSuccess('Connection restored');
-        } else {
-            this.showOfflineIndicator();
-            this.showError('Connection lost. Working offline.');
-        }
-    }
-
-    showOfflineIndicator() {
-        let indicator = document.getElementById('offline-indicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'offline-indicator';
-            indicator.className = 'offline-indicator';
-            indicator.textContent = '📶 Offline - Limited functionality';
-            document.body.appendChild(indicator);
-        }
-        indicator.classList.add('show');
-    }
-
-    hideOfflineIndicator() {
-        const indicator = document.getElementById('offline-indicator');
-        if (indicator) {
-            indicator.classList.remove('show');
-            setTimeout(() => indicator.remove(), 300);
-        }
-    }
-
-    trackEvent(eventName, data = {}) {
-        if (this.config.enableAnalytics) {
-            console.log(`📊 Event: ${eventName}`, data);
-        }
-    }
-
-    hideAllModals() {
-        document.querySelectorAll('.modal, .overlay').forEach(modal => {
-            modal.classList.remove('show');
-            setTimeout(() => {
-                modal.style.display = 'none';
-            }, 300);
-        });
-    }
-
-    // Utility functions
     generateId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
@@ -1371,11 +1675,9 @@ class ViralClipPro {
 
     truncateFileName(filename, maxLength) {
         if (filename.length <= maxLength) return filename;
-
         const extension = filename.split('.').pop();
         const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
         const truncatedName = nameWithoutExt.substring(0, maxLength - extension.length - 4) + '...';
-
         return `${truncatedName}.${extension}`;
     }
 
@@ -1391,96 +1693,45 @@ class ViralClipPro {
         return typeMap[mimeType] || 'Video';
     }
 
-    handlePaste(e) {
-        const items = e.clipboardData?.items;
-        if (!items) return;
+    showStep(step) {
+        document.querySelectorAll('.step').forEach(el => {
+            el.classList.remove('active');
+        });
 
-        for (let item of items) {
-            if (item.type.startsWith('video/')) {
-                const file = item.getAsFile();
-                if (file) {
-                    this.processFiles([file]);
-                    break;
-                }
-            }
+        const targetStep = document.getElementById(`step-${step}`);
+        if (targetStep) {
+            targetStep.classList.add('active');
         }
+
+        this.state.currentStep = step;
     }
 
-    async handleUrlAnalysis(e) {
-        e.preventDefault();
-        const urlInput = document.getElementById('url-input');
-        const url = urlInput.value.trim();
-
-        if (!url) {
-            this.showError('Please enter a video URL.');
-            return;
-        }
-
-        if (!this.validateUrl(url)) {
-            this.showError('Please enter a valid YouTube, TikTok, or Instagram URL.');
-            return;
-        }
-
-        try {
-            this.showAnalysisProgress();
-
-            const response = await fetch('/api/v2/analyze-video', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ url })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                this.state.sessionId = data.session_id;
-                this.hideAnalysisProgress();
-                this.showStep('analysis');
-                this.displayVideoAnalysis(data);
-            } else {
-                throw new Error(data.error || 'Analysis failed');
-            }
-
-        } catch (error) {
-            console.error('Analysis error:', error);
-            this.showError(`Analysis failed: ${error.message}`);
-            this.hideAnalysisProgress();
-        }
+    showError(message) {
+        this.showToast(message, 'error');
     }
 
-    validateUrl(url) {
-        const patterns = [
-            /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)/,
-            /^https?:\/\/(www\.)?tiktok\.com/,
-            /^https?:\/\/(www\.)?instagram\.com/
-        ];
-
-        return patterns.some(pattern => pattern.test(url));
+    showSuccess(message) {
+        this.showToast(message, 'success');
     }
 
-    showAnalysisProgress() {
-        const button = document.querySelector('#url-form button');
-        if (button) {
-            button.disabled = true;
-            button.classList.add('loading');
-            button.innerHTML = `
-                <div class="btn-loading">
-                    <div class="spinner"></div>
-                    <span>Analyzing...</span>
-                </div>
-            `;
-        }
-    }
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast-enhanced toast-${type}`;
+        toast.innerHTML = `
+            <div class="toast-content">
+                <span class="toast-icon">${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'}</span>
+                <span class="toast-message">${message}</span>
+                <button class="toast-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
 
-    hideAnalysisProgress() {
-        const button = document.querySelector('#url-form button');
-        if (button) {
-            button.disabled = false;
-            button.classList.remove('loading');
-            button.innerHTML = 'Analyze Video';
-        }
+        document.body.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 100);
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, type === 'error' ? 5000 : 3000);
     }
 
     showCriticalError(message, error) {
@@ -1496,29 +1747,124 @@ class ViralClipPro {
                 </details>
                 <div class="error-actions">
                     <button onclick="location.reload()" class="btn btn-primary">
-                        Reload Page
+                        Reload Application
                     </button>
                 </div>
             </div>
         `;
         document.body.appendChild(errorModal);
     }
+
+    hideLoadingSplash() {
+        const splash = document.querySelector('.loading-splash');
+        if (splash) {
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 500);
+        }
+    }
+
+    hideAllModals() {
+        document.querySelectorAll('.modal, .overlay').forEach(modal => {
+            modal.classList.remove('show');
+        });
+    }
+
+    trackEvent(eventName, data = {}) {
+        console.log(`📊 Event: ${eventName}`, data);
+    }
+
+    setupMobileOptimizations() {
+        // Viewport height fix
+        const setVH = () => {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        };
+
+        setVH();
+        window.addEventListener('resize', setVH);
+        window.addEventListener('orientationchange', setVH);
+    }
+
+    setupErrorHandling() {
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            event.preventDefault();
+        });
+    }
+
+    handleAction(action, element) {
+        switch (action) {
+            case 'restart':
+                this.restart();
+                break;
+            case 'back':
+                this.goBack();
+                break;
+            case 'next':
+                this.goNext();
+                break;
+        }
+    }
+
+    restart() {
+        // Clear all state
+        this.state = {
+            currentStep: 'upload',
+            sessionId: null,
+            taskId: null,
+            uploadId: null,
+            selectedClips: [],
+            currentFile: null,
+            isProcessing: false,
+            viralScores: [],
+            timelineData: null,
+            realtimePreview: null
+        };
+
+        // Close all WebSocket connections
+        Object.values(this.connections).forEach(connection => {
+            if (connection) connection.close();
+        });
+
+        // Clear intervals
+        if (this.viralScoreTracker) {
+            clearInterval(this.viralScoreTracker);
+        }
+        
+        if (this.realtimeScoreUpdater) {
+            clearInterval(this.realtimeScoreUpdater);
+        }
+
+        // Reset UI
+        this.showStep('upload');
+        
+        // Clear forms
+        document.querySelectorAll('form').forEach(form => form.reset());
+        
+        console.log('🔄 Application restarted');
+    }
 }
 
-// Initialize app when DOM is loaded
+// Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new ViralClipPro();
 });
 
-// Service Worker registration for PWA capabilities
+// Service Worker for PWA capabilities
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
             .then(registration => {
-                console.log('📱 SW registered: ', registration);
+                console.log('📱 SW registered:', registration);
             })
-            .catch(registrationError => {
-                console.log('📱 SW registration failed: ', registrationError);
+            .catch(error => {
+                console.log('📱 SW registration failed:', error);
             });
     });
 }

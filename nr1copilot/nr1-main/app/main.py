@@ -1,6 +1,6 @@
 """
 ViralClip Pro - Netflix-Level FastAPI Application
-Production-ready video processing platform with enterprise-grade architecture
+Production-ready video processing platform with real-time features
 """
 
 import asyncio
@@ -28,101 +28,68 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import get_settings
 from .logging_config import get_logger
 from .services.video_service import VideoProcessor
+from .services.realtime_engine import RealtimeEngine
 from .utils.security import SecurityManager
 from .utils.rate_limiter import RateLimiter
 from .utils.cache import CacheManager
 from .utils.health import HealthChecker
 
-# Initialize logger
+# Initialize logger and settings
 logger = get_logger(__name__)
 settings = get_settings()
 
 # Global services
 video_processor: Optional[VideoProcessor] = None
+realtime_engine: Optional[RealtimeEngine] = None
 security_manager: Optional[SecurityManager] = None
 rate_limiter: Optional[RateLimiter] = None
 cache_manager: Optional[CacheManager] = None
 health_checker: Optional[HealthChecker] = None
 
-# WebSocket connection manager
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
-        self.connection_metadata: Dict[str, Dict[str, Any]] = {}
+# Pydantic models for real-time features
+class RealtimePreviewRequest(BaseModel):
+    session_id: str
+    start_time: float
+    end_time: float
+    quality: str = "preview"
 
-    async def connect(self, websocket: WebSocket, session_id: str, connection_type: str):
-        await websocket.accept()
+class ViralScoreUpdate(BaseModel):
+    session_id: str
+    timeline_position: float
+    viral_score: int
+    confidence: float
+    factors: List[str]
 
-        if session_id not in self.active_connections:
-            self.active_connections[session_id] = {}
-            self.connection_metadata[session_id] = {}
-
-        self.active_connections[session_id][connection_type] = websocket
-        self.connection_metadata[session_id][connection_type] = {
-            "connected_at": datetime.now().isoformat(),
-            "last_activity": datetime.now().isoformat()
-        }
-
-        logger.info(f"WebSocket connected: {session_id}:{connection_type}")
-
-    def disconnect(self, session_id: str, connection_type: str):
-        if session_id in self.active_connections:
-            self.active_connections[session_id].pop(connection_type, None)
-            self.connection_metadata[session_id].pop(connection_type, None)
-
-            if not self.active_connections[session_id]:
-                del self.active_connections[session_id]
-                del self.connection_metadata[session_id]
-
-        logger.info(f"WebSocket disconnected: {session_id}:{connection_type}")
-
-    async def send_message(self, session_id: str, connection_type: str, message: Dict[str, Any]):
-        if (session_id in self.active_connections and 
-            connection_type in self.active_connections[session_id]):
-
-            websocket = self.active_connections[session_id][connection_type]
-            try:
-                await websocket.send_text(json.dumps(message))
-
-                # Update last activity
-                if session_id in self.connection_metadata:
-                    self.connection_metadata[session_id][connection_type]["last_activity"] = datetime.now().isoformat()
-
-            except Exception as e:
-                logger.error(f"Failed to send WebSocket message: {e}")
-                self.disconnect(session_id, connection_type)
-
-    async def broadcast_to_session(self, session_id: str, message: Dict[str, Any]):
-        if session_id in self.active_connections:
-            for connection_type, websocket in self.active_connections[session_id].items():
-                try:
-                    await websocket.send_text(json.dumps(message))
-                except Exception as e:
-                    logger.error(f"Failed to broadcast to {connection_type}: {e}")
-                    self.disconnect(session_id, connection_type)
-
-manager = ConnectionManager()
+class ProcessingStatusUpdate(BaseModel):
+    task_id: str
+    stage: str
+    progress: float
+    eta_seconds: Optional[int] = None
+    message: str
+    entertaining_fact: Optional[str] = None
 
 # Application lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle"""
-    global video_processor, security_manager, rate_limiter, cache_manager, health_checker
+    global video_processor, realtime_engine, security_manager, rate_limiter, cache_manager, health_checker
 
     try:
-        # Startup
-        logger.info("🚀 Starting ViralClip Pro Application...")
+        logger.info("🚀 Starting ViralClip Pro Netflix-Level Application...")
 
         # Initialize core services
         video_processor = VideoProcessor()
         await video_processor.initialize()
+
+        realtime_engine = RealtimeEngine()
+        await realtime_engine.initialize()
 
         security_manager = SecurityManager()
         rate_limiter = RateLimiter()
@@ -134,60 +101,29 @@ async def lifespan(app: FastAPI):
             Path(directory).mkdir(parents=True, exist_ok=True)
 
         logger.info("✅ ViralClip Pro Application started successfully")
-
         yield
 
     except Exception as e:
         logger.error(f"❌ Application startup failed: {e}")
         raise
     finally:
-        # Cleanup
         logger.info("🛑 Shutting down ViralClip Pro Application...")
+        if realtime_engine:
+            await realtime_engine.cleanup()
         if video_processor:
             await video_processor.cleanup_temp_files([])
-
-# Pydantic models
-class UploadResponse(BaseModel):
-    success: bool = True
-    session_id: str
-    file_info: Dict[str, Any]
-    video_info: Optional[Dict[str, Any]] = None
-    ai_insights: Optional[Dict[str, Any]] = None
-    suggested_clips: Optional[List[Dict[str, Any]]] = None
-    message: str = "Upload successful"
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
-
-class ProcessingRequest(BaseModel):
-    session_id: str
-    clips: List[Dict[str, Any]]
-    quality: str = "high"
-    platform_optimizations: Optional[List[str]] = None
-    priority: str = "standard"
-
-class ProcessingResponse(BaseModel):
-    success: bool = True
-    task_id: str
-    message: str = "Processing started"
-    estimated_time: Optional[int] = None
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
-
-class ErrorResponse(BaseModel):
-    success: bool = False
-    error: str
-    details: Optional[Dict[str, Any]] = None
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 # Create FastAPI application
 app = FastAPI(
     title="ViralClip Pro API",
-    description="Netflix-level AI-powered viral video creation platform",
-    version="2.0.0",
+    description="Netflix-level AI-powered viral video creation platform with real-time features",
+    version="3.0.0",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc"
 )
 
-# Middleware configuration
+# Enhanced middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -195,7 +131,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Static file serving
@@ -208,12 +143,12 @@ async def get_video_processor() -> VideoProcessor:
         raise HTTPException(status_code=503, detail="Video processor not available")
     return video_processor
 
-async def get_rate_limiter() -> RateLimiter:
-    if rate_limiter is None:
-        raise HTTPException(status_code=503, detail="Rate limiter not available")
-    return rate_limiter
+async def get_realtime_engine() -> RealtimeEngine:
+    if realtime_engine is None:
+        raise HTTPException(status_code=503, detail="Realtime engine not available")
+    return realtime_engine
 
-# Main application routes
+# Main routes
 @app.get("/", response_class=HTMLResponse)
 async def index():
     """Serve the main application"""
@@ -222,404 +157,232 @@ async def index():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(
-            content="<h1>ViralClip Pro</h1><p>Application loading...</p>",
+            content="<h1>ViralClip Pro</h1><p>Netflix-level application loading...</p>",
             status_code=200
         )
 
-@app.get("/favicon.ico")
-async def favicon():
-    """Serve favicon"""
-    favicon_path = Path("favicon.ico")
-    if favicon_path.exists():
-        return FileResponse(favicon_path)
-    return JSONResponse({"error": "Favicon not found"}, status_code=404)
-
-# Upload endpoint with real-time progress
-@app.post("/api/v2/upload-video", response_model=UploadResponse)
-async def upload_video(
+# Real-time upload with instant preview
+@app.post("/api/v3/upload-video")
+async def upload_video_realtime(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     upload_id: str = Form(...),
     processor: VideoProcessor = Depends(get_video_processor),
-    limiter: RateLimiter = Depends(get_rate_limiter)
+    engine: RealtimeEngine = Depends(get_realtime_engine)
 ):
-    """Upload and analyze video with real-time progress updates"""
-
+    """Upload video with real-time analysis and instant preview generation"""
     session_id = str(uuid.uuid4())
 
     try:
-        logger.info(f"Starting upload for session: {session_id}")
+        logger.info(f"Real-time upload started: {session_id}")
 
-        # Rate limiting
-        await limiter.check_rate_limit("upload", upload_id)
+        # Validate and save file
+        if not file.filename or file.size > settings.MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Invalid file")
 
-        # Validate file
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
-
-        # Check file size
-        file_size = 0
-        content = await file.read()
-        file_size = len(content)
-
-        if file_size > settings.MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE / (1024*1024):.1f}MB"
-            )
-
-        # Reset file pointer
-        await file.seek(0)
-
-        # Create upload directory
         upload_dir = Path(settings.UPLOAD_PATH)
         upload_dir.mkdir(exist_ok=True)
-
-        # Save uploaded file
         file_path = upload_dir / f"{session_id}_{file.filename}"
 
-        # Save file with progress updates
+        # Stream file with progress updates
         with open(file_path, "wb") as f:
-            f.write(content)
+            async for chunk in file.stream():
+                f.write(chunk)
+                # Send progress via WebSocket
+                await engine.broadcast_upload_progress(upload_id, {
+                    "type": "upload_progress",
+                    "progress": (f.tell() / file.size) * 100 if file.size else 0
+                })
 
-        # Send upload progress via WebSocket
-        await manager.send_message(upload_id, "upload", {
-            "type": "upload_progress",
-            "progress": 100,
-            "message": "Upload complete, analyzing video..."
-        })
+        # Start real-time analysis
+        analysis_task = asyncio.create_task(
+            engine.start_realtime_analysis(session_id, str(file_path))
+        )
 
-        # Validate video file
-        validation_result = await processor.validate_video(str(file_path))
+        # Generate instant preview clips
+        preview_task = asyncio.create_task(
+            engine.generate_instant_previews(session_id, str(file_path))
+        )
 
-        if not validation_result["valid"]:
-            file_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=400, detail=validation_result["error"])
+        # Wait for initial analysis
+        analysis_result = await analysis_task
+        preview_result = await preview_task
 
-        # Extract metadata and generate insights
-        metadata = validation_result["metadata"]
-
-        # Generate AI insights (mock for now)
-        ai_insights = {
-            "viral_potential": 85,
-            "confidence_score": 92,
-            "engagement_prediction": 78,
-            "recommended_platforms": ["tiktok", "instagram", "youtube_shorts"],
-            "content_analysis": {
-                "energy_level": "high",
-                "visual_appeal": "excellent",
-                "audio_quality": "good"
+        return {
+            "success": True,
+            "session_id": session_id,
+            "analysis": analysis_result,
+            "previews": preview_result,
+            "realtime_endpoints": {
+                "viral_scores": f"/api/v3/realtime/viral-scores/{session_id}",
+                "timeline": f"/api/v3/realtime/timeline/{session_id}",
+                "preview": f"/api/v3/realtime/preview/{session_id}"
             }
         }
 
-        # Generate suggested clips
-        suggested_clips = [
-            {
-                "title": "Opening Hook",
-                "start_time": 0,
-                "end_time": 15,
-                "viral_score": 88,
-                "description": "Attention-grabbing opening sequence",
-                "clip_type": "hook",
-                "recommended_platforms": ["tiktok", "instagram"],
-                "estimated_views": "500K+"
-            },
-            {
-                "title": "Key Moment",
-                "start_time": 30,
-                "end_time": 60,
-                "viral_score": 92,
-                "description": "Main highlight of the video",
-                "clip_type": "climax",
-                "recommended_platforms": ["youtube_shorts", "tiktok"],
-                "estimated_views": "1M+"
-            },
-            {
-                "title": "Trending Segment",
-                "start_time": 75,
-                "end_time": 105,
-                "viral_score": 79,
-                "description": "Trending topic discussion",
-                "clip_type": "trending",
-                "recommended_platforms": ["tiktok"],
-                "estimated_views": "300K+"
-            }
-        ]
-
-        # Send completion message
-        await manager.send_message(upload_id, "upload", {
-            "type": "upload_complete",
-            "message": "Analysis complete! Video ready for clip creation."
-        })
-
-        # Clean up background task
-        background_tasks.add_task(
-            cache_manager.cache_session_data,
-            session_id,
-            {
-                "file_path": str(file_path),
-                "metadata": metadata,
-                "ai_insights": ai_insights,
-                "suggested_clips": suggested_clips
-            }
-        )
-
-        return UploadResponse(
-            session_id=session_id,
-            file_info={
-                "filename": file.filename,
-                "size": file_size,
-                "format": file_path.suffix,
-                "duration": metadata.get("duration", 0)
-            },
-            video_info={
-                "title": file.filename,
-                "duration": metadata.get("duration", 0),
-                "thumbnail": f"/api/v2/thumbnail/{session_id}",
-                "width": metadata.get("width", 0),
-                "height": metadata.get("height", 0),
-                "view_count": 0
-            },
-            ai_insights=ai_insights,
-            suggested_clips=suggested_clips
-        )
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Upload error for session {session_id}: {e}")
-
-        # Send error via WebSocket
-        await manager.send_message(upload_id, "upload", {
+        logger.error(f"Real-time upload error: {e}")
+        await engine.broadcast_upload_progress(upload_id, {
             "type": "upload_error",
             "error": str(e)
         })
+        raise HTTPException(status_code=500, detail="Upload failed")
 
-        raise HTTPException(status_code=500, detail="Upload processing failed")
-
-# Video processing endpoint
-@app.post("/api/v2/process-video", response_model=ProcessingResponse)
-async def process_video(
-    request: ProcessingRequest,
-    background_tasks: BackgroundTasks,
-    processor: VideoProcessor = Depends(get_video_processor)
+# Real-time clip generation with live preview
+@app.post("/api/v3/generate-clip-preview")
+async def generate_clip_preview(
+    request: RealtimePreviewRequest,
+    engine: RealtimeEngine = Depends(get_realtime_engine)
 ):
-    """Process selected video clips with AI optimization"""
-
-    task_id = str(uuid.uuid4())
-
+    """Generate real-time clip preview with viral score analysis"""
     try:
-        logger.info(f"Starting processing for task: {task_id}")
-
-        # Get cached session data
-        session_data = await cache_manager.get_session_data(request.session_id)
-        if not session_data:
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        # Estimate processing time
-        estimated_time = await processor.estimate_processing_time(
-            session_data["metadata"]["duration"],
-            len(request.clips),
+        preview_data = await engine.generate_live_preview(
+            request.session_id,
+            request.start_time,
+            request.end_time,
             request.quality
         )
 
-        # Start background processing
-        background_tasks.add_task(
-            process_clips_background,
-            task_id,
-            request,
-            session_data,
-            processor
-        )
+        return {
+            "success": True,
+            "preview_url": preview_data["preview_url"],
+            "viral_analysis": preview_data["viral_analysis"],
+            "optimization_suggestions": preview_data["suggestions"],
+            "processing_time": preview_data["processing_time"]
+        }
 
-        return ProcessingResponse(
-            task_id=task_id,
-            estimated_time=int(estimated_time),
-            message=f"Processing {len(request.clips)} clips with {request.quality} quality"
-        )
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Processing initiation error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to start processing")
+        logger.error(f"Preview generation error: {e}")
+        raise HTTPException(status_code=500, detail="Preview generation failed")
 
-async def process_clips_background(
-    task_id: str,
-    request: ProcessingRequest,
-    session_data: Dict[str, Any],
-    processor: VideoProcessor
+# Interactive timeline with viral score visualization
+@app.get("/api/v3/timeline/{session_id}")
+async def get_interactive_timeline(
+    session_id: str,
+    engine: RealtimeEngine = Depends(get_realtime_engine)
 ):
-    """Background task for processing video clips"""
-
+    """Get interactive timeline data with viral score visualization"""
     try:
-        # Send processing started message
-        await manager.send_message(task_id, "processing", {
-            "type": "processing_started",
-            "total_clips": len(request.clips),
-            "quality": request.quality
-        })
-
-        # Create output directory
-        output_dir = Path(settings.OUTPUT_PATH) / task_id
-        output_dir.mkdir(exist_ok=True)
-
-        # Process clips
-        results = await processor.batch_process(
-            clips=request.clips,
-            input_path=session_data["file_path"],
-            output_dir=str(output_dir),
-            quality=request.quality,
-            platform_optimizations=request.platform_optimizations
-        )
-
-        # Send progress updates
-        for i, result in enumerate(results):
-            progress = ((i + 1) / len(results)) * 100
-
-            await manager.send_message(task_id, "processing", {
-                "type": "progress_update",
-                "data": {
-                    "percentage": progress,
-                    "stage": f"Processing clip {i + 1} of {len(results)}",
-                    "message": f"Completed: {result.get('clip_title', f'Clip {i + 1}')}"
-                }
-            })
-
-        # Send completion message
-        await manager.send_message(task_id, "processing", {
-            "type": "processing_complete",
-            "data": {
-                "results": results,
-                "total_clips": len(results),
-                "success_count": sum(1 for r in results if r.get("success", False))
-            }
-        })
-
-        # Cache results
-        await cache_manager.cache_results(task_id, results)
-
-    except Exception as e:
-        logger.error(f"Background processing error for task {task_id}: {e}")
-
-        await manager.send_message(task_id, "processing", {
-            "type": "processing_error",
-            "data": {"error": str(e)}
-        })
-
-# WebSocket endpoints
-@app.websocket("/api/v2/upload-progress/{upload_id}")
-async def upload_progress_websocket(websocket: WebSocket, upload_id: str):
-    """WebSocket for real-time upload progress"""
-    await manager.connect(websocket, upload_id, "upload")
-
-    try:
-        await websocket.send_text(json.dumps({
-            "type": "connected",
-            "message": "Upload progress WebSocket connected",
-            "upload_id": upload_id,
-            "timestamp": datetime.now().isoformat()
-        }))
-
-        while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                message = json.loads(data)
-
-                if message.get("type") == "ping":
-                    await websocket.send_text(json.dumps({
-                        "type": "pong",
-                        "timestamp": datetime.now().isoformat()
-                    }))
-
-            except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({
-                    "type": "keep_alive",
-                    "timestamp": datetime.now().isoformat()
-                }))
-
-    except WebSocketDisconnect:
-        manager.disconnect(upload_id, "upload")
-    except Exception as e:
-        logger.error(f"Upload WebSocket error: {e}")
-        manager.disconnect(upload_id, "upload")
-
-@app.websocket("/api/v2/ws/{task_id}")
-async def processing_websocket(websocket: WebSocket, task_id: str):
-    """WebSocket for real-time processing updates"""
-    await manager.connect(websocket, task_id, "processing")
-
-    try:
-        await websocket.send_text(json.dumps({
-            "type": "connected",
-            "message": "Processing WebSocket connected",
-            "task_id": task_id,
-            "timestamp": datetime.now().isoformat()
-        }))
-
-        while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                message = json.loads(data)
-
-                if message.get("type") == "ping":
-                    await websocket.send_text(json.dumps({
-                        "type": "pong",
-                        "timestamp": datetime.now().isoformat()
-                    }))
-
-            except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({
-                    "type": "keep_alive",
-                    "timestamp": datetime.now().isoformat()
-                }))
-
-    except WebSocketDisconnect:
-        manager.disconnect(task_id, "processing")
-    except Exception as e:
-        logger.error(f"Processing WebSocket error: {e}")
-        manager.disconnect(task_id, "processing")
-
-# Download endpoints
-@app.get("/api/v2/download/{task_id}/{clip_index}")
-async def download_clip(task_id: str, clip_index: int):
-    """Download processed video clip"""
-    try:
-        output_dir = Path(settings.OUTPUT_PATH) / task_id
-        clip_files = list(output_dir.glob(f"clip_{clip_index + 1}_*.mp4"))
-
-        if not clip_files:
-            raise HTTPException(status_code=404, detail="Clip not found")
-
-        clip_path = clip_files[0]
-
-        return FileResponse(
-            path=str(clip_path),
-            media_type="video/mp4",
-            filename=f"viral_clip_{clip_index + 1}.mp4"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Download error: {e}")
-        raise HTTPException(status_code=500, detail="Download failed")
-
-# Health check
-@app.get("/api/v2/health")
-async def health_check():
-    """Comprehensive health check"""
-    try:
-        if health_checker is None:
-            return {"status": "unhealthy", "error": "Health checker not initialized"}
-
-        health_status = await health_checker.check_all()
+        timeline_data = await engine.get_timeline_data(session_id)
 
         return {
-            "status": "healthy" if health_status["overall_healthy"] else "unhealthy",
+            "success": True,
+            "timeline": {
+                "duration": timeline_data["duration"],
+                "viral_heatmap": timeline_data["viral_scores"],
+                "key_moments": timeline_data["highlights"],
+                "engagement_peaks": timeline_data["peaks"],
+                "recommended_clips": timeline_data["clips"]
+            },
+            "visualization": {
+                "score_graph": timeline_data["score_visualization"],
+                "emotion_tracking": timeline_data["emotions"],
+                "energy_levels": timeline_data["energy"]
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Timeline error: {e}")
+        raise HTTPException(status_code=500, detail="Timeline generation failed")
+
+# Enhanced processing with entertaining status updates
+@app.post("/api/v3/process-clips")
+async def process_clips_enhanced(
+    request: dict,
+    background_tasks: BackgroundTasks,
+    engine: RealtimeEngine = Depends(get_realtime_engine)
+):
+    """Process clips with real-time status and entertaining content"""
+    task_id = str(uuid.uuid4())
+
+    try:
+        # Start enhanced processing
+        background_tasks.add_task(
+            engine.process_clips_with_entertainment,
+            task_id,
+            request["session_id"],
+            request["clips"],
+            request.get("options", {})
+        )
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "realtime_status": f"/api/v3/realtime/processing/{task_id}",
+            "entertainment_feed": f"/api/v3/realtime/entertainment/{task_id}"
+        }
+
+    except Exception as e:
+        logger.error(f"Enhanced processing error: {e}")
+        raise HTTPException(status_code=500, detail="Processing failed to start")
+
+# WebSocket endpoints for real-time features
+@app.websocket("/api/v3/ws/upload/{upload_id}")
+async def upload_websocket(websocket: WebSocket, upload_id: str):
+    """WebSocket for real-time upload progress"""
+    await realtime_engine.handle_upload_websocket(websocket, upload_id)
+
+@app.websocket("/api/v3/ws/viral-scores/{session_id}")
+async def viral_scores_websocket(websocket: WebSocket, session_id: str):
+    """WebSocket for real-time viral score updates"""
+    await realtime_engine.handle_viral_scores_websocket(websocket, session_id)
+
+@app.websocket("/api/v3/ws/timeline/{session_id}")
+async def timeline_websocket(websocket: WebSocket, session_id: str):
+    """WebSocket for interactive timeline updates"""
+    await realtime_engine.handle_timeline_websocket(websocket, session_id)
+
+@app.websocket("/api/v3/ws/processing/{task_id}")
+async def processing_websocket(websocket: WebSocket, task_id: str):
+    """WebSocket for entertaining processing updates"""
+    await realtime_engine.handle_processing_websocket(websocket, task_id)
+
+# Real-time preview streaming
+@app.get("/api/v3/stream/preview/{session_id}")
+async def stream_preview(
+    session_id: str,
+    start_time: float,
+    end_time: float,
+    engine: RealtimeEngine = Depends(get_realtime_engine)
+):
+    """Stream real-time preview video"""
+    try:
+        async def generate_preview_stream():
+            async for chunk in engine.stream_preview(session_id, start_time, end_time):
+                yield chunk
+
+        return StreamingResponse(
+            generate_preview_stream(),
+            media_type="video/mp4",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Preview streaming error: {e}")
+        raise HTTPException(status_code=500, detail="Preview streaming failed")
+
+# Health check with real-time metrics
+@app.get("/api/v3/health")
+async def health_check_enhanced():
+    """Enhanced health check with real-time system metrics"""
+    try:
+        health_data = await health_checker.comprehensive_check()
+        realtime_metrics = await realtime_engine.get_system_metrics()
+
+        return {
+            "status": "healthy" if health_data["overall_healthy"] else "unhealthy",
             "timestamp": datetime.now().isoformat(),
-            "version": "2.0.0",
-            "checks": health_status
+            "version": "3.0.0",
+            "services": health_data,
+            "realtime_metrics": realtime_metrics,
+            "performance": {
+                "active_sessions": len(realtime_engine.active_sessions),
+                "processing_queue": realtime_engine.processing_queue_size,
+                "websocket_connections": realtime_engine.websocket_count
+            }
         }
 
     except Exception as e:
@@ -638,7 +401,8 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content={
             "success": False,
             "error": exc.detail,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "path": str(request.url)
         }
     )
 
