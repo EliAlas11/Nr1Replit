@@ -35,4 +35,5 @@ moviepy==1.0.3
 ffmpeg-python==0.2.0
 opencv-python==4.8.1.78
 numpy==1.24.3
-scipy==1.11.4</old_str>
+scipy==1.11.4
+redis[hiredis]==5.0.1</old_str>

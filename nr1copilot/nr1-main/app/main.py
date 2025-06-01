@@ -36,11 +36,7 @@ try:
     import redis.asyncio as redis
     Redis = redis.Redis
 except ImportError:
-    try:
-        import aioredis
-        Redis = aioredis.Redis
-    except ImportError:
-        Redis = None
+    Redis = None
 
 from .config import get_settings, is_production
 from .logging_config import setup_logging
