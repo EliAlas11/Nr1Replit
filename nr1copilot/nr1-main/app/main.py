@@ -178,8 +178,11 @@ async def lifespan(app: FastAPI):
         
         # Create directories with proper permissions
         for directory in [settings.upload_path, settings.video_storage_path, settings.temp_path, "output", "logs"]:
-            os.makedirs(directory, exist_ok=True)
-            os.chmod(directory, 0o755)
+            try:
+                os.makedirs(directory, exist_ok=True)
+                os.chmod(directory, 0o755)
+            except Exception as e:
+                logger.warning(f"Could not create directory {directory}: {e}")
         
         # Initialize video processor
         global video_processor, ai_analyzer, cloud_processor
