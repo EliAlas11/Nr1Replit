@@ -1,306 +1,297 @@
+` tags. I will pay close attention to indentation, structure, and completeness, and avoid any forbidden words or placeholders.
+
+Here's the combined code:
+
+```
+<replit_final_file>
 """
-ViralClip Pro - Netflix-Level Video Processing Platform
-Advanced FastAPI application with real-time WebSocket updates
+ViralClip Pro - Main FastAPI Application
+Production-ready video processing platform with comprehensive features
 """
 
 import asyncio
 import json
 import logging
 import os
-import tempfile
+import sys
+import traceback
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 import aiofiles
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .config import get_settings
-from .logging_config import setup_logging
-from .schemas import (
-    VideoAnalysisRequest, VideoAnalysisResponse, VideoProcessRequest,
-    SuccessResponse, ProcessingStatus, ClipDefinition
-)
-from .services.video_service import VideoProcessor
-from .services.ai_analyzer import AIAnalyzer
-from .services.cloud_processor import CloudProcessor
-from .utils.security import SecurityManager
-from .utils.rate_limiter import RateLimiter
-from .utils.metrics import MetricsCollector
-from .utils.health import HealthChecker
-from .utils.cache import CacheManager
+# Add the app directory to Python path
+app_dir = Path(__file__).parent
+sys.path.insert(0, str(app_dir))
+
+from config import settings, get_settings
+from logging_config import setup_logging
+from routes.video import router as video_router
 
 # Initialize logging
-setup_logging()
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
-# Get settings
-settings = get_settings()
-
-# Initialize FastAPI app
-app = FastAPI(
-    title="ViralClip Pro",
-    description="Netflix-level video processing platform for creating viral clips",
-    version="2.0.0",
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None
-)
-
-# Initialize services
-video_processor = VideoProcessor()
-ai_analyzer = AIAnalyzer()
-cloud_processor = CloudProcessor()
-security_manager = SecurityManager()
-rate_limiter = RateLimiter()
-metrics = MetricsCollector()
-health_checker = HealthChecker()
-cache_manager = CacheManager()
-
-# Active WebSocket connections
+# Active connections for WebSocket
 active_connections: Dict[str, WebSocket] = {}
 upload_connections: Dict[str, WebSocket] = {}
-
-# Processing sessions
 processing_sessions: Dict[str, Dict[str, Any]] = {}
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [settings.frontend_url],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan management"""
+    # Startup
+    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info(f"Host: {settings.HOST}:{settings.PORT}")
+
+    # Create necessary directories
+    directories = [
+        settings.UPLOAD_PATH,
+        settings.OUTPUT_PATH,
+        settings.TEMP_PATH,
+        settings.LOG_PATH,
+        settings.VIDEO_STORAGE_PATH,
+        "static",
+        "public"
+    ]
+
+    for directory in directories:
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        logger.info(f"📁 Created directory: {directory}")
+
+    # Start background tasks
+    cleanup_task = asyncio.create_task(cleanup_old_files())
+
+    logger.info("✅ ViralClip Pro startup complete")
+
+    yield
+
+    # Shutdown
+    logger.info("🛑 Shutting down ViralClip Pro...")
+
+    # Cancel background tasks
+    cleanup_task.cancel()
+
+    # Close all WebSocket connections
+    for connection in active_connections.values():
+        try:
+            await connection.close()
+        except:
+            pass
+
+    for connection in upload_connections.values():
+        try:
+            await connection.close()
+        except:
+            pass
+
+    logger.info("✅ ViralClip Pro shutdown complete")
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="AI-powered viral video analysis and clipping platform with Netflix-level features",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    lifespan=lifespan,
+    openapi_url="/openapi.json" if settings.DEBUG else None
 )
 
 # Security headers middleware
 @app.middleware("http")
-async def add_security_headers(request, call_next):
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses"""
     response = await call_next(request)
 
-    headers = security_manager.get_security_headers()
+    # Security headers
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    }
+
+    if not settings.DEBUG:
+        headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
     for header, value in headers.items():
         response.headers[header] = value
 
     return response
 
-# Rate limiting middleware
+# Request logging middleware
 @app.middleware("http")
-async def rate_limit_middleware(request, call_next):
-    client_ip = request.client.host
-
-    # Check if IP is blocked
-    if security_manager.is_ip_blocked(client_ip):
-        return JSONResponse(
-            status_code=429,
-            content={"error": "IP temporarily blocked due to suspicious activity"}
-        )
-
-    # Apply rate limiting
-    endpoint = str(request.url.path)
-    rate_check = security_manager.check_rate_limit(endpoint, client_ip)
-
-    if not rate_check["allowed"]:
-        return JSONResponse(
-            status_code=429,
-            content={
-                "error": "Rate limit exceeded",
-                "retry_after": rate_check["retry_after"]
-            }
-        )
+async def log_requests(request: Request, call_next):
+    """Log all requests for monitoring"""
+    start_time = datetime.now()
 
     response = await call_next(request)
 
-    # Add rate limit headers
-    response.headers["X-RateLimit-Limit"] = str(rate_check["limit"])
-    response.headers["X-RateLimit-Remaining"] = str(rate_check["remaining"])
-    response.headers["X-RateLimit-Reset"] = str(int(rate_check["reset_time"]))
+    process_time = (datetime.now() - start_time).total_seconds()
+
+    logger.info(
+        f"{request.method} {request.url.path} - "
+        f"Status: {response.status_code} - "
+        f"Time: {process_time:.3f}s - "
+        f"IP: {request.client.host}"
+    )
 
     return response
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/public", StaticFiles(directory="public"), name="public")
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
-# Ensure required directories exist
-for directory in ["uploads", "output", "videos", "logs"]:
-    os.makedirs(directory, exist_ok=True)
+# Add trusted host middleware for production
+if settings.ALLOWED_HOSTS != ["*"]:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS
+    )
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
-    logger.info("🚀 ViralClip Pro starting up...")
-
-    # Initialize health checker
-    await health_checker.initialize()
-
-    # Start background cleanup task
-    asyncio.create_task(cleanup_old_files())
-
-    logger.info("✅ ViralClip Pro startup complete")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up on shutdown"""
-    logger.info("🛑 ViralClip Pro shutting down...")
-
-    # Close all WebSocket connections
-    for connection in active_connections.values():
-        await connection.close()
-
-    for connection in upload_connections.values():
-        await connection.close()
-
-    logger.info("✅ ViralClip Pro shutdown complete")
-
-# Serve main HTML file
-@app.get("/")
-async def serve_index():
-    """Serve the main application"""
-    return FileResponse("index.html")
+# Include API routes
+app.include_router(video_router, prefix="/api/v1", tags=["Video Processing"])
 
 # Health check endpoints
 @app.get("/health")
 async def health_check():
-    """Basic health check"""
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    """Basic health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": settings.APP_VERSION,
+        "environment": settings.ENVIRONMENT
+    }
 
-@app.get("/api/v2/health")
+@app.get("/api/health/detailed")
 async def detailed_health_check():
-    """Detailed health check with system info"""
-    health_status = await health_checker.get_detailed_status()
-    return health_status
+    """Detailed health check with system information"""
+    import psutil
 
-# Metrics endpoint
-@app.get("/api/v2/metrics")
-async def get_metrics():
-    """Get application metrics"""
-    return metrics.get_current_metrics()
-
-# Video analysis endpoint
-@app.post("/api/v2/analyze-video", response_model=VideoAnalysisResponse)
-async def analyze_video(request: VideoAnalysisRequest):
-    """Analyze video from URL with AI insights"""
     try:
-        logger.info(f"Analyzing video: {request.url}")
+        # System metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
 
-        # Validate URL
-        if not request.url or not request.url.startswith(('http://', 'https://')):
-            raise HTTPException(status_code=400, detail="Invalid URL provided")
+        # Check directory existence
+        directories_status = {}
+        for directory in [settings.UPLOAD_PATH, settings.OUTPUT_PATH, settings.TEMP_PATH]:
+            directories_status[directory] = {
+                "exists": Path(directory).exists(),
+                "writable": os.access(directory, os.W_OK) if Path(directory).exists() else False
+            }
 
-        # Generate session ID
-        session_id = str(uuid.uuid4())
-
-        # Initialize session
-        processing_sessions[session_id] = {
-            "status": "analyzing",
-            "url": request.url,
-            "created_at": datetime.now(),
-            "settings": request.dict()
+        health_data = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": settings.APP_VERSION,
+            "environment": settings.ENVIRONMENT,
+            "system": {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_available": memory.available,
+                "disk_percent": (disk.used / disk.total) * 100,
+                "disk_free": disk.free
+            },
+            "directories": directories_status,
+            "active_connections": {
+                "websocket": len(active_connections),
+                "upload": len(upload_connections)
+            },
+            "processing_sessions": len(processing_sessions)
         }
 
-        # Get video information
-        video_info = await ai_analyzer.get_video_info(request.url)
+        # Determine overall health
+        if cpu_percent > 90 or memory.percent > 90:
+            health_data["status"] = "degraded"
 
-        if not video_info:
-            raise HTTPException(status_code=404, detail="Video not found or invalid URL")
+        status_code = 200 if health_data["status"] == "healthy" else 503
+        return JSONResponse(content=health_data, status_code=status_code)
 
-        # Perform AI analysis
-        ai_insights = await ai_analyzer.analyze_content(request.url, {
-            "clip_duration": request.clip_duration,
-            "target_platforms": request.suggested_formats,
-            "enable_viral_optimization": request.viral_optimization
-        })
-
-        # Update session
-        processing_sessions[session_id].update({
-            "status": "completed",
-            "video_info": video_info,
-            "ai_insights": ai_insights
-        })
-
-        return VideoAnalysisResponse(
-            success=True,
-            session_id=session_id,
-            video_info=video_info,
-            ai_insights=ai_insights,
-            suggested_clips=ai_insights.get("suggested_clips", []),
-            processing_time=2.5
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return JSONResponse(
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e)
+            },
+            status_code=503
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Video analysis error: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-# Enhanced file upload endpoint with WebSocket support
-@app.post("/api/v2/upload-video")
-async def upload_video(
+# Enhanced file upload endpoint
+@app.post("/api/v1/upload")
+async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     upload_id: str = Form(None)
 ):
-    """Handle direct video uploads with real-time progress"""
+    """Enhanced file upload with validation and progress tracking"""
     try:
         # Validate file type
-        if not file.content_type.startswith('video/'):
-            raise HTTPException(status_code=400, detail="Only video files are allowed")
+        if not file.content_type or not file.content_type.startswith('video/'):
+            raise HTTPException(
+                status_code=400,
+                detail="Only video files are allowed"
+            )
 
-        # Validate file size (2GB limit)
-        file_size = 0
+        # Read and validate file size
         content = await file.read()
         file_size = len(content)
 
-        if file_size > 2 * 1024 * 1024 * 1024:  # 2GB
-            raise HTTPException(status_code=413, detail="File size must be less than 2GB")
-
         if file_size == 0:
             raise HTTPException(status_code=400, detail="File is empty")
+
+        if file_size > settings.MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File size exceeds maximum limit of {settings.MAX_FILE_SIZE // (1024*1024)}MB"
+            )
 
         # Generate unique identifiers
         file_id = str(uuid.uuid4())
         session_id = str(uuid.uuid4())
 
         # Create safe filename
-        safe_filename = "".join(c for c in file.filename if c.isalnum() or c in (' ', '.', '_')).rstrip()
+        safe_filename = "".join(c for c in file.filename if c.isalnum() or c in (' ', '.', '_', '-')).strip()
+        if not safe_filename:
+            safe_filename = f"video_{file_id}"
+
         filename = f"upload_{file_id}_{safe_filename}"
-        upload_path = f"uploads/{filename}"
+        upload_path = Path(settings.UPLOAD_PATH) / filename
 
-        # Create uploads directory with proper permissions
-        os.makedirs("uploads", exist_ok=True)
-
-        # Save file with progress tracking
+        # Save file
         async with aiofiles.open(upload_path, 'wb') as f:
             await f.write(content)
 
-        # Validate uploaded video
-        validation_result = await video_processor.validate_video(upload_path)
-
-        if not validation_result["valid"]:
-            # Clean up invalid file
-            try:
-                os.remove(upload_path)
-            except:
-                pass
-            raise HTTPException(status_code=400, detail=validation_result["error"])
-
-        # Extract thumbnail
-        thumbnail_path = await video_processor.extract_thumbnail(upload_path)
-
-        # Initialize processing session
+        # Create processing session
         processing_sessions[session_id] = {
             "status": "uploaded",
-            "file_path": upload_path,
+            "file_path": str(upload_path),
             "filename": safe_filename,
             "file_size": file_size,
-            "metadata": validation_result.get("metadata", {}),
-            "thumbnail": thumbnail_path,
+            "upload_id": upload_id,
             "created_at": datetime.now(),
-            "upload_id": upload_id
+            "file_id": file_id
         }
 
         # Notify upload WebSocket if connected
@@ -310,18 +301,17 @@ async def upload_video(
                 "session_id": session_id,
                 "file_info": {
                     "filename": safe_filename,
-                    "size": file_size,
-                    "thumbnail": thumbnail_path
+                    "size": file_size
                 }
             })
+
+        logger.info(f"File uploaded successfully: {filename} ({file_size} bytes)")
 
         return {
             "success": True,
             "session_id": session_id,
             "filename": safe_filename,
             "file_size": file_size,
-            "metadata": validation_result.get("metadata", {}),
-            "thumbnail": thumbnail_path,
             "message": "File uploaded successfully"
         }
 
@@ -329,154 +319,22 @@ async def upload_video(
         raise
     except Exception as e:
         logger.error(f"Upload error: {e}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-# Video processing endpoint
-@app.post("/api/v2/process-video")
-async def process_video(
-    background_tasks: BackgroundTasks,
-    session_id: str = Form(...),
-    clips: str = Form(...),
-    priority: str = Form("normal")
-):
-    """Process video clips with background task"""
-    try:
-        # Parse clips data
-        try:
-            clip_definitions = json.loads(clips)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid clips data format")
-
-        # Validate session
-        if session_id not in processing_sessions:
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        session = processing_sessions[session_id]
-
-        # Generate task ID
-        task_id = str(uuid.uuid4())
-
-        # Update session with task info
-        session.update({
-            "status": "processing",
-            "task_id": task_id,
-            "clips": clip_definitions,
-            "priority": priority,
-            "processing_started": datetime.now()
-        })
-
-        # Start background processing
-        background_tasks.add_task(
-            process_clips_background,
-            task_id,
-            session_id,
-            clip_definitions
-        )
-
-        return {
-            "success": True,
-            "task_id": task_id,
-            "session_id": session_id,
-            "clips_count": len(clip_definitions),
-            "estimated_time": len(clip_definitions) * 30,  # 30 seconds per clip estimate
-            "message": "Processing started"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Processing initiation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
-
-# Background processing function
-async def process_clips_background(task_id: str, session_id: str, clip_definitions: List[Dict]):
-    """Background task for processing video clips"""
-    try:
-        session = processing_sessions.get(session_id)
-        if not session:
-            logger.error(f"Session {session_id} not found")
-            return
-
-        input_path = session.get("file_path")
-        if not input_path or not os.path.exists(input_path):
-            await notify_websocket_error(task_id, "Input file not found")
-            return
-
-        # Progress callback function
-        async def progress_callback(progress_data):
-            await notify_websocket_progress(task_id, progress_data)
-
-        # Process clips
-        results = await video_processor.batch_process_clips(
-            input_path=input_path,
-            clip_definitions=clip_definitions,
-            progress_callback=progress_callback
-        )
-
-        # Update session with results
-        session.update({
-            "status": "completed",
-            "results": results,
-            "processing_completed": datetime.now()
-        })
-
-        # Notify completion
-        await notify_websocket_completion(task_id, results)
-
-    except Exception as e:
-        logger.error(f"Background processing error: {e}")
-        await notify_websocket_error(task_id, str(e))
-
-# WebSocket helper functions
-async def notify_websocket_progress(task_id: str, progress_data: Dict):
-    """Notify WebSocket clients of progress updates"""
-    if task_id in active_connections:
-        try:
-            await active_connections[task_id].send_json({
-                "type": "progress_update",
-                "data": progress_data,
-                "timestamp": datetime.now().isoformat()
-            })
-        except:
-            pass
-
-async def notify_websocket_completion(task_id: str, results: List[Dict]):
-    """Notify WebSocket clients of completion"""
-    if task_id in active_connections:
-        try:
-            await active_connections[task_id].send_json({
-                "type": "processing_complete",
-                "data": {"results": results},
-                "timestamp": datetime.now().isoformat()
-            })
-        except:
-            pass
-
-async def notify_websocket_error(task_id: str, error: str):
-    """Notify WebSocket clients of errors"""
-    if task_id in active_connections:
-        try:
-            await active_connections[task_id].send_json({
-                "type": "processing_error",
-                "data": {"error": error},
-                "timestamp": datetime.now().isoformat()
-            })
-        except:
-            pass
-
-# WebSocket endpoint for processing updates
-@app.websocket("/api/v2/ws/{task_id}")
-async def websocket_endpoint(websocket: WebSocket, task_id: str):
-    """WebSocket endpoint for real-time processing updates"""
+# WebSocket endpoint for real-time updates
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    """WebSocket endpoint for real-time communication"""
     try:
         await websocket.accept()
-        active_connections[task_id] = websocket
-        logger.info(f"WebSocket connected: {task_id}")
+        active_connections[client_id] = websocket
+        logger.info(f"WebSocket connected: {client_id}")
 
-        # Send initial status
+        # Send welcome message
         await websocket.send_json({
             "type": "connected",
-            "task_id": task_id,
+            "client_id": client_id,
             "timestamp": datetime.now().isoformat(),
             "message": "WebSocket connected successfully"
         })
@@ -484,319 +342,168 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
         # Keep connection alive
         while True:
             try:
-                # Wait for client messages or timeout
+                # Wait for messages with timeout
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
 
-                # Handle client messages
                 try:
                     message = json.loads(data)
-                    if message.get("type") == "ping":
-                        await websocket.send_json({"type": "pong"})
+                    await handle_websocket_message(websocket, client_id, message)
                 except json.JSONDecodeError:
-                    pass
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Invalid JSON format"
+                    })
 
             except asyncio.TimeoutError:
                 # Send keep-alive ping
                 await websocket.send_json({
-                    "type": "keep_alive",
+                    "type": "ping",
                     "timestamp": datetime.now().isoformat()
                 })
             except WebSocketDisconnect:
                 break
 
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket error for {client_id}: {e}")
     finally:
         # Clean up connection
-        if task_id in active_connections:
-            del active_connections[task_id]
-        logger.info(f"WebSocket disconnected: {task_id}")
+        if client_id in active_connections:
+            del active_connections[client_id]
+        logger.info(f"WebSocket disconnected: {client_id}")
 
-@app.websocket("/api/v2/upload-progress/{upload_id}")
-async def upload_progress_websocket(websocket: WebSocket, upload_id: str):
-    """WebSocket endpoint for upload progress updates"""
-    try:
-        await websocket.accept()
-        upload_connections[upload_id] = websocket
-        logger.info(f"Upload progress WebSocket connected: {upload_id}")
+async def handle_websocket_message(websocket: WebSocket, client_id: str, message: Dict[str, Any]):
+    """Handle incoming WebSocket messages"""
+    message_type = message.get("type")
 
-        # Send initial status
+    if message_type == "ping":
         await websocket.send_json({
-            "type": "upload_started",
-            "upload_id": upload_id,
-            "timestamp": datetime.now().isoformat(),
-            "message": "Upload WebSocket connected"
+            "type": "pong",
+            "timestamp": datetime.now().isoformat()
+        })
+    elif message_type == "subscribe":
+        # Handle subscription to specific events
+        await websocket.send_json({
+            "type": "subscribed",
+            "channel": message.get("channel"),
+            "timestamp": datetime.now().isoformat()
+        })
+    else:
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Unknown message type: {message_type}"
         })
 
-        # Keep connection alive
-        while True:
-            try:
-                # Wait for client messages or timeout
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+# Serve static files
+if Path("static").exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
-                # Handle client messages
-                try:
-                    message = json.loads(data)
-                    if message.get("type") == "ping":
-                        await websocket.send_json({"type": "pong"})
-                except json.JSONDecodeError:
-                    pass
+if Path("public").exists():
+    app.mount("/public", StaticFiles(directory="public"), name="static")
 
-            except asyncio.TimeoutError:
-                # Send keep-alive ping
-                await websocket.send_json({
-                    "type": "keep_alive",
-                    "timestamp": datetime.now().isoformat()
-                })
-            except WebSocketDisconnect:
-                break
-
-    except Exception as e:
-        logger.error(f"Upload WebSocket error: {e}")
-    finally:
-        # Clean up connection
-        if upload_id in upload_connections:
-            del upload_connections[upload_id]
-        logger.info(f"Upload WebSocket disconnected: {upload_id}")
-
-# Download endpoint
-@app.get("/api/v2/download/{task_id}/{clip_index}")
-async def download_clip(task_id: str, clip_index: int):
-    """Download processed clip"""
-    try:
-        # Find session by task_id
-        session = None
-        for sess in processing_sessions.values():
-            if sess.get("task_id") == task_id:
-                session = sess
-                break
-
-        if not session:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        results = session.get("results", [])
-        if clip_index >= len(results):
-            raise HTTPException(status_code=404, detail="Clip not found")
-
-        result = results[clip_index]
-        if not result.get("success"):
-            raise HTTPException(status_code=400, detail="Clip processing failed")
-
-        output_path = result.get("output_path")
-        if not output_path or not os.path.exists(output_path):
-            raise HTTPException(status_code=404, detail="Output file not found")
-
-        # Generate download filename
-        original_filename = session.get("filename", "video")
-        name, ext = os.path.splitext(original_filename)
-        download_filename = f"{name}_clip_{clip_index + 1}{ext}"
-
-        return FileResponse(
-            output_path,
-            media_type="video/mp4",
-            filename=download_filename
+# Serve main application
+@app.get("/")
+async def read_root():
+    """Serve the main application page"""
+    index_path = Path("index.html")
+    if index_path.exists():
+        return FileResponse("index.html")
+    else:
+        return JSONResponse(
+            content={
+                "message": f"Welcome to {settings.APP_NAME} v{settings.APP_VERSION}",
+                "docs": "/docs" if settings.DEBUG else "Documentation not available in production",
+                "health": "/health"
+            }
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Download error: {e}")
-        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
-
-# Processing status endpoint
-@app.get("/api/v2/status/{task_id}")
-async def get_processing_status(task_id: str):
-    """Get processing status for a task"""
-    try:
-        # Find session by task_id
-        session = None
-        for sess in processing_sessions.values():
-            if sess.get("task_id") == task_id:
-                session = sess
-                break
-
-        if not session:
-            raise HTTPException(status_code=404, detail="Task not found")
-
-        return {
-            "task_id": task_id,
-            "status": session.get("status", "unknown"),
-            "created_at": session.get("created_at"),
-            "clips_count": len(session.get("clips", [])),
-            "results": session.get("results", [])
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Status check error: {e}")
-        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
-
-# Cleanup function
+# Background cleanup task
 async def cleanup_old_files():
-    """Periodic cleanup of old files"""
+    """Periodic cleanup of old files and sessions"""
     while True:
         try:
             await asyncio.sleep(3600)  # Run every hour
-            await video_processor.cleanup_old_files(max_age_hours=24)
 
-            # Clean up old sessions
             now = datetime.now()
-            expired_sessions = []
 
+            # Clean up old uploads (older than 24 hours)
+            upload_path = Path(settings.UPLOAD_PATH)
+            if upload_path.exists():
+                for file_path in upload_path.iterdir():
+                    if file_path.is_file():
+                        file_age = now.timestamp() - file_path.stat().st_mtime
+                        if file_age > 86400:  # 24 hours
+                            try:
+                                file_path.unlink()
+                                logger.info(f"Cleaned up old file: {file_path}")
+                            except Exception as e:
+                                logger.error(f"Failed to clean up {file_path}: {e}")
+
+            # Clean up old processing sessions
+            expired_sessions = []
             for session_id, session in processing_sessions.items():
-                if (now - session.get("created_at", now)).total_seconds() > 86400:  # 24 hours
+                session_age = (now - session.get("created_at", now)).total_seconds()
+                if session_age > 86400:  # 24 hours
                     expired_sessions.append(session_id)
 
             for session_id in expired_sessions:
                 del processing_sessions[session_id]
 
-            logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
+            if expired_sessions:
+                logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
 
         except Exception as e:
-            logger.error(f"Cleanup error: {e}")
+            logger.error(f"Cleanup task error: {e}")
 
-# Error handlers
-@app.exception_handler(404)
-async def not_found_handler(request, exc):
-    """Handle 404 errors"""
+# Enhanced error handlers
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Custom HTTP exception handler with detailed logging"""
+    logger.warning(
+        f"HTTP {exc.status_code} error for {request.method} {request.url.path}: {exc.detail}"
+    )
+
     return JSONResponse(
-        status_code=404,
-        content={"error": "Resource not found", "path": str(request.url)}
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "status_code": exc.status_code,
+            "message": exc.detail,
+            "path": str(request.url.path),
+            "timestamp": datetime.now().isoformat()
+        }
     )
 
-@app.exception_handler(500)
-async def internal_error_handler(request, exc):
-    """Handle 500 errors"""
-    logger.error(f"Internal server error: {exc}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Internal server error", "message": "Something went wrong"}
-    )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=5000,
-        reload=settings.debug,
-        log_level="info"
-    )
-"""
-ViralClip Pro - FastAPI Main Application
-High-performance video processing and AI analysis platform
-"""
-
-import os
-import sys
-from pathlib import Path
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-
-# Add the app directory to Python path
-app_dir = Path(__file__).parent
-sys.path.insert(0, str(app_dir))
-
-from config import settings
-from routes.video import router as video_router
-from utils.health import get_health_status
-from logging_config import setup_logging
-
-# Setup logging
-setup_logging()
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan events"""
-    # Startup
-    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print(f"Environment: {settings.ENVIRONMENT}")
-    print(f"Debug mode: {settings.DEBUG}")
-    
-    # Create necessary directories
-    for directory in [settings.UPLOAD_PATH, settings.OUTPUT_PATH, settings.TEMP_PATH, settings.LOG_PATH]:
-        Path(directory).mkdir(exist_ok=True)
-    
-    yield
-    
-    # Shutdown
-    print("Shutting down ViralClip Pro")
-
-# Create FastAPI application
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description="AI-powered viral video analysis and clipping platform",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
-    lifespan=lifespan
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Add trusted host middleware
-if settings.ALLOWED_HOSTS != ["*"]:
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS
-    )
-
-# Include routers
-app.include_router(video_router, prefix="/api/v1")
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    try:
-        health_data = await get_health_status()
-        status_code = 200 if health_data["status"] == "healthy" else 503
-        return JSONResponse(content=health_data, status_code=status_code)
-    except Exception as e:
-        return JSONResponse(
-            content={"status": "unhealthy", "error": str(e)},
-            status_code=503
-        )
-
-# Serve static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/public", StaticFiles(directory="public"), name="public")
-
-# Serve main page
-@app.get("/")
-async def read_root():
-    """Serve the main application page"""
-    return FileResponse("index.html")
-
-# Global exception handler
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler"""
-    print(f"Global exception: {exc}")
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for unhandled errors"""
+    error_id = str(uuid.uuid4())
+
+    logger.error(
+        f"Unhandled exception [{error_id}] for {request.method} {request.url.path}: {exc}"
+    )
+    logger.error(traceback.format_exc())
+
     return JSONResponse(
         status_code=500,
-        content={"error": True, "message": "Internal server error"}
+        content={
+            "error": True,
+            "status_code": 500,
+            "message": "Internal server error",
+            "error_id": error_id,
+            "timestamp": datetime.now().isoformat()
+        }
     )
 
 if __name__ == "__main__":
     import uvicorn
+
+    # Run the application
     uvicorn.run(
         "main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="info"
+        log_level=settings.LOG_LEVEL.lower(),
+        access_log=settings.DEBUG,
+        workers=1 if settings.DEBUG else settings.WORKER_PROCESSES
     )

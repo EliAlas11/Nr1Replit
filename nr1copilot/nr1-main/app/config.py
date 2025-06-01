@@ -1,158 +1,105 @@
 """
 ViralClip Pro - Configuration Management
-Netflix-level configuration with environment support
+Production-ready configuration with proper Pydantic v2 support
 """
 
 import os
 from typing import List, Optional
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
 
-    # App settings
-    app_name: str = "ViralClip Pro"
-    version: str = "2.0.0"
-    debug: bool = Field(default=False, env="DEBUG")
-
-    # Server settings
-    host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=5000, env="PORT")
-
-    # Security
-    secret_key: str = Field(default="your-secret-key-change-in-production", env="SECRET_KEY")
-    cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
-    frontend_url: str = Field(default="http://localhost:5000", env="FRONTEND_URL")
-
-    # File upload settings
-    max_file_size: int = Field(default=2 * 1024 * 1024 * 1024, env="MAX_FILE_SIZE")  # 2GB
-    max_video_duration: int = Field(default=3600, env="MAX_VIDEO_DURATION")  # 1 hour
-    allowed_video_formats: List[str] = Field(
-        default=["mp4", "mov", "avi", "mkv", "webm"],
-        env="ALLOWED_VIDEO_FORMATS"
-    )
-
-    # Directory settings
-    upload_path: str = Field(default="uploads", env="UPLOAD_PATH")
-    output_path: str = Field(default="output", env="OUTPUT_PATH")
-    temp_path: str = Field(default="temp", env="TEMP_PATH")
-
-    # Database (if needed)
-    database_url: Optional[str] = Field(default=None, env="DATABASE_URL")
-
-    # Redis (for caching and sessions)
-    redis_url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
-
-    # External services
-    youtube_api_key: Optional[str] = Field(default=None, env="YOUTUBE_API_KEY")
-    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
-
-    # Processing settings
-    max_concurrent_processes: int = Field(default=3, env="MAX_CONCURRENT_PROCESSES")
-    default_video_quality: str = Field(default="high", env="DEFAULT_VIDEO_QUALITY")
-
-    # Logging
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    log_file: str = Field(default="logs/viralclip.log", env="LOG_FILE")
-
-    # Rate limiting
-    rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
-    rate_limit_per_hour: int = Field(default=1000, env="RATE_LIMIT_PER_HOUR")
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-
-# Global settings instance
-_settings = None
-
-def get_settings() -> Settings:
-    """Get application settings (singleton pattern)"""
-    global _settings
-    if _settings is None:
-        _settings = Settings()
-    return _settings
-
-# Environment-specific configurations
-def get_development_settings() -> Settings:
-    """Get development-specific settings"""
-    settings = get_settings()
-    settings.debug = True
-    settings.log_level = "DEBUG"
-    return settings
-
-def get_production_settings() -> Settings:
-    """Get production-specific settings"""
-    settings = get_settings()
-    settings.debug = False
-    settings.log_level = "WARNING"
-    return settings
-"""
-Application configuration using Pydantic settings
-"""
-
-import os
-from typing import List
-from pydantic import BaseSettings
-
-class Settings(BaseSettings):
     # Application Settings
     APP_NAME: str = "ViralClip Pro"
     APP_VERSION: str = "3.0.0"
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
-    HOST: str = "0.0.0.0"
-    PORT: int = 5000
-    
+    ENVIRONMENT: str = Field(default="development", env="ENVIRONMENT")
+    DEBUG: bool = Field(default=True, env="DEBUG")
+    HOST: str = Field(default="0.0.0.0", env="HOST")
+    PORT: int = Field(default=5000, env="PORT")
+
     # Security Settings
-    SECRET_KEY: str = "dev-secret-key"
-    JWT_SECRET: str = "dev-jwt-secret"
+    SECRET_KEY: str = Field(default="dev-secret-key-change-in-production", env="SECRET_KEY")
+    JWT_SECRET: str = Field(default="dev-jwt-secret", env="JWT_SECRET")
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440
-    
-    # Database Settings
-    DATABASE_URL: str = "sqlite:///./viralclip.db"
-    REDIS_URL: str = "redis://localhost:6379"
-    
-    # Video Processing Settings
-    MAX_VIDEO_DURATION: int = 3600
-    MAX_FILE_SIZE: int = 2147483648
-    MAX_CLIP_DURATION: int = 300
-    MIN_CLIP_DURATION: int = 5
-    CONCURRENT_PROCESSING: int = 4
-    
-    # Storage Settings
-    UPLOAD_PATH: str = "uploads"
-    TEMP_PATH: str = "temp"
-    OUTPUT_PATH: str = "output"
-    VIDEO_STORAGE_PATH: str = "videos"
-    LOG_PATH: str = "logs"
-    
-    # Cache Settings
-    CACHE_TTL: int = 3600
-    ENABLE_CACHE: bool = True
-    
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 100
-    RATE_LIMIT_PER_HOUR: int = 1000
-    
-    # Logging
-    LOG_LEVEL: str = "INFO"
-    ENABLE_METRICS: bool = True
-    
-    # Feature Flags
-    ENABLE_WEBSOCKETS: bool = True
-    ENABLE_FILE_UPLOAD: bool = True
-    ENABLE_BATCH_PROCESSING: bool = True
-    ENABLE_SOCIAL_SHARING: bool = True
-    ENABLE_ANALYTICS: bool = True
-    
+
     # CORS Settings
-    ALLOWED_HOSTS: List[str] = ["*"]
-    CORS_ORIGINS: List[str] = ["*"]
-    
+    ALLOWED_HOSTS: List[str] = Field(default=["*"], env="ALLOWED_HOSTS")
+    CORS_ORIGINS: List[str] = Field(default=["*"], env="CORS_ORIGINS")
+
+    # Database Settings
+    DATABASE_URL: str = Field(default="sqlite:///./viralclip.db", env="DATABASE_URL")
+    REDIS_URL: str = Field(default="redis://localhost:6379", env="REDIS_URL")
+
+    # Video Processing Settings
+    MAX_VIDEO_DURATION: int = Field(default=3600, env="MAX_VIDEO_DURATION")  # 1 hour
+    MAX_FILE_SIZE: int = Field(default=2147483648, env="MAX_FILE_SIZE")  # 2GB
+    MAX_CLIP_DURATION: int = Field(default=300, env="MAX_CLIP_DURATION")  # 5 minutes
+    MIN_CLIP_DURATION: int = Field(default=5, env="MIN_CLIP_DURATION")
+    CONCURRENT_PROCESSING: int = Field(default=4, env="CONCURRENT_PROCESSING")
+    ALLOWED_VIDEO_FORMATS: List[str] = Field(
+        default=["mp4", "mov", "avi", "mkv", "webm", "flv"],
+        env="ALLOWED_VIDEO_FORMATS"
+    )
+
+    # Storage Settings
+    UPLOAD_PATH: str = Field(default="uploads", env="UPLOAD_PATH")
+    TEMP_PATH: str = Field(default="temp", env="TEMP_PATH")
+    OUTPUT_PATH: str = Field(default="output", env="OUTPUT_PATH")
+    VIDEO_STORAGE_PATH: str = Field(default="videos", env="VIDEO_STORAGE_PATH")
+    LOG_PATH: str = Field(default="logs", env="LOG_PATH")
+
+    # Cache Settings
+    CACHE_TTL: int = Field(default=3600, env="CACHE_TTL")  # 1 hour
+    ENABLE_CACHE: bool = Field(default=True, env="ENABLE_CACHE")
+
+    # Rate Limiting
+    RATE_LIMIT_PER_MINUTE: int = Field(default=100, env="RATE_LIMIT_PER_MINUTE")
+    RATE_LIMIT_PER_HOUR: int = Field(default=1000, env="RATE_LIMIT_PER_HOUR")
+
+    # Logging
+    LOG_LEVEL: str = Field(default="INFO", env="LOG_LEVEL")
+    ENABLE_METRICS: bool = Field(default=True, env="ENABLE_METRICS")
+
+    # Feature Flags
+    ENABLE_WEBSOCKETS: bool = Field(default=True, env="ENABLE_WEBSOCKETS")
+    ENABLE_FILE_UPLOAD: bool = Field(default=True, env="ENABLE_FILE_UPLOAD")
+    ENABLE_BATCH_PROCESSING: bool = Field(default=True, env="ENABLE_BATCH_PROCESSING")
+    ENABLE_SOCIAL_SHARING: bool = Field(default=True, env="ENABLE_SOCIAL_SHARING")
+    ENABLE_ANALYTICS: bool = Field(default=True, env="ENABLE_ANALYTICS")
+
+    # External APIs
+    YOUTUBE_API_KEY: Optional[str] = Field(default=None, env="YOUTUBE_API_KEY")
+    OPENAI_API_KEY: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
+
+    # Performance Settings
+    WORKER_PROCESSES: int = Field(default=1, env="WORKER_PROCESSES")
+    WORKER_CONNECTIONS: int = Field(default=1000, env="WORKER_CONNECTIONS")
+    KEEPALIVE_TIMEOUT: int = Field(default=65, env="KEEPALIVE_TIMEOUT")
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
+# Global settings instance
 settings = Settings()
+
+def get_settings() -> Settings:
+    """Get application settings (singleton pattern)"""
+    return settings
+
+# Environment-specific configurations
+def is_development() -> bool:
+    """Check if running in development mode"""
+    return settings.ENVIRONMENT.lower() in ["development", "dev"]
+
+def is_production() -> bool:
+    """Check if running in production mode"""
+    return settings.ENVIRONMENT.lower() in ["production", "prod"]
+
+def is_testing() -> bool:
+    """Check if running in test mode"""
+    return settings.ENVIRONMENT.lower() in ["testing", "test"]
