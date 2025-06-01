@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "npm run dev"]
 
 [workflows]
-runButton = "Development Server"
+runButton = "ViralClip Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -108,6 +108,15 @@ args = "cd nr1copilot/nr1-main && python3 -m flake8 app/ --max-line-length=88 --
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && python3 -m pytest app/tests/ -v --cov=app --cov-report=term-missing"
+
+[[workflows.workflow]]
+name = "ViralClip Server"
+author = 43360626
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
 
 [[ports]]
 localPort = 5000
