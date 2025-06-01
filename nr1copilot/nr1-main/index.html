@@ -103,7 +103,31 @@
         <div class="container">
             <!-- Upload Section -->
             <section class="upload-section">
+                <div class="step-header">
+                    <h2 class="step-title">Upload Your Video</h2>
+                    <p class="step-subtitle">Drag & drop your video or paste a YouTube URL to get started</p>
+                </div>
+                
                 <div class="upload-methods">
+                    <!-- Drag & Drop Upload -->
+                    <div class="upload-container">
+                        <div id="fileDropZone" class="drop-zone">
+                            <div class="drop-content">
+                                <div class="upload-icon">🎬</div>
+                                <h3>Drag & Drop Your Video</h3>
+                                <p>Or click to browse your files</p>
+                                <button id="browseBtn" class="btn btn-primary">
+                                    📁 Browse Files
+                                </button>
+                                <input type="file" id="fileInput" accept="video/*" style="display: none;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="divider">
+                        <span>or</span>
+                    </div>
+                    
                     <!-- URL Input -->
                     <div class="upload-method active" id="urlMethod">
                         <h3>📺 YouTube URL</h3>

@@ -186,14 +186,112 @@ body {
   transition: var(--transition-normal);
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .drop-zone:hover,
-.drop-zone.dragover {
+.drop-zone.drag-over {
   border-color: var(--primary);
   background: rgba(99, 102, 241, 0.1);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+.drop-zone.drag-over {
+  border-color: var(--success);
+  background: rgba(34, 197, 94, 0.1);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1) translateY(-2px); }
+  50% { transform: scale(1.02) translateY(-2px); }
+}
+
+/* Drag Overlay */
+.drag-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(5px);
+  transition: opacity 0.2s ease;
+}
+
+.drag-content {
+  text-align: center;
+  color: white;
+  padding: var(--space-2xl);
+  border: 3px dashed var(--primary);
+  border-radius: var(--radius-xl);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.drag-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-lg);
+}
+
+/* Progress indicators */
+.upload-progress {
+  margin-top: var(--space-xl);
+  padding: var(--space-lg);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .drop-content h3 {
@@ -223,12 +321,137 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+.instant-preview.show {
+  opacity: 1;
 }
 
 .instant-preview video {
   width: 100%;
   height: 70%;
   object-fit: cover;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.file-details h4 {
+  margin: 0 0 var(--space-xs) 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.file-details p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.preview-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+/* Mobile-First Responsive Design */
+@media (max-width: 768px) {
+  .drop-zone {
+    padding: var(--space-lg);
+    min-height: 250px;
+  }
+  
+  .upload-icon {
+    font-size: 3rem;
+  }
+  
+  .drag-content {
+    padding: var(--space-lg);
+  }
+  
+  .drag-icon {
+    font-size: 3rem;
+  }
+  
+  .instant-preview video {
+    height: 60%;
+  }
+  
+  .preview-overlay {
+    padding: var(--space-md);
+  }
+  
+  .file-details h4 {
+    font-size: var(--font-size-sm);
+  }
+  
+  .preview-actions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .drop-zone {
+    padding: var(--space-md);
+    min-height: 200px;
+  }
+  
+  .upload-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-sm);
+  }
+  
+  .drop-content h3 {
+    font-size: var(--font-size-lg);
+    margin: var(--space-sm) 0;
+  }
+  
+  .drop-content p {
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-md);
+  }
+  
+  .drag-overlay {
+    padding: var(--space-md);
+  }
+  
+  .drag-content {
+    padding: var(--space-md);
+    max-width: 90%;
+  }
+  
+  .drag-content h3 {
+    font-size: var(--font-size-lg);
+  }
+  
+  .progress-text {
+    flex-direction: column;
+    gap: var(--space-xs);
+    text-align: center;
+  }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+  .drop-zone {
+    border-width: 3px;
+    padding: var(--space-xl);
+  }
+  
+  .drop-zone:active {
+    transform: scale(0.98);
+  }
+  
+  .btn {
+    min-height: 44px;
+    padding: var(--space-md) var(--space-lg);
+  }
+  
+  .preview-actions .btn {
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-sm);
+  }
 }
 
 .preview-overlay {

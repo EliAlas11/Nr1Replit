@@ -33,17 +33,19 @@ import hashlib
 
 try:
     import jwt
+    HAS_JWT = True
 except ImportError:
     jwt = None
-    logger.warning("PyJWT not available, JWT functionality disabled")
+    HAS_JWT = False
 
 # Make Redis optional
 try:
     import redis.asyncio as redis
     Redis = redis.Redis
+    HAS_REDIS = True
 except ImportError:
     Redis = None
-    logger.warning("Redis not available, using local cache only")
+    HAS_REDIS = False
 
 from .config import get_settings, is_production
 from .logging_config import setup_logging
@@ -59,6 +61,12 @@ from .utils.security import SecurityManager
 # Setup logging with Netflix-level configuration
 setup_logging()
 logger = logging.getLogger(__name__)
+
+# Fix warning calls
+if not HAS_JWT:
+    logger.warning("PyJWT not available, JWT functionality disabled")
+if not HAS_REDIS:
+    logger.warning("Redis not available, using local cache only")
 
 # Global components for Netflix-level performance
 redis_client: Optional[Redis] = None
