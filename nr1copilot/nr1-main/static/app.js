@@ -85,6 +85,11 @@ class ViralClipApp {
 
         if (!uploadArea || !dragOverlay) return;
 
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            document.getElementById('file-input').click();
+        });
+
         // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             document.addEventListener(eventName, this.preventDefaults, false);
@@ -105,6 +110,9 @@ class ViralClipApp {
         // Handle dropped files
         uploadArea.addEventListener('drop', this.handleDrop.bind(this), false);
         document.addEventListener('drop', this.handleDrop.bind(this), false);
+
+        // Handle paste events for files
+        document.addEventListener('paste', this.handlePaste.bind(this));
     }
 
     setupMobileOptimizations() {
@@ -207,7 +215,71 @@ class ViralClipApp {
             return;
         }
 
-        await this.uploadFile(file);
+        // Show instant preview
+        await this.showInstantPreview(file);
+        
+        // Start upload after preview
+        setTimeout(() => {
+            this.uploadFile(file);
+        }, 1500);
+    }
+
+    async showInstantPreview(file) {
+        const uploadArea = document.getElementById('upload-area');
+        const preview = document.createElement('div');
+        preview.className = 'instant-preview';
+        preview.innerHTML = `
+            <video class="preview-video" autoplay muted loop>
+                <source src="${URL.createObjectURL(file)}" type="${file.type}">
+            </video>
+            <div class="preview-overlay">
+                <div class="preview-info">
+                    <div class="file-details">
+                        <h4>${file.name}</h4>
+                        <div class="file-stats">
+                            <span>${this.formatBytes(file.size)}</span>
+                            <span>${file.type}</span>
+                            <span>Ready to process</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="upload-progress-mini">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill-mini" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        uploadArea.appendChild(preview);
+        
+        // Animate in
+        setTimeout(() => {
+            preview.classList.add('show');
+        }, 100);
+
+        // Update file input to trigger upload button enable
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload & Create Clips';
+        }
+    }
+
+    handlePaste(e) {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (let item of items) {
+            if (item.type.startsWith('video/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    this.processFiles([file]);
+                    break;
+                }
+            }
+        }
     }
 
     validateFile(file) {
@@ -244,11 +316,11 @@ class ViralClipApp {
         try {
             this.uploadId = this.generateId();
             
-            // Connect to upload WebSocket
+            // Connect to upload WebSocket first
             await this.connectUploadWebSocket();
             
-            // Show upload progress
-            this.showUploadProgress();
+            // Update instant preview to show upload starting
+            this.updateInstantPreviewProgress(0, 'Starting upload...');
             
             // Prepare form data
             const formData = new FormData();
@@ -260,11 +332,16 @@ class ViralClipApp {
             
             if (response.success) {
                 this.sessionId = response.session_id;
-                this.showUploadComplete(response);
+                
+                // Update preview to show analysis
+                this.updateInstantPreviewProgress(100, 'Analysis complete!');
+                
+                // Show success animation
                 setTimeout(() => {
+                    this.hideInstantPreview();
                     this.showStep('analysis');
                     this.displayVideoAnalysis(response);
-                }, 1500);
+                }, 2000);
             } else {
                 throw new Error(response.error || 'Upload failed');
             }
@@ -272,7 +349,41 @@ class ViralClipApp {
         } catch (error) {
             console.error('Upload error:', error);
             this.showError(`Upload failed: ${error.message}`);
-            this.hideUploadProgress();
+            this.hideInstantPreview();
+        }
+    }
+
+    updateInstantPreviewProgress(progress, message) {
+        const preview = document.querySelector('.instant-preview');
+        if (!preview) return;
+
+        const progressFill = preview.querySelector('.progress-fill-mini');
+        const fileStats = preview.querySelector('.file-stats');
+        
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
+        }
+        
+        if (fileStats && message) {
+            const lastSpan = fileStats.querySelector('span:last-child');
+            if (lastSpan) {
+                lastSpan.textContent = message;
+            }
+        }
+
+        // Add completion glow effect
+        if (progress >= 100) {
+            preview.classList.add('upload-complete');
+        }
+    }
+
+    hideInstantPreview() {
+        const preview = document.querySelector('.instant-preview');
+        if (preview) {
+            preview.classList.remove('show');
+            setTimeout(() => {
+                preview.remove();
+            }, 300);
         }
     }
 
@@ -618,14 +729,22 @@ class ViralClipApp {
 
     handleUploadMessage(message) {
         switch (message.type) {
+            case 'connected':
+                console.log('🔗 Upload WebSocket connected:', message.upload_id);
+                break;
             case 'upload_progress':
                 this.updateUploadProgress(message.progress);
+                this.updateInstantPreviewProgress(message.progress, `${Math.round(message.progress)}% uploaded`);
                 break;
             case 'upload_complete':
-                this.handleUploadComplete(message);
+                this.updateInstantPreviewProgress(100, 'Analyzing video...');
+                setTimeout(() => {
+                    this.updateInstantPreviewProgress(100, message.message);
+                }, 1000);
                 break;
             case 'upload_error':
                 this.showError(message.error);
+                this.hideInstantPreview();
                 break;
             case 'keep_alive':
             case 'pong':
@@ -636,11 +755,16 @@ class ViralClipApp {
 
     handleProcessingMessage(message) {
         switch (message.type) {
+            case 'connected':
+                console.log('🔗 Processing WebSocket connected:', message.task_id);
+                break;
             case 'processing_started':
-                this.updateProcessingStatus('Processing started...');
+                this.updateProcessingStatus('🚀 AI processing started...');
+                this.showLiveProcessingFeed(message);
                 break;
             case 'progress_update':
                 this.updateProcessingProgress(message.data);
+                this.updateLiveProcessingFeed(message.data);
                 break;
             case 'processing_complete':
                 this.handleProcessingComplete(message.data);
@@ -653,6 +777,51 @@ class ViralClipApp {
                 // Connection is alive
                 break;
         }
+    }
+
+    showLiveProcessingFeed(message) {
+        const container = document.getElementById('processing-status');
+        if (!container) return;
+
+        const existingFeed = container.querySelector('.live-updates');
+        if (existingFeed) return;
+
+        const feedHTML = `
+            <div class="live-updates">
+                <h4>🔴 Live Processing Feed</h4>
+                <div class="updates-feed" id="updates-feed">
+                    <div class="update-item">
+                        <span class="update-time">${new Date().toLocaleTimeString()}</span>
+                        <span class="update-message">AI processing started for ${message.total_clips} clips</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', feedHTML);
+    }
+
+    updateLiveProcessingFeed(data) {
+        const feed = document.getElementById('updates-feed');
+        if (!feed) return;
+
+        const updateHTML = `
+            <div class="update-item">
+                <span class="update-time">${new Date().toLocaleTimeString()}</span>
+                <span class="update-message">${data.message}</span>
+            </div>
+        `;
+        
+        feed.insertAdjacentHTML('beforeend', updateHTML);
+        
+        // Keep only last 5 updates
+        const updates = feed.querySelectorAll('.update-item');
+        if (updates.length > 5) {
+            updates[0].remove();
+        }
+        
+        // Scroll to bottom
+        feed.scrollTop = feed.scrollHeight;
     }
 
     showStep(step) {
