@@ -1,457 +1,255 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="description" content="ViralClip Pro - Transform videos into viral clips with AI. 10x faster than SendShort.ai with 95% viral success rate.">
-    <meta name="keywords" content="viral videos, AI video editing, TikTok clips, Instagram Reels, YouTube Shorts">
-    <meta name="author" content="ViralClip Pro">
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="ViralClip Pro - AI-Powered Viral Video Creator">
-    <meta property="og:description" content="Transform your videos into viral clips with our Netflix-level AI. 10x faster processing, 95% viral success rate.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://viralclippro.com">
-    <meta property="og:image" content="/public/og-image.jpg">
-    
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="ViralClip Pro - AI-Powered Viral Video Creator">
-    <meta name="twitter:description" content="Transform your videos into viral clips with our Netflix-level AI.">
-    <meta name="twitter:image" content="/public/twitter-image.jpg">
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#6366f1">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ViralClip Pro">
-    
-    <!-- Icons -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="apple-touch-icon" href="/public/icon-192x192.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViralClip Pro v3.0 - Netflix-Level Viral Content Creator</title>
+
+    <!-- Performance optimizations -->
+    <link rel="preload" href="/static/app.js" as="script">
+    <link rel="preload" href="/public/styles.css" as="style">
+
+    <!-- PWA manifest -->
     <link rel="manifest" href="/public/manifest.json">
-    
-    <title>ViralClip Pro - AI-Powered Viral Video Creator | 10x Better than SendShort.ai</title>
-    
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+
     <!-- Styles -->
     <link rel="stylesheet" href="/public/styles.css">
-    
-    <!-- Preload critical resources -->
-    <link rel="preload" href="/static/app.js" as="script">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "ViralClip Pro",
-        "description": "AI-powered viral video creator",
-        "url": "https://viralclippro.com",
-        "applicationCategory": "VideoEditingApplication",
-        "operatingSystem": "Web",
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-        }
-    }
+
+    <!-- Meta tags for sharing -->
+    <meta name="description" content="Create viral video clips with AI-powered real-time analysis and Netflix-level quality">
+    <meta property="og:title" content="ViralClip Pro v3.0">
+    <meta property="og:description" content="Transform your videos into viral clips with instant feedback">
+    <meta property="og:type" content="website">
+
+    <!-- Performance monitoring -->
+    <script>
+        window.performanceMarks = {
+            domContentLoaded: 0,
+            loadComplete: 0
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.performanceMarks.domContentLoaded = performance.now();
+            console.log('📊 Page Load Performance:');
+            console.log('DOM Content Loaded:', window.performanceMarks.domContentLoaded, 'ms');
+        });
+
+        window.addEventListener('load', () => {
+            window.performanceMarks.loadComplete = performance.now();
+            console.log('Full Load Time:', window.performanceMarks.loadComplete - window.performanceMarks.domContentLoaded, 'ms');
+        });
     </script>
 </head>
 <body>
     <!-- Loading Splash Screen -->
-    <div id="loading-splash" class="loading-splash">
-        <div class="loading-content">
-            <div class="loading-logo">🎬</div>
-            <h2>ViralClip Pro</h2>
-            <div class="loading-spinner"></div>
-            <p>Initializing AI systems...</p>
-        </div>
+    <div class="loading-splash">
+        <div class="loading-logo">🎬 ViralClip Pro</div>
+        <div class="loading-spinner"></div>
+        <p>Loading Netflix-level experience...</p>
     </div>
 
-    <!-- Drag Overlay -->
-    <div id="drag-overlay" class="drag-overlay">
-        <div class="drag-content">
-            <div class="drag-icon">📎</div>
-            <h3>Drop Your Video Here</h3>
-            <p>Release to upload and start creating viral clips</p>
-        </div>
-    </div>
-
-    <!-- Main Application -->
-    <div class="app-container">
+    <!-- Main Application Container -->
+    <div class="container">
         <!-- Header -->
-        <header class="app-header">
-            <div class="header-content">
-                <div class="logo">
-                    <span class="logo-icon">🎬</span>
-                    <span class="logo-text">ViralClip Pro</span>
-                    <span class="version-badge">v2.0</span>
+        <header class="header">
+            <div class="logo">🎬 ViralClip Pro v3.0</div>
+            <div class="header-actions">
+                <div class="system-status">
+                    <span class="status-indicator" id="system-status"></span>
+                    <span class="status-text">System Ready</span>
                 </div>
-                
-                <div class="header-actions">
-                    <button class="btn btn-ghost" onclick="app.showFeatures()">Features</button>
-                    <button class="btn btn-ghost" onclick="app.showPricing()">Pricing</button>
-                    <button class="btn btn-primary" onclick="app.restart()">New Project</button>
-                </div>
+                <button class="btn-secondary" data-action="restart">🔄 Restart</button>
             </div>
         </header>
 
-        <!-- Progress Indicator -->
-        <div class="progress-indicator">
-            <div class="step-indicator" data-step="upload">
-                <div class="step-number">1</div>
-                <div class="step-label">Upload</div>
+        <!-- Step Navigation -->
+        <nav class="step-nav">
+            <div class="nav-item active" data-step="upload">
+                <div class="nav-circle">1</div>
+                <div class="nav-label">Upload & Preview</div>
             </div>
-            <div class="step-connector"></div>
-            <div class="step-indicator" data-step="analysis">
-                <div class="step-number">2</div>
-                <div class="step-label">Analysis</div>
+            <div class="nav-item" data-step="analysis">
+                <div class="nav-circle">2</div>
+                <div class="nav-label">Real-time Analysis</div>
             </div>
-            <div class="step-connector"></div>
-            <div class="step-indicator" data-step="processing">
-                <div class="step-number">3</div>
-                <div class="step-label">Processing</div>
+            <div class="nav-item" data-step="processing">
+                <div class="nav-circle">3</div>
+                <div class="nav-label">Smart Processing</div>
             </div>
-            <div class="step-connector"></div>
-            <div class="step-indicator" data-step="results">
-                <div class="step-number">4</div>
-                <div class="step-label">Results</div>
+            <div class="nav-item" data-step="results">
+                <div class="nav-circle">4</div>
+                <div class="nav-label">Viral Results</div>
+            </div>
+        </nav>
+
+        <!-- Step 1: Enhanced Upload with Instant Preview -->
+        <div class="step active" id="step-upload">
+            <div class="upload-container">
+                <h2>🚀 Upload Your Video for Instant Viral Analysis</h2>
+                <p class="step-description">
+                    Drop your video below and watch real-time analysis unfold with Netflix-level processing
+                </p>
+
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">📹</div>
+                        <div class="upload-text">Drop your video here or click to browse</div>
+                        <div class="upload-subtitle">Get instant viral potential analysis</div>
+
+                        <div class="upload-specs">
+                            <div class="spec-item">
+                                <span class="spec-icon">📦</span>
+                                <span>Max 2GB</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-icon">🎬</span>
+                                <span>MP4, MOV, AVI, MKV</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-icon">⚡</span>
+                                <span>Real-time Preview</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-icon">🎯</span>
+                                <span>Instant Viral Score</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="file" id="file-input" name="file" accept="video/*" style="display: none;">
+
+                    <button type="submit" class="btn btn-primary" disabled>
+                        <span class="btn-icon">🎯</span>
+                        <span class="btn-text">Select a video to analyze</span>
+                    </button>
+                </form>
             </div>
         </div>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Step 1: Upload/URL Input -->
-            <section id="step-upload" class="step active">
-                <div class="step-header">
-                    <h1 class="step-title">Transform Videos into Viral Clips</h1>
-                    <p class="step-subtitle">Upload your video or paste a URL to get started with AI-powered viral clip creation</p>
-                    
-                    <div class="hero-stats">
-                        <div class="stat">
-                            <span class="stat-number">10x</span>
-                            <span class="stat-label">Faster Processing</span>
+        <!-- Step 2: Real-time Analysis with Interactive Timeline -->
+        <div class="step" id="step-analysis">
+            <div class="analysis-container">
+                <h2>🎯 Real-time Viral Analysis Dashboard</h2>
+                <p class="step-description">
+                    Watch your video's viral potential unfold in real-time with interactive timeline and live feedback
+                </p>
+
+                <div class="realtime-analysis-container">
+                    <!-- Real-time Viral Score Chart -->
+                    <div class="viral-chart-section">
+                        <h3>📈 Live Viral Score Tracking</h3>
+                        <div id="viral-chart">
+                            <!-- Dynamic viral chart will be inserted here -->
                         </div>
-                        <div class="stat">
-                            <span class="stat-number">95%</span>
-                            <span class="stat-label">Viral Success Rate</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-number">2.5x</span>
-                            <span class="stat-label">Better than SendShort</span>
+                    </div>
+
+                    <!-- Interactive Timeline -->
+                    <div class="timeline-section">
+                        <h3>🎬 Interactive Timeline</h3>
+                        <div id="interactive-timeline">
+                            <!-- Interactive timeline will be inserted here -->
                         </div>
                     </div>
                 </div>
 
-                <div class="upload-container">
-                    <!-- Upload Method Tabs -->
-                    <div class="upload-tabs">
-                        <button class="tab-button active" data-tab="file-upload">
-                            📁 Upload File
-                        </button>
-                        <button class="tab-button" data-tab="url-input">
-                            🔗 From URL
-                        </button>
-                    </div>
-
-                    <!-- File Upload Tab -->
-                    <div id="file-upload" class="tab-content active">
-                        <form id="upload-form" class="upload-form">
-                            <div id="upload-area" class="upload-area">
-                                <div class="upload-content">
-                                    <div class="upload-icon">📎</div>
-                                    <h3>Drag & Drop Your Video</h3>
-                                    <p>or click to browse files</p>
-                                    <div class="upload-specs">
-                                        <span>Max size: 2GB</span>
-                                        <span>Formats: MP4, MOV, AVI, MKV, WebM</span>
-                                    </div>
-                                </div>
-                                <input type="file" id="file-input" accept="video/*" hidden>
-                            </div>
-                            
-                            <div class="upload-actions">
-                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('file-input').click()">
-                                    Choose File
-                                </button>
-                                <button type="submit" class="btn btn-primary" disabled>
-                                    Upload & Analyze
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <!-- URL Input Tab -->
-                    <div id="url-input" class="tab-content">
-                        <form id="url-form" class="url-form">
-                            <div class="input-group">
-                                <input type="url" id="url-input" class="url-input" 
-                                       placeholder="Paste YouTube, TikTok, or Instagram URL here..." 
-                                       required>
-                                <button type="submit" class="btn btn-primary">
-                                    Analyze Video
-                                </button>
-                            </div>
-                            
-                            <div class="supported-platforms">
-                                <span>Supported platforms:</span>
-                                <div class="platform-icons">
-                                    <span class="platform">📺 YouTube</span>
-                                    <span class="platform">🎵 TikTok</span>
-                                    <span class="platform">📸 Instagram</span>
-                                </div>
-                            </div>
-                        </form>
+                <!-- Real-time Preview Player -->
+                <div class="preview-section">
+                    <h3>⚡ Live Preview Generator</h3>
+                    <div id="realtime-preview">
+                        <!-- Real-time preview player will be inserted here -->
                     </div>
                 </div>
 
-                <!-- Features Section -->
-                <div class="features-preview">
-                    <h3>Why Choose ViralClip Pro?</h3>
-                    <div class="features-grid">
-                        <div class="feature-card">
-                            <div class="feature-icon">🤖</div>
-                            <h4>AI-Powered Analysis</h4>
-                            <p>98% viral prediction accuracy with advanced machine learning</p>
-                        </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">⚡</div>
-                            <h4>Lightning Fast</h4>
-                            <p>10x faster processing than SendShort.ai</p>
-                        </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">📱</div>
-                            <h4>Mobile First</h4>
-                            <p>Perfect experience on all devices</p>
-                        </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">🎯</div>
-                            <h4>Multi-Platform</h4>
-                            <p>Optimized for TikTok, Instagram, and YouTube</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 2: Analysis Results -->
-            <section id="step-analysis" class="step">
-                <div class="step-header">
-                    <h2 class="step-title">AI Analysis Complete</h2>
-                    <p class="step-subtitle">Our AI has analyzed your video and identified the best viral moments</p>
-                </div>
-
-                <div id="analysis-results" class="analysis-results">
-                    <!-- Content will be populated by JavaScript -->
-                </div>
-
-                <div class="step-actions">
-                    <button class="btn btn-secondary" data-action="back">
-                        ← Back to Upload
+                <!-- Action Buttons -->
+                <div class="analysis-actions">
+                    <button class="btn btn-secondary" data-action="back">← Back to Upload</button>
+                    <button class="btn btn-primary" id="start-processing">
+                        <span class="btn-icon">🚀</span>
+                        <span class="btn-text">Start Enhanced Processing</span>
                     </button>
-                    <button id="process-clips-btn" class="btn btn-primary" onclick="app.handleProcessing(event)" disabled>
-                        Process Selected Clips →
-                    </button>
-                </div>
-            </section>
-
-            <!-- Step 3: Processing -->
-            <section id="step-processing" class="step">
-                <div class="step-header">
-                    <h2 class="step-title">Creating Your Viral Clips</h2>
-                    <p class="step-subtitle">Our AI is applying advanced optimization techniques to your selected clips</p>
-                </div>
-
-                <div id="processing-status" class="processing-status">
-                    <!-- Content will be populated by JavaScript -->
-                </div>
-
-                <div class="processing-features">
-                    <h4>What's happening behind the scenes:</h4>
-                    <div class="features-list">
-                        <div class="feature-item">
-                            <span class="feature-icon">🎨</span>
-                            <div class="feature-text">
-                                <strong>AI Color Enhancement</strong>
-                                <p>Optimizing colors and contrast for maximum visual impact</p>
-                            </div>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-icon">🔊</span>
-                            <div class="feature-text">
-                                <strong>Audio Optimization</strong>
-                                <p>Enhancing audio levels and clarity for mobile devices</p>
-                            </div>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-icon">📐</span>
-                            <div class="feature-text">
-                                <strong>Platform Optimization</strong>
-                                <p>Adjusting aspect ratios and formats for each platform</p>
-                            </div>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-icon">🎯</span>
-                            <div class="feature-text">
-                                <strong>Viral Algorithms</strong>
-                                <p>Applying viral optimization patterns and timing</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 4: Results -->
-            <section id="step-results" class="step">
-                <div class="step-header">
-                    <h2 class="step-title">Your Viral Clips Are Ready!</h2>
-                    <p class="step-subtitle">Download your optimized clips and watch them go viral</p>
-                </div>
-
-                <div id="results-container" class="results-container">
-                    <!-- Content will be populated by JavaScript -->
-                </div>
-
-                <div class="step-actions">
-                    <button class="btn btn-secondary" data-action="restart">
-                        🔄 Create Another
-                    </button>
-                    <button class="btn btn-primary" onclick="app.shareResults()">
-                        📤 Share Results
-                    </button>
-                </div>
-            </section>
-        </main>
-
-        <!-- Footer -->
-        <footer class="app-footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>ViralClip Pro</h4>
-                    <p>Netflix-level AI for viral video creation</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Features</h4>
-                    <ul>
-                        <li>AI Video Analysis</li>
-                        <li>Multi-Platform Export</li>
-                        <li>Real-time Processing</li>
-                        <li>Enterprise API</li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h4>Support</h4>
-                    <ul>
-                        <li><a href="#help">Help Center</a></li>
-                        <li><a href="#contact">Contact Us</a></li>
-                        <li><a href="#api">API Docs</a></li>
-                        <li><a href="#status">System Status</a></li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h4>Connect</h4>
-                    <div class="social-links">
-                        <a href="#twitter">Twitter</a>
-                        <a href="#github">GitHub</a>
-                        <a href="#discord">Discord</a>
-                    </div>
                 </div>
             </div>
-            
-            <div class="footer-bottom">
-                <p>&copy; 2024 ViralClip Pro. All rights reserved.</p>
-                <div class="footer-links">
-                    <a href="#privacy">Privacy Policy</a>
-                    <a href="#terms">Terms of Service</a>
-                    <a href="#cookies">Cookie Policy</a>
+        </div>
+
+        <!-- Step 3: Enhanced Processing with Entertainment -->
+        <div class="step" id="step-processing">
+            <div class="processing-container">
+                <h2>🎪 Creating Your Viral Masterpiece</h2>
+                <p class="step-description">
+                    Sit back and enjoy our entertaining processing experience while we craft your viral clips
+                </p>
+
+                <div id="processing-status">
+                    <!-- Enhanced processing interface will be inserted here -->
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="processing-actions" style="margin-top: 2rem;">
+                    <button class="btn btn-secondary" data-action="back">← Back to Analysis</button>
+                    <button class="btn btn-primary" id="view-results" style="display: none;">
+                        <span class="btn-icon">🎉</span>
+                        <span class="btn-text">View Your Viral Clips</span>
+                    </button>
                 </div>
             </div>
-        </footer>
-    </div>
+        </div>
 
-    <!-- Modals -->
-    <!-- Upload Progress Modal -->
-    <div id="upload-progress-modal" class="modal">
-        <div class="modal-content">
-            <div class="progress-content">
-                <div class="progress-header">
-                    <h3>Uploading Your Video</h3>
-                    <p>Please wait while we upload and analyze your video...</p>
+        <!-- Step 4: Results -->
+        <div class="step" id="step-results">
+            <div class="results-container">
+                <h2>🎉 Your Viral Clips Are Ready!</h2>
+                <p class="step-description">
+                    Download your professionally crafted viral clips optimized for maximum engagement
+                </p>
+
+                <div id="results-grid">
+                    <!-- Results will be populated here -->
                 </div>
-                
-                <div class="progress-visual">
-                    <div class="progress-circle">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: 0%"></div>
-                        </div>
-                        <div class="progress-percentage">0%</div>
-                    </div>
-                </div>
-                
-                <div class="progress-stats">
-                    <div class="stat">
-                        <span class="stat-label">Speed</span>
-                        <span class="stat-value">Calculating...</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Time Left</span>
-                        <span class="stat-value">Calculating...</span>
-                    </div>
+
+                <!-- Action Buttons -->
+                <div class="results-actions">
+                    <button class="btn btn-secondary" data-action="restart">🔄 Create Another</button>
+                    <button class="btn btn-primary" id="download-all">
+                        <span class="btn-icon">📥</span>
+                        <span class="btn-text">Download All Clips</span>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="toast-container"></div>
+    <!-- Global Error Boundary -->
+    <div id="error-boundary" style="display: none;">
+        <div class="error-content">
+            <h3>Something went wrong</h3>
+            <p>The application encountered an unexpected error. Please refresh the page.</p>
+            <button onclick="location.reload()" class="btn btn-primary">Reload</button>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="/static/app.js"></script>
-    
-    <!-- Tab Switching Script -->
-    <script>
-        // Handle tab switching
-        document.addEventListener('DOMContentLoaded', function() {
-            const tabButtons = document.querySelectorAll('.tab-button');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            tabButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const targetTab = button.dataset.tab;
-                    
-                    // Remove active class from all tabs and contents
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    tabContents.forEach(content => content.classList.remove('active'));
-                    
-                    // Add active class to clicked tab and corresponding content
-                    button.classList.add('active');
-                    document.getElementById(targetTab).classList.add('active');
-                });
-            });
-            
-            // Hide loading splash after page loads
-            setTimeout(() => {
-                const splash = document.getElementById('loading-splash');
-                if (splash) {
-                    splash.style.opacity = '0';
-                    setTimeout(() => {
-                        splash.style.display = 'none';
-                    }, 500);
-                }
-            }, 1000);
-        });
-    </script>
 
-    <!-- Performance Monitoring -->
+    <!-- Analytics and monitoring -->
     <script>
+        // Basic error tracking
+        window.addEventListener('error', (event) => {
+            console.error('Global error caught:', {
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                error: event.error
+            });
+        });
+
         // Performance monitoring
-        window.addEventListener('load', function() {
-            if ('performance' in window) {
-                const navigation = performance.getEntriesByType('navigation')[0];
-                console.log('📊 Page Load Performance:');
-                console.log('DOM Content Loaded:', navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart, 'ms');
-                console.log('Full Load Time:', navigation.loadEventEnd - navigation.loadEventStart, 'ms');
+        window.addEventListener('load', () => {
+            if ('performance' in window && 'timing' in performance) {
+                const timing = performance.timing;
+                const loadTime = timing.loadEventEnd - timing.navigationStart;
+                console.log(`📊 Total Load Time: ${loadTime}ms`);
             }
         });
     </script>

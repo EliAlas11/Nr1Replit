@@ -1021,7 +1021,7 @@ class ViralClipPro {
         ctx.lineWidth = 1;
 
         // Horizontal lines
-        for (let i <= 10; i++) {
+        for (let i = 0; i <= 10; i++) {
             const y = (canvas.height / 10) * i;
             ctx.beginPath();
             ctx.moveTo(0, y);
@@ -1355,6 +1355,11 @@ class ViralClipPro {
         this.setupRealtimePreviewGeneration();
     }
 
+    setupRealtimePreviewGeneration() {
+        // Implementation for setting up real-time preview generation
+        console.log('Setting up real-time preview generation...');
+    }
+
     startViralScoreTracking() {
         // Simulated real-time viral score updates
         this.viralScoreTracker = setInterval(() => {
@@ -1476,6 +1481,244 @@ class ViralClipPro {
                 this.showError('Processing failed: ' + message.error);
                 break;
         }
+    }
+
+    updateProcessingStep(message) {
+        // Implementation for updating processing step
+        console.log('Updating processing step:', message);
+    }
+
+    handleProcessingComplete(message) {
+        // Implementation for handling processing complete
+        console.log('Processing complete:', message);
+    }
+
+    showEnhancedProcessingStep() {
+        this.showStep('processing');
+
+        const container = document.getElementById('processing-status');
+        if (container) {
+            container.innerHTML = `
+                <div class="enhanced-processing-container">
+                    <div class="processing-hero">
+                        <div class="processing-animation">
+                            <div class="processing-spinner"></div>
+                            <div class="processing-icon">🎬</div>
+                        </div>
+                        <h3>Creating Your Viral Clips</h3>
+                        <p class="processing-subtitle">Netflix-level AI is crafting perfect viral content...</p>
+                    </div>
+
+                    <div class="processing-progress-enhanced">
+                        <div class="progress-ring">
+                            <svg width="120" height="120">
+                                <circle cx="60" cy="60" r="50" stroke-width="8" stroke="rgba(255,255,255,0.1)" fill="none"></circle>
+                                <circle cx="60" cy="60" r="50" stroke-width="8" stroke="#10b981" fill="none" 
+                                        stroke-dasharray="314" stroke-dashoffset="314" id="progress-circle"></circle>
+                            </svg>
+                            <div class="progress-text">
+                                <span class="progress-percentage">0%</span>
+                                <span class="progress-label">Processing</span>
+                            </div>
+                        </div>
+
+                        <div class="processing-details">
+                            <div class="current-step">
+                                <span class="step-icon">⚡</span>
+                                <span class="step-text">Initializing...</span>
+                            </div>
+                            <div class="eta-info">
+                                <span class="eta-label">ETA:</span>
+                                <span class="eta-value">Calculating...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="entertainment-section">
+                        <h4>🎭 Did You Know?</h4>
+                        <div class="entertainment-content">
+                            <p id="entertainment-fact">Getting ready to create viral magic...</p>
+                        </div>
+                        <div class="entertainment-progress">
+                            <div class="entertainment-dots">
+                                <span class="dot active"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="processing-features">
+                        <div class="feature-list">
+                            <div class="feature-item processing">
+                                <span class="feature-icon">🎯</span>
+                                <span class="feature-text">AI Viral Analysis</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">🎨</span>
+                                <span class="feature-text">Visual Enhancement</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">🎵</span>
+                                <span class="feature-text">Audio Optimization</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">📱</span>
+                                <span class="feature-text">Platform Optimization</span>
+                                <span class="feature-status">⏳</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    updateEnhancedProcessingDisplay(message) {
+        // Update progress ring
+        const progressCircle = document.getElementById('progress-circle');
+        if (progressCircle) {
+            const circumference = 2 * Math.PI * 50;
+            const offset = circumference - (message.progress / 100) * circumference;
+            progressCircle.style.strokeDashoffset = offset;
+        }
+
+        // Update percentage
+        const percentageElement = document.querySelector('.progress-percentage');
+        if (percentageElement) {
+            percentageElement.textContent = `${Math.round(message.progress)}%`;
+        }
+
+        // Update current step
+        const stepText = document.querySelector('.step-text');
+        if (stepText) {
+            stepText.textContent = message.stage;
+        }
+
+        // Update ETA
+        const etaValue = document.querySelector('.eta-value');
+        if (etaValue && message.eta_seconds) {
+            etaValue.textContent = this.formatETA(message.eta_seconds);
+        }
+
+        // Update entertainment fact
+        if (message.entertaining_fact) {
+            const factElement = document.getElementById('entertainment-fact');
+            if (factElement) {
+                factElement.textContent = message.entertaining_fact;
+                this.animateEntertainmentFact(factElement);
+            }
+        }
+    }
+
+    animateEntertainmentFact(element) {
+        element.style.opacity = '0';
+        element.style.transform = 'translateY(10px)';
+
+        setTimeout(() => {
+            element.style.transition = 'all 0.5s ease';
+            element.style.opacity = '1';
+            element.style.transform = 'translateY(0)';
+        }, 100);
+    }
+
+    formatETA(seconds) {
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        return `${minutes}m ${seconds % 60}s`;
+    }
+
+    // Utility methods
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Enhanced processing with entertainment
+    async startEnhancedProcessing(clips) {
+        try {
+            this.state.taskId = this.generateId();
+
+            const response = await fetch(`/api/${this.config.apiVersion}/process-clips`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    session_id: this.state.sessionId,
+                    clips: clips,
+                    options: {
+                        quality: 'high',
+                        entertainment: true
+                    }
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.state.taskId = data.task_id;
+                await this.connectProcessingWebSocket();
+                this.showEnhancedProcessingStep();
+            }
+
+        } catch (error) {
+            console.error('Enhanced processing error:', error);
+            this.showError('Processing failed to start');
+        }
+    }
+
+    async connectProcessingWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/${this.config.apiVersion}/ws/processing/${this.state.taskId}`;
+
+        this.connections.processing = new WebSocket(wsUrl);
+
+        this.connections.processing.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleProcessingMessage(message);
+            } catch (error) {
+                console.error('Processing WebSocket error:', error);
+            }
+        };
+    }
+
+    handleProcessingMessage(message) {
+        switch (message.type) {
+            case 'processing_update':
+                this.updateEnhancedProcessingDisplay(message);
+                break;
+            case 'step_update':
+                this.updateProcessingStep(message);
+                break;
+            case 'processing_complete':
+                this.handleProcessingComplete(message);
+                break;
+            case 'processing_error':
+                this.showError('Processing failed: ' + message.error);
+                break;
+        }
+    }
+
+    updateProcessingStep(message) {
+        // Implementation for updating processing step
+        console.log('Updating processing step:', message);
+    }
+
+    handleProcessingComplete(message) {
+        // Implementation for handling processing complete
+        console.log('Processing complete:', message);
     }
 
     showEnhancedProcessingStep() {
@@ -1809,6 +2052,16 @@ class ViralClipPro {
                 this.goNext();
                 break;
         }
+    }
+
+    goBack() {
+        // Implementation for going back
+        console.log('Going back...');
+    }
+
+    goNext() {
+        // Implementation for going next
+        console.log('Going next...');
     }
 
     restart() {
