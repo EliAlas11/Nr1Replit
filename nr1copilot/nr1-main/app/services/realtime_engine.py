@@ -1,6 +1,6 @@
 """
-Netflix-Level Real-time Processing Engine
-Comprehensive real-time video processing with WebSocket support
+Netflix-Level Real-time Processing Engine v4.0
+Enhanced instant feedback system with WebSocket optimization
 """
 
 import asyncio
@@ -8,6 +8,7 @@ import json
 import logging
 import time
 import uuid
+import math
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
 from datetime import datetime
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class RealtimeEngine:
-    """Netflix-level real-time processing and WebSocket management"""
+    """Netflix-level real-time processing with instant feedback"""
 
     def __init__(self):
         self.connections: Dict[str, Dict[str, Any]] = {}
@@ -28,131 +29,192 @@ class RealtimeEngine:
         self.is_running = False
         self.preview_cache: Dict[str, Dict[str, Any]] = {}
 
-        # Performance metrics
-        self.metrics = {
+        # Instant feedback optimization
+        self.instant_feedback_cache = {}
+        self.timeline_cache = {}
+        self.preview_generation_cache = {}
+
+        # Performance metrics for Netflix-level monitoring
+        self.performance_metrics = {
             "total_sessions": 0,
             "active_websockets": 0,
             "processing_queue_size": 0,
             "average_processing_time": 0.0,
-            "cache_hit_rate": 0.0
+            "cache_hit_rate": 0.0,
+            "instant_feedback_latency": [],
+            "preview_generation_times": [],
+            "timeline_render_times": []
         }
 
-        # Entertainment content for processing
+        # Entertainment content for live processing status
         self.entertaining_facts = [
-            "Did you know? The first viral video was a dancing baby in 1996! 👶",
-            "Netflix processes over 1 billion hours of content daily! 📺",
-            "TikTok videos under 15 seconds have 85% higher engagement rates! ⚡",
-            "The human attention span is now shorter than a goldfish (8 seconds)! 🐠",
-            "Vertical videos get 9x more engagement than horizontal ones! 📱",
-            "Sound-on videos have 30% better retention rates! 🔊",
-            "The golden ratio applies to viral content timing: 1.618 seconds! ✨",
-            "Videos with captions get 40% more views! 📝",
-            "The best posting time is 6-10 PM in your audience's timezone! ⏰",
-            "Using trending sounds can boost views by 300%! 🎵"
+            "🎬 Netflix serves content in over 190 countries worldwide!",
+            "⚡ TikTok videos under 15 seconds get 85% more engagement!",
+            "🧠 Human attention span: 8 seconds. Goldfish: 9 seconds!",
+            "📱 Vertical videos generate 9x more engagement than horizontal!",
+            "🔊 Videos with sound get 30% better retention rates!",
+            "✨ The golden ratio (1.618) applies to viral timing!",
+            "📝 Adding captions increases views by 40%!",
+            "⏰ Peak posting time: 6-10 PM in audience timezone!",
+            "🎵 Trending audio can boost views by 300%!",
+            "🚀 First viral video: Dancing Baby (1996)!",
+            "💫 Netflix processes 1+ billion hours daily!",
+            "🎯 Top creators test 20+ thumbnails per video!",
+            "🌟 Viral content peaks within first 2 hours!",
+            "🎪 Emotional peaks happen every 30 seconds in viral content!",
+            "🎭 Comedy content has highest share rates!",
+            "🔥 15-30 second clips have highest completion rates!",
+            "💎 Quality beats quantity in viral content!",
+            "🎨 High contrast visuals perform 40% better!",
+            "⚡ Fast cuts every 3-5 seconds maintain attention!",
+            "🌈 Bright colors increase engagement by 25%!"
         ]
 
-        # AI models (mock for now)
-        self.viral_analyzer = None
-        self.emotion_detector = None
-        self.trend_analyzer = None
+        # Advanced AI analysis patterns
+        self.viral_patterns = {
+            "hooks": ["immediate_action", "question_opening", "shock_value", "trending_sound", "visual_impact"],
+            "engagement_triggers": ["emotion_peaks", "surprise_elements", "relatable_content", "trending_references"],
+            "optimal_lengths": {
+                "tiktok": {"min": 15, "max": 60, "optimal": 30},
+                "instagram": {"min": 15, "max": 90, "optimal": 45},
+                "youtube_shorts": {"min": 15, "max": 60, "optimal": 45},
+                "twitter": {"min": 6, "max": 140, "optimal": 30}
+            }
+        }
 
-        logger.info("🚀 Netflix-level RealtimeEngine initialized")
+        logger.info("🚀 Netflix-level RealtimeEngine v4.0 initialized")
 
     async def initialize(self):
-        """Initialize the real-time engine"""
+        """Initialize the Netflix-level real-time engine"""
         try:
-            logger.info("🚀 Initializing Netflix-level real-time engine...")
+            logger.info("🚀 Initializing Netflix-level real-time engine v4.0...")
+
             await self._setup_processing_pipelines()
             await self._initialize_ai_models()
             await self._setup_cache_system()
-            logger.info("✅ Real-time engine initialized successfully")
+            await self._setup_instant_feedback()
+
+            logger.info("✅ Real-time engine v4.0 initialized successfully")
         except Exception as e:
             logger.error(f"❌ Real-time engine initialization failed: {e}")
             raise
 
     async def _setup_processing_pipelines(self):
-        """Setup high-performance processing pipelines"""
+        """Setup high-performance processing pipelines for instant feedback"""
         self.preview_pipeline = {
-            "low_quality": {"width": 320, "height": 180, "fps": 15},
-            "preview": {"width": 640, "height": 360, "fps": 30},
-            "high": {"width": 1280, "height": 720, "fps": 30}
+            "instant": {"width": 240, "height": 135, "fps": 15, "bitrate": "200k"},
+            "draft": {"width": 480, "height": 270, "fps": 24, "bitrate": "500k"},
+            "standard": {"width": 720, "height": 405, "fps": 30, "bitrate": "1M"},
+            "high": {"width": 1080, "height": 607, "fps": 30, "bitrate": "2M"},
+            "premium": {"width": 1920, "height": 1080, "fps": 60, "bitrate": "4M"}
         }
 
         self.processing_stages = [
-            "uploading", "analyzing", "extracting_moments",
-            "calculating_viral_scores", "generating_clips",
+            "initializing", "uploading", "analyzing", "extracting_moments",
+            "calculating_viral_scores", "generating_timeline", "creating_previews",
             "optimizing", "finalizing", "complete"
         ]
 
     async def _initialize_ai_models(self):
         """Initialize AI models for real-time analysis"""
-        # Mock AI models - replace with actual model loading
+        # Mock AI models - in production, load actual models
         self.viral_analyzer = MockViralAnalyzer()
         self.emotion_detector = MockEmotionDetector()
         self.trend_analyzer = MockTrendAnalyzer()
-        logger.info("🤖 AI models initialized")
+        self.instant_preview_generator = MockInstantPreviewGenerator()
+
+        logger.info("🤖 Netflix-level AI models initialized")
 
     async def _setup_cache_system(self):
-        """Setup intelligent caching system"""
+        """Setup intelligent caching system for instant feedback"""
         self.cache_config = {
-            "max_preview_cache": 100,
-            "max_analysis_cache": 50,
-            "cache_ttl": 3600  # 1 hour
+            "max_preview_cache": 500,
+            "max_analysis_cache": 200,
+            "max_timeline_cache": 100,
+            "cache_ttl": 7200,  # 2 hours
+            "instant_feedback_ttl": 300  # 5 minutes
         }
-        logger.info("💾 Cache system initialized")
+        logger.info("💾 Netflix-level cache system initialized")
+
+    async def _setup_instant_feedback(self):
+        """Setup instant feedback system for real-time user interaction"""
+        self.instant_feedback = {
+            "preview_generation_threshold": 50,  # ms
+            "timeline_update_frequency": 100,    # ms
+            "viral_score_update_frequency": 500, # ms
+            "entertainment_rotation_frequency": 3000  # ms
+        }
+        logger.info("⚡ Instant feedback system initialized")
 
     async def start(self):
-        """Start the real-time processing engine"""
+        """Start the Netflix-level real-time processing engine"""
         if self.is_running:
             return
 
         self.is_running = True
-        logger.info("▶️ Starting RealtimeEngine background tasks")
+        logger.info("▶️ Starting RealtimeEngine v4.0 background tasks")
 
-        # Start background tasks
+        # Start high-performance background tasks
         asyncio.create_task(self._process_queue())
         asyncio.create_task(self._heartbeat_monitor())
         asyncio.create_task(self._cleanup_stale_connections())
+        asyncio.create_task(self._performance_monitor())
+        asyncio.create_task(self._instant_feedback_processor())
 
-        logger.info("✅ RealtimeEngine started successfully")
+        logger.info("✅ RealtimeEngine v4.0 started successfully")
 
     async def stop(self):
         """Stop the real-time processing engine"""
-        logger.info("⏹️ Stopping RealtimeEngine")
+        logger.info("⏹️ Stopping RealtimeEngine v4.0")
         self.is_running = False
 
-        # Close all connections
+        # Close all connections gracefully
         for connection_id in list(self.connections.keys()):
             await self.remove_connection(connection_id)
 
-        logger.info("✅ RealtimeEngine stopped")
+        logger.info("✅ RealtimeEngine v4.0 stopped")
 
     async def add_connection(self, connection_id: str, websocket: WebSocket, metadata: Optional[Dict] = None):
-        """Add a new WebSocket connection"""
+        """Add a new WebSocket connection with Netflix-level handling"""
         try:
             self.connections[connection_id] = {
                 "websocket": websocket,
                 "connected_at": time.time(),
                 "last_ping": time.time(),
                 "metadata": metadata or {},
-                "message_count": 0
+                "message_count": 0,
+                "performance_metrics": {
+                    "latency": [],
+                    "message_frequency": 0,
+                    "last_activity": time.time()
+                }
             }
 
-            logger.info(f"➕ WebSocket connection added: {connection_id}")
+            self.performance_metrics["active_websockets"] += 1
+            logger.info(f"➕ Netflix-level WebSocket connection added: {connection_id}")
 
-            # Send welcome message
+            # Send enhanced welcome message
             await self.send_to_connection(connection_id, {
                 "type": "connection_established",
                 "connection_id": connection_id,
                 "timestamp": time.time(),
-                "server_version": "4.0.0"
+                "server_version": "4.0.0",
+                "features": [
+                    "instant_preview_generation",
+                    "real_time_viral_scoring",
+                    "interactive_timeline",
+                    "live_entertainment_status",
+                    "performance_monitoring"
+                ],
+                "cache_enabled": True,
+                "instant_feedback": True
             })
 
         except Exception as e:
             logger.error(f"Failed to add connection {connection_id}: {str(e)}")
 
     async def remove_connection(self, connection_id: str):
-        """Remove a WebSocket connection"""
+        """Remove a WebSocket connection with cleanup"""
         try:
             if connection_id in self.connections:
                 connection = self.connections[connection_id]
@@ -163,13 +225,16 @@ class RealtimeEngine:
                     pass  # Connection might already be closed
 
                 del self.connections[connection_id]
+                self.performance_metrics["active_websockets"] -= 1
                 logger.info(f"➖ WebSocket connection removed: {connection_id}")
 
         except Exception as e:
             logger.error(f"Failed to remove connection {connection_id}: {str(e)}")
 
     async def send_to_connection(self, connection_id: str, message: Dict[str, Any]):
-        """Send message to specific connection"""
+        """Send message to specific connection with performance tracking"""
+        start_time = time.time()
+
         try:
             if connection_id not in self.connections:
                 logger.warning(f"Connection not found: {connection_id}")
@@ -178,8 +243,21 @@ class RealtimeEngine:
             connection = self.connections[connection_id]
             websocket = connection["websocket"]
 
+            # Add performance metadata
+            message["server_timestamp"] = time.time()
+            message["message_id"] = str(uuid.uuid4())
+
             await websocket.send_json(message)
+
+            # Track performance
+            latency = (time.time() - start_time) * 1000  # Convert to ms
             connection["message_count"] += 1
+            connection["performance_metrics"]["latency"].append(latency)
+            connection["performance_metrics"]["last_activity"] = time.time()
+
+            # Keep only last 100 latency measurements
+            if len(connection["performance_metrics"]["latency"]) > 100:
+                connection["performance_metrics"]["latency"].pop(0)
 
             return True
 
@@ -191,15 +269,27 @@ class RealtimeEngine:
             return False
 
     async def broadcast_to_session(self, session_id: str, message: Dict[str, Any]):
-        """Broadcast message to all connections for a session"""
+        """Broadcast message to all connections for a session with optimization"""
         try:
             sent_count = 0
+            failed_connections = []
+
+            # Add broadcast metadata
+            message["broadcast_session"] = session_id
+            message["broadcast_timestamp"] = time.time()
 
             for connection_id, connection in self.connections.items():
                 metadata = connection.get("metadata", {})
                 if metadata.get("session_id") == session_id:
-                    if await self.send_to_connection(connection_id, message):
+                    success = await self.send_to_connection(connection_id, message)
+                    if success:
                         sent_count += 1
+                    else:
+                        failed_connections.append(connection_id)
+
+            # Clean up failed connections
+            for connection_id in failed_connections:
+                await self.remove_connection(connection_id)
 
             logger.debug(f"Broadcasted to {sent_count} connections for session {session_id}")
             return sent_count
@@ -590,29 +680,6 @@ class RealtimeEngine:
 
             await self.broadcast_upload_progress(upload_id)
 
-    async def broadcast_upload_progress(self, upload_id: str):
-        """Broadcast upload progress to connections"""
-        if upload_id not in self.active_sessions:
-            return
-
-        session = self.active_sessions[upload_id]
-        progress = min(100, (session["uploaded_size"] / session["total_size"]) * 100)
-
-        message = {
-            "type": "upload_progress",
-            "upload_id": upload_id,
-            "progress": progress,
-            "uploaded_size": session["uploaded_size"],
-            "total_size": session["total_size"],
-            "status": session["status"]
-        }
-
-        # Send to upload-specific connections
-        for connection_id, connection in self.connections.items():
-            metadata = connection.get("metadata", {})
-            if metadata.get("upload_id") == upload_id:
-                await self.send_to_connection(connection_id, message)
-
     async def start_processing_session(self, session_id: str, video_info: Dict[str, Any]):
         """Start video processing session"""
         self.active_sessions[session_id] = {
@@ -698,39 +765,41 @@ class RealtimeEngine:
 
     # WebSocket Management
     async def handle_upload_websocket(self, websocket: WebSocket, upload_id: str):
-        """Handle upload progress WebSocket"""
+        """Handle upload progress WebSocket with instant feedback"""
         await websocket.accept()
 
-        # Add to connections
-        if upload_id not in self.websocket_connections:
-            self.websocket_connections[upload_id] = set()
-        self.websocket_connections[upload_id].add(websocket)
+        connection_id = f"upload_{upload_id}_{int(time.time() * 1000)}"
+        await self.add_connection(connection_id, websocket, {
+            "type": "upload",
+            "upload_id": upload_id
+        })
 
         try:
-            # Send initial connection confirmation
+            # Send initial connection confirmation with enhanced data
             await websocket.send_json({
                 "type": "connection_established",
                 "upload_id": upload_id,
-                "timestamp": time.time()
+                "connection_id": connection_id,
+                "timestamp": time.time(),
+                "instant_feedback_enabled": True,
+                "cache_enabled": True
             })
 
-            # Keep connection alive
+            # Enhanced message handling loop
             while True:
                 try:
-                    # Wait for messages (ping/pong)
+                    # Wait for messages with timeout for heartbeat
                     message = await asyncio.wait_for(websocket.receive_json(), timeout=30)
 
-                    if message.get("type") == "ping":
-                        await websocket.send_json({
-                            "type": "pong",
-                            "timestamp": time.time()
-                        })
+                    await self._handle_upload_message(connection_id, message)
 
                 except asyncio.TimeoutError:
-                    # Send heartbeat
+                    # Send heartbeat with performance data
                     await websocket.send_json({
                         "type": "heartbeat",
-                        "timestamp": time.time()
+                        "timestamp": time.time(),
+                        "connection_health": "excellent",
+                        "server_load": await self._get_server_load()
                     })
 
         except WebSocketDisconnect:
@@ -738,447 +807,497 @@ class RealtimeEngine:
         except Exception as e:
             logger.error(f"Upload WebSocket error: {e}")
         finally:
-            # Remove from connections
-            if upload_id in self.websocket_connections:
-                self.websocket_connections[upload_id].discard(websocket)
-                if not self.websocket_connections[upload_id]:
-                    del self.websocket_connections[upload_id]
+            await self.remove_connection(connection_id)
 
-    async def handle_viral_scores_websocket(self, websocket: WebSocket, session_id: str):
-        """Handle viral scores WebSocket"""
-        await websocket.accept()
-
-        connection_key = f"viral_{session_id}"
-        if connection_key not in self.websocket_connections:
-            self.websocket_connections[connection_key] = set()
-        self.websocket_connections[connection_key].add(websocket)
+    async def handle_main_websocket(self, websocket: WebSocket, connection_id: str):
+        """Handle main application WebSocket with Netflix-level features"""
+        await self.add_connection(connection_id, websocket, {"type": "main"})
 
         try:
-            # Send current viral scores if available
-            if session_id in self.active_sessions:
-                session = self.active_sessions[session_id]
-                if "viral_analysis" in session:
+            # Enhanced message handling
+            while True:
+                try:
+                    message = await asyncio.wait_for(websocket.receive_json(), timeout=30)
+                    await self._handle_main_message(connection_id, message)
+
+                except asyncio.TimeoutError:
+                    # Advanced heartbeat with system status
                     await websocket.send_json({
-                        "type": "viral_scores_update",
-                        "session_id": session_id,
-                        "data": session["viral_analysis"]
+                        "type": "heartbeat",
+                        "timestamp": time.time(),
+                        "system_status": await self._get_system_status(),
+                        "performance_metrics": await self._get_connection_performance(connection_id)
                     })
 
-            # Keep connection alive
-            while True:
-                await asyncio.sleep(1)
-                # Connection is maintained for real-time updates
-
         except WebSocketDisconnect:
-            logger.info(f"Viral scores WebSocket disconnected: {session_id}")
+            logger.info(f"Main WebSocket disconnected: {connection_id}")
         except Exception as e:
-            logger.error(f"Viral scores WebSocket error: {e}")
+            logger.error(f"Main WebSocket error: {e}")
         finally:
-            if connection_key in self.websocket_connections:
-                self.websocket_connections[connection_key].discard(websocket)
+            await self.remove_connection(connection_id)
 
-    async def handle_timeline_websocket(self, websocket: WebSocket, session_id: str):
-        """Handle timeline WebSocket"""
-        await websocket.accept()
+    async def _handle_upload_message(self, connection_id: str, message: Dict[str, Any]):
+        """Handle upload-specific WebSocket messages"""
+        message_type = message.get("type", "unknown")
 
-        connection_key = f"timeline_{session_id}"
-        if connection_key not in self.websocket_connections:
-            self.websocket_connections[connection_key] = set()
-        self.websocket_connections[connection_key].add(websocket)
+        if message_type == "ping":
+            await self.send_to_connection(connection_id, {
+                "type": "pong",
+                "timestamp": time.time(),
+                "server_performance": await self._get_performance_summary()
+            })
 
-        try:
-            # Send current timeline if available
-            if session_id in self.active_sessions:
-                timeline_data = await self.get_timeline_data(session_id)
-                await websocket.send_json({
-                    "type": "timeline_update",
-                    "session_id": session_id,
-                    "timeline": timeline_data
-                })
+        elif message_type == "request_instant_preview":
+            await self._handle_instant_preview_request(connection_id, message)
 
-            # Keep connection alive
-            while True:
-                await asyncio.sleep(1)
+        elif message_type == "timeline_interaction":
+            await self._handle_timeline_interaction(connection_id, message)
 
-        except WebSocketDisconnect:
-            logger.info(f"Timeline WebSocket disconnected: {session_id}")
-        except Exception as e:
-            logger.error(f"Timeline WebSocket error: {e}")
-        finally:
-            if connection_key in self.websocket_connections:
-                self.websocket_connections[connection_key].discard(websocket)
+    async def _handle_main_message(self, connection_id: str, message: Dict[str, Any]):
+        """Handle main application WebSocket messages"""
+        message_type = message.get("type", "unknown")
 
-    async def handle_processing_websocket(self, websocket: WebSocket, task_id: str):
-        """Handle processing status WebSocket"""
-        await websocket.accept()
+        if message_type == "ping":
+            await self.send_to_connection(connection_id, {
+                "type": "pong",
+                "timestamp": time.time()
+            })
 
-        connection_key = f"processing_{task_id}"
-        if connection_key not in self.websocket_connections:
-            self.websocket_connections[connection_key] = set()
-        self.websocket_connections[connection_key].add(websocket)
+        elif message_type == "subscribe_session":
+            session_id = message.get("session_id")
+            if session_id:
+                connection = self.connections[connection_id]
+                connection["metadata"]["session_id"] = session_id
+                logger.info(f"Connection {connection_id} subscribed to session {session_id}")
 
-        try:
-            # Send current processing status if available
-            if task_id in self.processing_queue:
-                task = self.processing_queue[task_id]
-                await websocket.send_json({
-                    "type": "processing_status",
-                    "task_id": task_id,
-                    "status": task["status"],
-                    "current_stage": task.get("current_stage", "unknown")
-                })
+                # Send cached data if available
+                await self._send_cached_session_data(connection_id, session_id)
 
-            while True:
-                await asyncio.sleep(1)
+        elif message_type == "request_performance_update":
+            await self._send_performance_update(connection_id)
 
-        except WebSocketDisconnect:
-            logger.info(f"Processing WebSocket disconnected: {task_id}")
-        except Exception as e:
-            logger.error(f"Processing WebSocket error: {e}")
-        finally:
-            if connection_key in self.websocket_connections:
-                self.websocket_connections[connection_key].discard(websocket)
-
-    # Broadcasting methods
     async def broadcast_upload_progress(self, upload_id: str, data: Dict[str, Any]):
-        """Broadcast upload progress to connected clients"""
-        if upload_id in self.websocket_connections:
-            connections = self.websocket_connections[upload_id].copy()
-            for websocket in connections:
-                try:
-                    await websocket.send_json(data)
-                except Exception as e:
-                    logger.warning(f"Failed to send upload progress: {e}")
-                    self.websocket_connections[upload_id].discard(websocket)
+        """Broadcast upload progress with enhanced entertainment content"""
+        # Add entertainment content based on progress
+        if data.get("progress", 0) in [25, 50, 75]:
+            data["entertaining_fact"] = self._get_random_fact()
+            data["processing_tip"] = self._get_processing_tip(data.get("stage", "unknown"))
 
-    async def _broadcast_to_session(self, session_id: str, data: Dict[str, Any]):
-        """Broadcast data to all WebSocket connections for a session"""
-        connection_keys = [
-            f"viral_{session_id}",
-            f"timeline_{session_id}",
-            session_id
-        ]
+        # Enhanced progress data
+        data.update({
+            "timestamp": time.time(),
+            "server_version": "4.0.0",
+            "instant_feedback_available": True
+        })
 
-        for key in connection_keys:
-            if key in self.websocket_connections:
-                connections = self.websocket_connections[key].copy()
-                for websocket in connections:
-                    try:
-                        await websocket.send_json(data)
-                    except Exception as e:
-                        logger.warning(f"Failed to broadcast to session: {e}")
-                        self.websocket_connections[key].discard(websocket)
+        # Broadcast to upload-specific connections
+        connection_pattern = f"upload_{upload_id}"
+        sent_count = 0
 
-    async def _broadcast_processing_update(self, task_id: str, data: Dict[str, Any]):
-        """Broadcast processing updates"""
-        connection_key = f"processing_{task_id}"
-        if connection_key in self.websocket_connections:
-            connections = self.websocket_connections[connection_key].copy()
-            for websocket in connections:
-                try:
-                    await websocket.send_json(data)
-                except Exception as e:
-                    logger.warning(f"Failed to broadcast processing update: {e}")
-                    self.websocket_connections[connection_key].discard(websocket)
+        for connection_id, connection in self.connections.items():
+            if connection_id.startswith(connection_pattern):
+                if await self.send_to_connection(connection_id, data):
+                    sent_count += 1
 
-    # Utility methods
+        logger.debug(f"Broadcasted upload progress to {sent_count} connections")
+
+    async def generate_instant_preview(self, session_id: str, start_time: float, end_time: float, 
+                                     quality: str = "instant") -> Dict[str, Any]:
+        """Generate instant preview with Netflix-level optimization"""
+        generation_start = time.time()
+
+        try:
+            # Check cache first for instant response
+            cache_key = f"preview_{session_id}_{start_time}_{end_time}_{quality}"
+            if cache_key in self.preview_generation_cache:
+                cached_result = self.preview_generation_cache[cache_key]
+                cached_result["cache_hit"] = True
+                cached_result["generation_time"] = 0.001  # Instant from cache
+                return cached_result
+
+            logger.info(f"🎬 Generating instant preview: {session_id} ({start_time}-{end_time}s)")
+
+            # Validate session
+            if session_id not in self.active_sessions:
+                raise ValueError(f"Session not found: {session_id}")
+
+            session = self.active_sessions[session_id]
+
+            # Generate preview with optimized settings
+            preview_settings = self.preview_pipeline.get(quality, self.preview_pipeline["instant"])
+
+            # Mock instant preview generation (replace with actual processing)
+            preview_data = await self._generate_preview_data(session_id, start_time, end_time, preview_settings)
+
+            # Generate viral analysis for the segment
+            viral_analysis = await self._analyze_segment_instant(session_id, start_time, end_time)
+
+            # Generate optimization suggestions
+            suggestions = await self._generate_instant_suggestions(viral_analysis, end_time - start_time)
+
+            generation_time = (time.time() - generation_start) * 1000  # Convert to ms
+
+            result = {
+                "success": True,
+                "preview_url": preview_data["url"],
+                "thumbnail_url": preview_data["thumbnail_url"],
+                "viral_analysis": viral_analysis,
+                "suggestions": suggestions,
+                "quality": quality,
+                "duration": end_time - start_time,
+                "generation_time": generation_time,
+                "cache_hit": False,
+                "server_version": "4.0.0"
+            }
+
+            # Cache the result
+            self.preview_generation_cache[cache_key] = result
+
+            # Track performance
+            self.performance_metrics["preview_generation_times"].append(generation_time)
+            if len(self.performance_metrics["preview_generation_times"]) > 1000:
+                self.performance_metrics["preview_generation_times"].pop(0)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ Instant preview generation failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "generation_time": (time.time() - generation_start) * 1000
+            }
+
+    async def update_interactive_timeline(self, session_id: str, timeline_data: Dict[str, Any]):
+        """Update interactive timeline with real-time viral scoring"""
+        render_start = time.time()
+
+        try:
+            # Enhanced timeline data with instant feedback
+            enhanced_data = {
+                "type": "interactive_timeline_update",
+                "session_id": session_id,
+                "timestamp": time.time(),
+                "viral_heatmap": timeline_data.get("viral_heatmap", []),
+                "key_moments": timeline_data.get("key_moments", []),
+                "duration": timeline_data.get("duration", 0),
+                "energy_timeline": await self._generate_energy_timeline(timeline_data.get("duration", 0)),
+                "emotion_timeline": await self._generate_emotion_timeline(timeline_data.get("duration", 0)),
+                "engagement_peaks": await self._find_engagement_peaks(timeline_data.get("viral_heatmap", [])),
+                "recommended_clips": await self._generate_clip_recommendations(timeline_data.get("viral_heatmap", [])),
+                "interactive_features": {
+                    "hover_preview": True,
+                    "segment_selection": True,
+                    "instant_generation": True,
+                    "viral_score_visualization": True
+                }
+            }
+
+            # Cache timeline data
+            self.timeline_cache[session_id] = enhanced_data
+
+            # Broadcast to session connections
+            await self.broadcast_to_session(session_id, enhanced_data)
+
+            render_time = (time.time() - render_start) * 1000
+            self.performance_metrics["timeline_render_times"].append(render_time)
+            if len(self.performance_metrics["timeline_render_times"]) > 1000:
+                self.performance_metrics["timeline_render_times"].pop(0)
+
+            logger.debug(f"Interactive timeline updated for session {session_id} in {render_time:.2f}ms")
+
+        except Exception as e:
+            logger.error(f"Failed to update interactive timeline: {e}")
+
+    async def start_live_processing_status(self, session_id: str, processing_data: Dict[str, Any]):
+        """Start live processing status with entertaining content"""
+        try:
+            # Initialize processing status
+            self.active_sessions[session_id]["processing_status"] = {
+                "started_at": time.time(),
+                "current_stage": "initializing",
+                "progress": 0,
+                "entertainment_rotation": True,
+                "tips_shown": 0,
+                "facts_shown": 0
+            }
+
+            # Start entertainment rotation
+            asyncio.create_task(self._rotate_entertainment_content(session_id))
+
+            # Send initial status
+            await self.broadcast_to_session(session_id, {
+                "type": "live_processing_started",
+                "session_id": session_id,
+                "timestamp": time.time(),
+                "entertaining_content_enabled": True,
+                "estimated_duration": processing_data.get("estimated_duration", 30),
+                "stages": self.processing_stages
+            })
+
+        except Exception as e:
+            logger.error(f"Failed to start live processing status: {e}")
+
+    async def update_live_processing_status(self, session_id: str, stage: str, progress: float, 
+                                          message: str = "", additional_data: Dict[str, Any] = None):
+        """Update live processing status with Netflix-level entertainment"""
+        try:
+            if session_id not in self.active_sessions:
+                return
+
+            session = self.active_sessions[session_id]
+            processing_status = session.get("processing_status", {})
+
+            # Update processing status
+            processing_status.update({
+                "current_stage": stage,
+                "progress": progress,
+                "last_update": time.time(),
+                "message": message
+            })
+
+            # Generate entertaining content
+            entertaining_fact = None
+            processing_tip = None
+
+            if progress in [20, 40, 60, 80] and processing_status.get("entertainment_rotation", True):
+                entertaining_fact = self._get_random_fact()
+                processing_tip = self._get_processing_tip(stage)
+
+            # Create status update
+            status_update = {
+                "type": "live_processing_status",
+                "session_id": session_id,
+                "stage": stage,
+                "progress": progress,
+                "message": message,
+                "timestamp": time.time(),
+                "entertaining_fact": entertaining_fact,
+                "processing_tip": processing_tip,
+                "stage_icon": self._get_stage_icon(stage),
+                "stage_color": self._get_stage_color(stage),
+                "estimated_remaining": self._calculate_eta(progress),
+                "performance_metrics": {
+                    "processing_speed": "high",
+                    "server_load": await self._get_server_load(),
+                    "quality": "netflix-level"
+                }
+            }
+
+            # Add additional data if provided
+            if additional_data:
+                status_update.update(additional_data)
+
+            # Broadcast update
+            await self.broadcast_to_session(session_id, status_update)
+
+            # Special handling for completion
+            if stage == "complete":
+                await self._handle_processing_completion(session_id)
+
+        except Exception as e:
+            logger.error(f"Failed to update live processing status: {e}")
+
+    async def _rotate_entertainment_content(self, session_id: str):
+        """Rotate entertaining content during processing"""
+        try:
+            while (session_id in self.active_sessions and 
+                   self.active_sessions[session_id].get("processing_status", {}).get("entertainment_rotation", False)):
+
+                # Send rotating entertainment content
+                await self.broadcast_to_session(session_id, {
+                    "type": "entertainment_rotation",
+                    "session_id": session_id,
+                    "entertaining_fact": self._get_random_fact(),
+                    "timestamp": time.time()
+                })
+
+                # Wait before next rotation
+                await asyncio.sleep(self.instant_feedback["entertainment_rotation_frequency"] / 1000)
+
+        except Exception as e:
+            logger.error(f"Entertainment rotation error: {e}")
+
+    async def _handle_processing_completion(self, session_id: str):
+        """Handle processing completion with celebration"""
+        try:
+            # Stop entertainment rotation
+            if session_id in self.active_sessions:
+                processing_status = self.active_sessions[session_id].get("processing_status", {})
+                processing_status["entertainment_rotation"] = False
+
+            # Send completion celebration
+            await self.broadcast_to_session(session_id, {
+                "type": "processing_complete_celebration",
+                "session_id": session_id,
+                "timestamp": time.time(),
+                "celebration_message": "🎉 Netflix-level processing complete!",
+                "final_message": "Your viral clips are ready for the world!",
+                "confetti": True,
+                "next_steps": [
+                    "Review generated clips",
+                    "Download your favorites",
+                    "Share on social platforms",
+                    "Analyze performance metrics"
+                ]
+            })
+
+        except Exception as e:
+            logger.error(f"Processing completion handling error: {e}")
+
+    # Background Tasks
+    async def _instant_feedback_processor(self):
+        """Process instant feedback requests"""
+        while self.is_running:
+            try:
+                # Process any pending instant feedback requests
+                await self._process_pending_feedback()
+
+                # Small delay to prevent CPU overload
+                await asyncio.sleep(0.01)  # 10ms
+
+            except Exception as e:
+                logger.error(f"Instant feedback processor error: {e}")
+                await asyncio.sleep(1)
+
+    async def _performance_monitor(self):
+        """Monitor and report performance metrics"""
+        while self.is_running:
+            try:
+                # Update performance metrics
+                await self._update_performance_metrics()
+
+                # Broadcast performance update to admin connections
+                await self._broadcast_performance_metrics()
+
+                await asyncio.sleep(5)  # Every 5 seconds
+
+            except Exception as e:
+                logger.error(f"Performance monitor error: {e}")
+                await asyncio.sleep(5)
+
+    # Utility Methods
     def _get_random_fact(self) -> str:
         """Get a random entertaining fact"""
         import random
         return random.choice(self.entertaining_facts)
 
-    def _get_stage_message(self, stage: str) -> str:
-        """Get human-readable message for processing stage"""
-        messages = {
-            "extracting_metadata": "Analyzing video properties and structure...",
-            "generating_previews": "Creating preview thumbnails...",
-            "analyzing_viral_potential": "Calculating viral potential using AI...",
-            "detecting_key_moments": "Finding the most engaging moments...",
-            "generating_timeline": "Building interactive timeline...",
-            "complete": "Analysis complete! Ready for clip generation.",
-            "error": "An error occurred during processing."
+    def _get_processing_tip(self, stage: str) -> str:
+        """Get processing tip based on current stage"""
+        tips = {
+            "analyzing": "💡 Pro tip: Add captions to increase views by 40%!",
+            "extracting_features": "🎯 Did you know? Hooks in first 3 seconds are crucial!",
+            "calculating_viral_scores": "📊 Fun fact: Emotional peaks every 30 seconds work best!",
+            "generating_timeline": "⚡ Quick tip: 15-30 second clips have highest completion rates!",
+            "creating_previews": "🎬 Insider secret: Test multiple thumbnails for best results!",
+            "optimizing": "🚀 Pro move: Cross-platform posting multiplies reach!",
+            "finalizing": "✨ Final touch: Peak posting times vary by platform!"
         }
-        return messages.get(stage, f"Processing: {stage}")
+        return tips.get(stage, "🌟 Netflix-level quality processing in progress!")
 
-    def _calculate_eta(self, current: int, total: int) -> int:
+    def _get_stage_icon(self, stage: str) -> str:
+        """Get icon for processing stage"""
+        icons = {
+            "initializing": "🔧",
+            "uploading": "📤",
+            "analyzing": "🔍",
+            "extracting_features": "⚡",
+            "calculating_viral_scores": "📊",
+            "generating_timeline": "🎬",
+            "creating_previews": "🎥",
+            "optimizing": "🚀",
+            "finalizing": "✨",
+            "complete": "🎉"
+        }
+        return icons.get(stage, "⚙️")
+
+    def _get_stage_color(self, stage: str) -> str:
+        """Get color for processing stage"""
+        colors = {
+            "initializing": "#4a90e2",
+            "uploading": "#f39c12",
+            "analyzing": "#9b59b6",
+            "extracting_features": "#e74c3c",
+            "calculating_viral_scores": "#2ecc71",
+            "generating_timeline": "#1abc9c",
+            "creating_previews": "#f1c40f",
+            "optimizing": "#e67e22",
+            "finalizing": "#3498db",
+            "complete": "#27ae60"
+        }
+        return colors.get(stage, "#95a5a6")
+
+    def _calculate_eta(self, progress: float) -> int:
         """Calculate estimated time remaining"""
-        if current == 0:
-            return total * 3  # 3 seconds per clip estimate
-
-        elapsed_per_item = 3  # Mock: 3 seconds per clip
-        remaining_items = total - current
-        return remaining_items * elapsed_per_item
-
-    async def _extract_video_metadata(self, file_path: str) -> Dict[str, Any]:
-        """Extract comprehensive video metadata"""
-        # Mock metadata extraction
-        return {
-            "duration": 120.0,
-            "width": 1920,
-            "height": 1080,
-            "fps": 30.0,
-            "bitrate": 5000000,
-            "codec": "h264",
-            "file_size": 50 * 1024 * 1024  # 50MB
-        }
-
-    async def _generate_preview_thumbnails(self, session_id: str, file_path: str) -> List[Dict[str, Any]]:
-        """Generate preview thumbnails at key timestamps"""
-        thumbnails = []
-        for i, timestamp in enumerate([5, 15, 30, 60, 90]):
-            thumbnails.append({
-                "id": f"thumb_{i}",
-                "timestamp": timestamp,
-                "url": f"/api/v3/thumbnail/{session_id}/{timestamp}",
-                "width": 320,
-                "height": 180
-            })
-        return thumbnails
-
-    async def _analyze_viral_potential(self, session_id: str, video_info: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze overall viral potential"""
-        # Mock viral analysis
-        return {
-            "overall_score": 78,
-            "confidence": 0.85,
-            "factors": [
-                "High visual contrast detected",
-                "Strong opening hook potential",
-                "Optimal duration for social media",
-                "Good audio quality detected"
-            ],
-            "platform_scores": {
-                "tiktok": 82,
-                "instagram": 75,
-                "youtube_shorts": 80,
-                "twitter": 65
-            }
-        }
-
-    async def _detect_key_moments(self, session_id: str, file_path: str) -> List[Dict[str, Any]]:
-        """Detect key moments in the video"""
-        # Mock key moment detection
-        return [
-            {"timestamp": 8.5, "type": "hook", "confidence": 0.9, "description": "Strong opening hook"},
-            {"timestamp": 25.3, "type": "climax", "confidence": 0.8, "description": "Peak excitement moment"},
-            {"timestamp": 45.7, "type": "reveal", "confidence": 0.85, "description": "Key information reveal"},
-            {"timestamp": 78.2, "type": "emotional_peak", "confidence": 0.75, "description": "Emotional high point"}
-        ]
-
-    async def _generate_interactive_timeline(self, session_id: str) -> Dict[str, Any]:
-        """Generate interactive timeline data"""
-        session = self.active_sessions[session_id]
-        return await self._generate_timeline_data(session)
-
-    async def _calculate_segment_viral_score(self, session_id: str, timestamp: float) -> int:
-        """Calculate viral score for a specific timestamp"""
-        # Mock viral score calculation with some variation
-        import math
-        base_score = 50
-        variation = 30 * math.sin(timestamp / 10) + 20 * math.cos(timestamp / 15)
-        return max(10, min(100, int(base_score + variation)))
-
-    async def _create_preview_clip(self, file_path: str, start_time: float, end_time: float, quality: str) -> Dict[str, Any]:
-        """Create a preview clip for the specified time range"""
-        # Mock preview generation
-        processing_time = 0.5  # Mock processing time
-        return {
-            "url": f"/api/v3/preview/{start_time}_{end_time}_{quality}.mp4",
-            "processing_time": processing_time,
-            "file_size": 2 * 1024 * 1024,  # 2MB
-            "quality": quality
-        }
-
-    async def _analyze_segment_viral_potential(self, session_id: str, start_time: float, end_time: float) -> Dict[str, Any]:
-        """Analyze viral potential for a specific segment"""
-        # Mock segment analysis
-        duration = end_time - start_time
-        base_score = await self._calculate_segment_viral_score(session_id, (start_time + end_time) / 2)
-
-        # Adjust based on duration
-        if 10 <= duration <= 30:
-            duration_bonus = 10
-        elif duration <= 60:
-            duration_bonus = 5
+        if progress >= 95:
+            return 5  # Almost done
+        elif progress >= 75:
+            return 15
+        elif progress >= 50:
+            return 30
+        elif progress >= 25:
+            return 60
         else:
-            duration_bonus = -5
+            return 90
 
-        final_score = min(100, base_score + duration_bonus)
+    async def _get_server_load(self) -> str:
+        """Get current server load status"""
+        # Mock server load - replace with actual monitoring
+        import random
+        loads = ["low", "normal", "high"]
+        weights = [0.6, 0.3, 0.1]  # Favor low load
+        return random.choices(loads, weights=weights)[0]
 
+    async def _get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status"""
         return {
-            "viral_score": final_score,
-            "confidence": 0.8,
-            "factors": [
-                f"Segment duration: {duration:.1f}s",
-                f"Optimal timing: {start_time:.1f}s",
-                "Good pacing detected",
-                "Strong visual elements"
-            ],
-            "recommendations": [
-                "Consider adding captions",
-                "Enhance audio levels",
-                "Add trending hashtags"
-            ]
-        }
-
-    async def _generate_optimization_suggestions(self, viral_analysis: Dict[str, Any]) -> List[str]:
-        """Generate optimization suggestions based on viral analysis"""
-        suggestions = []
-        score = viral_analysis.get("viral_score", 50)
-
-        if score < 60:
-            suggestions.extend([
-                "Consider shortening the clip to 15-30 seconds",
-                "Add captions for better accessibility",
-                "Increase visual contrast and saturation"
-            ])
-        elif score < 80:
-            suggestions.extend([
-                "Add trending audio or music",
-                "Consider adding text overlays",
-                "Optimize for vertical format"
-            ])
-        else:
-            suggestions.extend([
-                "This clip has high viral potential!",
-                "Consider A/B testing different versions",
-                "Add platform-specific optimizations"
-            ])
-
-        return suggestions[:3]  # Return top 3 suggestions
-
-    def _identify_highlights(self, viral_scores: List[int], duration: float) -> List[Dict[str, Any]]:
-        """Identify highlight moments from viral scores"""
-        highlights = []
-
-        # Find peaks in viral scores
-        for i, score in enumerate(viral_scores):
-            if i == 0 or i == len(viral_scores) - 1:
-                continue
-
-            if score > viral_scores[i - 1] and score > viral_scores[i + 1] and score > 70:
-                timestamp = (i / len(viral_scores)) * duration
-                highlights.append({
-                    "timestamp": timestamp,
-                    "score": score,
-                    "type": "viral_peak"
-                })
-
-        return highlights[:5]  # Return top 5 highlights
-
-    def _find_engagement_peaks(self, viral_scores: List[int], duration: float) -> List[Dict[str, Any]]:
-        """Find engagement peaks in the timeline"""
-        peaks = []
-
-        # Find top scoring segments
-        for i, score in enumerate(viral_scores):
-            if score >= 80:  # High engagement threshold
-                timestamp = (i / len(viral_scores)) * duration
-                peaks.append({
-                    "timestamp": timestamp,
-                    "score": score,
-                    "duration": 5.0  # 5-second peak
-                })
-
-        return peaks[:3]  # Return top 3 peaks
-
-    def _generate_recommended_clips(self, viral_scores: List[int], duration: float) -> List[Dict[str, Any]]:
-        """Generate recommended clips based on viral scores"""
-        clips = []
-
-        # Find segments with consistently high scores
-        segment_size = 10  # Analyze in 10-point segments
-        for i in range(0, len(viral_scores) - segment_size, segment_size):
-            segment = viral_scores[i:i + segment_size]
-            avg_score = sum(segment) / len(segment)
-
-            if avg_score >= 70:
-                start_time = (i / len(viral_scores)) * duration
-                end_time = ((i + segment_size) / len(viral_scores)) * duration
-
-                clips.append({
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "viral_score": int(avg_score),
-                    "title": f"Viral Moment {len(clips) + 1}",
-                    "recommended": True
-                })
-
-        return clips[:5]  # Return top 5 clips
-
-    def _create_score_visualization(self, viral_scores: List[int]) -> Dict[str, Any]:
-        """Create visualization data for viral scores"""
-        return {
-            "max_score": max(viral_scores),
-            "min_score": min(viral_scores),
-            "avg_score": sum(viral_scores) / len(viral_scores),
-            "score_distribution": {
-                "excellent": len([s for s in viral_scores if s >= 80]),
-                "good": len([s for s in viral_scores if 60 <= s < 80]),
-                "average": len([s for s in viral_scores if 40 <= s < 60]),
-                "poor": len([s for s in viral_scores if s < 40])
-            }
-        }
-
-    def _generate_emotion_timeline(self, duration: float) -> List[Dict[str, Any]]:
-        """Generate emotion timeline (mock)"""
-        emotions = ["joy", "excitement", "surprise", "calm", "intense"]
-        timeline = []
-
-        points = 20  # 20 emotion points across timeline
-        for i in range(points):
-            timestamp = (i / points) * duration
-            emotion = emotions[i % len(emotions)]
-            timeline.append({
-                "timestamp": timestamp,
-                "emotion": emotion,
-                "intensity": 0.5 + (i % 5) * 0.1
-            })
-
-        return timeline
-
-    def _generate_energy_timeline(self, duration: float) -> List[Dict[str, Any]]:
-        """Generate energy level timeline (mock)"""
-        timeline = []
-
-        points = 50  # 50 energy points across timeline
-        for i in range(points):
-            timestamp = (i / points) * duration
-            # Simulate varying energy levels
-            energy = 0.3 + 0.7 * abs(math.sin(i / 5))
-            timeline.append({
-                "timestamp": timestamp,
-                "energy": energy
-            })
-
-        return timeline
-
-    # System metrics and health
-    async def get_system_metrics(self) -> Dict[str, Any]:
-        """Get real-time system metrics"""
-        return {
+            "status": "healthy",
             "active_sessions": len(self.active_sessions),
-            "websocket_connections": sum(len(connections) for connections in self.websocket_connections.values()),
-            "processing_queue_size": len(self.processing_queue),
-            "cache_size": len(self.preview_cache),
-            "uptime": time.time() - getattr(self, '_start_time', time.time()),
-            "memory_usage": "N/A",  # Would implement actual memory monitoring
-            "cpu_usage": "N/A"      # Would implement actual CPU monitoring
+            "active_connections": len(self.connections),
+            "cache_hit_rate": self._calculate_cache_hit_rate(),
+            "average_response_time": self._calculate_average_response_time(),
+            "server_version": "4.0.0"
         }
 
-    @property
-    def websocket_count(self) -> int:
-        """Get total WebSocket connection count"""
-        return sum(len(connections) for connections in self.websocket_connections.values())
+    async def _get_connection_performance(self, connection_id: str) -> Dict[str, Any]:
+        """Get performance metrics for specific connection"""
+        if connection_id not in self.connections:
+            return {}
 
-    @property
-    def processing_queue_size(self) -> int:
-        """Get processing queue size"""
-        return len(self.processing_queue)
+        connection = self.connections[connection_id]
+        performance = connection.get("performance_metrics", {})
+
+        return {
+            "average_latency": sum(performance.get("latency", [0])) / max(len(performance.get("latency", [1])), 1),
+            "message_count": connection.get("message_count", 0),
+            "connection_duration": time.time() - connection.get("connected_at", time.time()),
+            "last_activity": performance.get("last_activity", 0)
+        }
+
+    def _calculate_cache_hit_rate(self) -> float:
+        """Calculate cache hit rate"""
+        # Mock calculation - implement actual cache hit rate tracking
+        return 0.85  # 85% cache hit rate
+
+    def _calculate_average_response_time(self) -> float:
+        """Calculate average response time"""
+        all_latencies = []
+        for connection in self.connections.values():
+            latencies = connection.get("performance_metrics", {}).get("latency", [])
+            all_latencies.extend(latencies)
+
+        if all_latencies:
+            return sum(all_latencies) / len(all_latencies)
+        return 0.0
 
     async def cleanup(self):
         """Cleanup resources on shutdown"""
-        logger.info("🧹 Cleaning up RealtimeEngine...")
+        logger.info("🧹 Cleaning up Netflix-level RealtimeEngine v4.0...")
+
+        # Stop entertainment rotations
+        for session_id in self.active_sessions:
+            if "processing_status" in self.active_sessions[session_id]:
+                self.active_sessions[session_id]["processing_status"]["entertainment_rotation"] = False
 
         # Close all WebSocket connections
         for connection_set in self.websocket_connections.values():
@@ -1191,212 +1310,253 @@ class RealtimeEngine:
         # Clear all data
         self.active_sessions.clear()
         self.websocket_connections.clear()
-        self.processing_queue.clear()
         self.preview_cache.clear()
+        self.instant_feedback_cache.clear()
+        self.timeline_cache.clear()
+        self.preview_generation_cache.clear()
 
-        logger.info("✅ RealtimeEngine cleanup complete")
+        logger.info("✅ Netflix-level RealtimeEngine v4.0 cleanup complete")
 
-    async def stream_preview(self, session_id: str, start_time: float, end_time: float):
-        """Stream preview video data"""
-        # Mock streaming implementation
-        chunk_size = 8192
-        total_size = 1024 * 1024  # 1MB mock file
+    # Mock helper methods (replace with actual implementations)
+    async def _generate_preview_data(self, session_id: str, start_time: float, end_time: float, settings: Dict) -> Dict[str, Any]:
+        """Generate preview data (mock implementation)"""
+        return {
+            "url": f"/api/v4/preview/{session_id}/{start_time}_{end_time}.mp4",
+            "thumbnail_url": f"/api/v4/thumbnail/{session_id}/{start_time}.jpg"
+        }
 
-        for i in range(0, total_size, chunk_size):
-            chunk = b'0' * min(chunk_size, total_size - i)
-            yield chunk
-            await asyncio.sleep(0.01)  # Simulate streaming delay
-
-    def _get_random_entertaining_fact(self) -> str:
-        """Get a random entertaining fact"""
-        import random
-        return random.choice(self.entertaining_facts)
-
-    async def _process_queue(self):
-        """Background task to process queued items"""
-        while self.is_running:
-            try:
-                # Wait for queue item with timeout
-                try:
-                    item = await asyncio.wait_for(self.processing_queue.get(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    continue
-
-                await self._handle_queue_item(item)
-
-            except Exception as e:
-                logger.error(f"Error in process queue: {str(e)}")
-                await asyncio.sleep(1)
-
-    async def _handle_queue_item(self, item: Dict[str, Any]):
-        """Handle a queue item"""
-        try:
-            item_type = item.get("type", "unknown")
-
-            if item_type == "process_video":
-                await self._simulate_video_processing(item["session_id"], item["video_info"])
-
-            else:
-                logger.warning(f"Unknown queue item type: {item_type}")
-
-        except Exception as e:
-            logger.error(f"Error handling queue item: {str(e)}")
-
-    async def _simulate_video_processing(self, session_id: str, video_info: Dict[str, Any]):
-        """Simulate Netflix-level video processing"""
-        try:
-            stages = [
-                ("analyzing", "Analyzing video content with AI..."),
-                ("extracting_features", "Extracting viral features..."),
-                ("scoring_segments", "Scoring video segments..."),
-                ("generating_timeline", "Generating interactive timeline..."),
-                ("optimizing", "Optimizing for viral potential..."),
-                ("complete", "Processing complete!")
-            ]
-
-            for i, (stage, message) in enumerate(stages):
-                progress = ((i + 1) / len(stages)) * 100
-
-                await self.update_processing_status(session_id, stage, progress, message)
-
-                # Simulate processing time
-                await asyncio.sleep(2)
-
-                # Send mock data at certain stages
-                if stage == "scoring_segments":
-                    await self._send_mock_viral_scores(session_id)
-                elif stage == "generating_timeline":
-                    await self._send_mock_timeline_data(session_id)
-
-            logger.info(f"✅ Video processing completed for session: {session_id}")
-
-        except Exception as e:
-            logger.error(f"Error in video processing simulation: {str(e)}")
-            await self.update_processing_status(session_id, "error", 0, f"Processing failed: {str(e)}")
-
-    async def _send_mock_viral_scores(self, session_id: str):
-        """Send mock viral score data"""
+    async def _analyze_segment_instant(self, session_id: str, start_time: float, end_time: float) -> Dict[str, Any]:
+        """Analyze segment for viral potential (mock implementation)"""
         import random
 
-        viral_data = {
-            "viral_score": random.randint(65, 95),
+        duration = end_time - start_time
+        base_score = random.randint(60, 95)
+
+        # Adjust score based on duration
+        if 10 <= duration <= 30:
+            base_score += 5
+        elif duration > 60:
+            base_score -= 10
+
+        return {
+            "viral_score": min(100, max(0, base_score)),
             "confidence": random.uniform(0.7, 0.95),
             "factors": [
-                "High emotion content detected",
-                "Trending audio identified",
-                "Optimal length for platform",
-                "Strong visual composition"
+                f"Segment duration: {duration:.1f}s",
+                "Strong visual elements detected",
+                "Good pacing analysis",
+                "Engagement potential identified"
             ]
         }
 
-        await self.send_viral_score_update(session_id, viral_data)
+    async def _generate_instant_suggestions(self, viral_analysis: Dict[str, Any], duration: float) -> List[str]:
+        """Generate instant optimization suggestions"""
+        suggestions = []
+        score = viral_analysis.get("viral_score", 50)
 
-    async def _send_mock_timeline_data(self, session_id: str):
-        """Send mock timeline data"""
+        if score >= 80:
+            suggestions.append("🚀 Excellent viral potential! This segment is ready to publish")
+        elif score >= 60:
+            suggestions.append("📈 Good potential - consider adding captions for accessibility")
+        else:
+            suggestions.append("💡 Try shorter segments (15-30s) for better engagement")
+
+        if duration > 30:
+            suggestions.append("⏱️ Consider trimming to under 30 seconds for maximum impact")
+        elif duration < 10:
+            suggestions.append("🎬 Extend slightly - 10-15 second minimum recommended")
+
+        return suggestions
+
+    # Additional mock implementations for timeline features
+    async def _generate_energy_timeline(self, duration: float) -> List[Dict[str, Any]]:
+        """Generate energy level timeline"""
         import random
+        points = 50
+        timeline = []
 
-        # Generate mock viral heatmap (scores for each segment)
-        timeline_length = 100
-        viral_heatmap = [random.randint(20, 100) for _ in range(timeline_length)]
+        for i in range(points):
+            timestamp = (i / points) * duration
+            energy = 0.3 + 0.7 * abs(math.sin(i / 5))
+            timeline.append({
+                "timestamp": timestamp,
+                "energy": energy
+            })
 
-        # Generate mock key moments
-        key_moments = [
-            {"timestamp": random.uniform(0, 30), "type": "hook", "description": "Strong opening hook"},
-            {"timestamp": random.uniform(30, 60), "type": "peak", "description": "Viral peak moment"},
-            {"timestamp": random.uniform(60, 90), "type": "cta", "description": "Call to action"}
-        ]
+        return timeline
 
-        timeline_data = {
-            "viral_heatmap": viral_heatmap,
-            "key_moments": key_moments,
-            "duration": 90
-        }
+    async def _generate_emotion_timeline(self, duration: float) -> List[Dict[str, Any]]:
+        """Generate emotion timeline"""
+        import random
+        emotions = ["joy", "excitement", "surprise", "calm", "intense"]
+        points = 20
+        timeline = []
 
-        await self.send_timeline_update(session_id, timeline_data)
+        for i in range(points):
+            timestamp = (i / points) * duration
+            emotion = random.choice(emotions)
+            intensity = random.uniform(0.5, 1.0)
+            timeline.append({
+                "timestamp": timestamp,
+                "emotion": emotion,
+                "intensity": intensity
+            })
 
-    async def _heartbeat_monitor(self):
-        """Monitor connection health"""
-        while self.is_running:
-            try:
-                current_time = time.time()
-                stale_connections = []
+        return timeline
 
-                for connection_id, connection in self.connections.items():
-                    last_ping = connection.get("last_ping", 0)
-                    if current_time - last_ping > 60:  # 60 seconds timeout
-                        stale_connections.append(connection_id)
+    async def _find_engagement_peaks(self, viral_scores: List[int]) -> List[Dict[str, Any]]:
+        """Find engagement peaks in viral scores"""
+        peaks = []
 
-                # Remove stale connections
-                for connection_id in stale_connections:
-                    logger.info(f"Removing stale connection: {connection_id}")
-                    await self.remove_connection(connection_id)
+        for i, score in enumerate(viral_scores):
+            if score >= 80:  # High engagement threshold
+                peaks.append({
+                    "index": i,
+                    "score": score,
+                    "type": "engagement_peak"
+                })
 
-                await asyncio.sleep(30)  # Check every 30 seconds
+        return peaks[:5]  # Return top 5 peaks
 
-            except Exception as e:
-                logger.error(f"Error in heartbeat monitor: {str(e)}")
-                await asyncio.sleep(30)
+    async def _generate_clip_recommendations(self, viral_scores: List[int]) -> List[Dict[str, Any]]:
+        """Generate recommended clips based on viral scores"""
+        clips = []
+        segment_size = 10
 
-    async def _cleanup_stale_connections(self):
-        """Clean up stale sessions and data"""
-        while self.is_running:
-            try:
-                current_time = time.time()
-                stale_sessions = []
+        for i in range(0, len(viral_scores) - segment_size, segment_size):
+            segment = viral_scores[i:i + segment_size]
+            avg_score = sum(segment) / len(segment)
 
-                for session_id, session in self.active_sessions.items():
-                    start_time = session.get("start_time", 0)
-                    if current_time - start_time > 3600:  # 1 hour timeout
-                        stale_sessions.append(session_id)
+            if avg_score >= 70:
+                clips.append({
+                    "start_index": i,
+                    "end_index": i + segment_size,
+                    "avg_score": int(avg_score),
+                    "recommended": True
+                })
 
-                # Remove stale sessions
-                for session_id in stale_sessions:
-                    logger.info(f"Cleaning up stale session: {session_id}")
-                    del self.active_sessions[session_id]
+        return clips[:3]  # Return top 3 recommendations
 
-                await asyncio.sleep(300)  # Check every 5 minutes
 
-            except Exception as e:
-                logger.error(f"Error in cleanup task: {str(e)}")
-                await asyncio.sleep(300)
-
-    def get_connection_stats(self) -> Dict[str, Any]:
-        """Get connection statistics"""
-        return {
-            "total_connections": len(self.connections),
-            "active_sessions": len(self.active_sessions),
-            "is_running": self.is_running,
-            "uptime": time.time() - (getattr(self, 'start_time', time.time()))
-        }
 # Mock AI classes for development
 class MockViralAnalyzer:
-    """Mock viral analyzer for development"""
-
     async def analyze(self, video_data: Any) -> Dict[str, Any]:
+        import random
         return {
-            "viral_score": 75,
-            "confidence": 0.8,
+            "viral_score": random.randint(60, 95),
+            "confidence": random.uniform(0.7, 0.95),
             "factors": ["Good pacing", "Strong visuals", "Engaging content"]
         }
 
 
 class MockEmotionDetector:
-    """Mock emotion detector for development"""
-
     async def detect_emotions(self, video_data: Any) -> List[Dict[str, Any]]:
+        import random
+        emotions = ["joy", "excitement", "surprise", "calm"]
         return [
-            {"timestamp": 10.0, "emotion": "joy", "confidence": 0.9},
-            {"timestamp": 30.0, "emotion": "excitement", "confidence": 0.8},
-            {"timestamp": 60.0, "emotion": "surprise", "confidence": 0.7}
+            {
+                "timestamp": i * 10.0,
+                "emotion": random.choice(emotions),
+                "confidence": random.uniform(0.7, 0.9)
+            }
+            for i in range(5)
         ]
 
 
 class MockTrendAnalyzer:
-    """Mock trend analyzer for development"""
-
     async def analyze_trends(self, content: str) -> Dict[str, Any]:
         return {
             "trending_topics": ["AI", "viral", "content"],
             "relevance_score": 0.85,
             "recommendations": ["Add trending hashtags", "Use popular audio"]
         }
+
+
+class MockInstantPreviewGenerator:
+    async def generate_preview(self, video_path: str, start_time: float, end_time: float, settings: Dict) -> str:
+        # Mock preview generation
+        return f"/api/v4/preview/mock_{start_time}_{end_time}.mp4"
+
+    async def _process_pending_feedback(self):
+        """Process pending instant feedback requests"""
+        # Mock implementation - in production, handle actual requests
+        await asyncio.sleep(0.01)
+        pass
+
+    async def _update_performance_metrics(self):
+        """Update performance metrics"""
+        # Mock implementation - in production, track actual performance
+        await asyncio.sleep(0.01)
+        pass
+
+    async def _broadcast_performance_metrics(self):
+        """Broadcast performance metrics"""
+        # Mock implementation - in production, send to admin connections
+        await asyncio.sleep(0.01)
+        pass
+
+    async def _send_cached_session_data(self, connection_id: str, session_id: str):
+        """Send cached session data to connection"""
+        # Mock implementation - in production, retrieve and send data
+        await asyncio.sleep(0.01)
+        pass
+
+    async def _send_performance_update(self, connection_id: str):
+        """Send performance update to connection"""
+        # Mock implementation - send dummy data
+        await self.send_to_connection(connection_id, {
+            "type": "performance_update",
+            "cpu_usage": 0.2,
+            "memory_usage": 0.3,
+            "active_connections": len(self.connections)
+        })
+
+    async def _handle_instant_preview_request(self, connection_id: str, message: Dict[str, Any]):
+        """Handle instant preview request"""
+        # Extract parameters
+        session_id = message.get("session_id")
+        start_time = message.get("start_time")
+        end_time = message.get("end_time")
+        quality = message.get("quality", "instant")
+
+        if not (session_id and start_time is not None and end_time is not None):
+            logger.warning("Invalid instant preview request")
+            return
+
+        try:
+            # Generate instant preview
+            preview_data = await self.generate_instant_preview(session_id, start_time, end_time, quality)
+
+            # Send preview data to connection
+            await self.send_to_connection(connection_id, {
+                "type": "instant_preview_response",
+                "session_id": session_id,
+                "preview_data": preview_data,
+                "start_time": start_time,
+                "end_time": end_time,
+                "quality": quality
+            })
+
+            logger.info(f"Sent instant preview to connection {connection_id}")
+
+        except Exception as e:
+            logger.error(f"Error handling instant preview request: {e}")
+
+    async def _handle_timeline_interaction(self, connection_id: str, message: Dict[str, Any]):
+        """Handle timeline interaction"""
+        # Extract parameters
+        session_id = message.get("session_id")
+        timeline_data = message.get("timeline_data")
+
+        if not (session_id and timeline_data):
+            logger.warning("Invalid timeline interaction request")
+            return
+
+        try:
+            # Update interactive timeline
+            await self.update_interactive_timeline(session_id, timeline_data)
+
+            logger.info(f"Updated interactive timeline for session {session_id}")
+
+        except Exception as e:
+            logger.error(f"Error handling timeline interaction: {e}")
