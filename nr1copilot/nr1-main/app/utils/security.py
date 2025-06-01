@@ -1,620 +1,531 @@
 """
-Netflix-Level Security Manager
-Enterprise-grade security controls and validation
+Netflix-Level Security Manager v5.0
+Comprehensive security features including authentication, authorization, and threat protection
 """
 
+import asyncio
 import hashlib
 import hmac
 import secrets
 import time
-from typing import Dict, List, Optional, Any, Tuple
-from pathlib import Path
-import re
 import logging
-import ipaddress
-import json
 from datetime import datetime, timedelta
-
-try:
-    import jwt
-    HAS_JWT = True
-except ImportError:
-    HAS_JWT = False
-
-from ..config import get_settings
+from typing import Dict, List, Optional, Set, Any, Union
+from dataclasses import dataclass
+from enum import Enum
+import jwt
+import bcrypt
+from fastapi import HTTPException, Request
+import ipaddress
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
+
+
+class SecurityLevel(str, Enum):
+    """Security level enumeration"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ThreatType(str, Enum):
+    """Threat type enumeration"""
+    BRUTE_FORCE = "brute_force"
+    DOS_ATTACK = "dos_attack"
+    SUSPICIOUS_PATTERN = "suspicious_pattern"
+    MALICIOUS_PAYLOAD = "malicious_payload"
+    UNAUTHORIZED_ACCESS = "unauthorized_access"
+
+
+@dataclass
+class SecurityEvent:
+    """Security event data structure"""
+    event_id: str
+    timestamp: datetime
+    client_ip: str
+    threat_type: ThreatType
+    severity: SecurityLevel
+    description: str
+    details: Dict[str, Any]
+    blocked: bool = False
+
+
+@dataclass
+class UserSession:
+    """User session data structure"""
+    session_id: str
+    user_id: str
+    ip_address: str
+    user_agent: str
+    created_at: datetime
+    last_activity: datetime
+    permissions: List[str]
+    metadata: Dict[str, Any]
+
 
 class SecurityManager:
-    """Comprehensive security manager for production applications"""
+    """Netflix-level security manager with comprehensive protection"""
 
-    def __init__(self):
-        self.allowed_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'}
-        self.max_filename_length = 255
-        self.blocked_patterns = [
-            r'\.\./',  # Path traversal
-            r'[<>:"|?*]',  # Invalid filename chars
-            r'^\.',  # Hidden files
-            r'\.exe$',  # Executables
-            r'\.bat$',
-            r'\.cmd$',
-            r'\.scr$'
+    def __init__(
+        self,
+        secret_key: str = None,
+        token_expire_minutes: int = 1440,  # 24 hours
+        max_login_attempts: int = 5,
+        lockout_duration: int = 900,  # 15 minutes
+        suspicious_threshold: int = 10
+    ):
+        self.secret_key = secret_key or secrets.token_urlsafe(32)
+        self.token_expire_minutes = token_expire_minutes
+        self.max_login_attempts = max_login_attempts
+        self.lockout_duration = lockout_duration
+        self.suspicious_threshold = suspicious_threshold
+
+        # Security state
+        self.active_sessions: Dict[str, UserSession] = {}
+        self.failed_attempts: Dict[str, List[datetime]] = {}
+        self.blocked_ips: Dict[str, datetime] = {}
+        self.security_events: List[SecurityEvent] = []
+        self.whitelist_ips: Set[str] = set()
+        self.blacklist_ips: Set[str] = set()
+
+        # Rate limiting per IP
+        self.request_counts: Dict[str, List[datetime]] = {}
+        self.rate_limit_window = 60  # 1 minute
+        self.rate_limit_max_requests = 100
+
+        # Malicious patterns
+        self.malicious_patterns = [
+            r"<script.*?>.*?</script>",  # XSS
+            r"union\s+select",  # SQL injection
+            r"drop\s+table",  # SQL injection
+            r"exec\s*\(",  # Code injection
+            r"eval\s*\(",  # Code injection
+            r"\.\.\/",  # Path traversal
+            r"\/etc\/passwd",  # File access
+            r"cmd\.exe",  # Command injection
         ]
-        self.session_tokens = {}
-        self.failed_attempts = {}
-        self.max_attempts = 5
-        self.lockout_duration = 300  # 5 minutes
-        self.suspicious_patterns = {
-            'sql_injection': [
-                r"(\bUNION\b.*\bSELECT\b)",
-                r"(\bINSERT\b.*\bINTO\b)",
-                r"(\bDROP\b.*\bTABLE\b)",
-                r"(\bDELETE\b.*\bFROM\b)"
-            ],
-            'xss': [
-                r"<script[^>]*>.*?</script>",
-                r"javascript:",
-                r"on\w+\s*=",
-                r"<iframe[^>]*>"
-            ],
-            'path_traversal': [
-                r"\.\./",
-                r"\.\.\\",
-                r"/etc/passwd",
-                r"/proc/",
-                r"\\windows\\"
-            ]
-        }
-        self.rate_limits = {}  # endpoint -> {requests: [], limit, window}
 
-    def validate_filename(self, filename: str) -> Dict[str, Any]:
-        """Validate uploaded filename for security"""
-        if not filename:
-            return {"valid": False, "error": "Empty filename"}
+        # Initialize security components
+        self._setup_security_rules()
 
-        if len(filename) > self.max_filename_length:
-            return {"valid": False, "error": "Filename too long"}
+    def _setup_security_rules(self):
+        """Setup security rules and patterns"""
+        # Add common attack IP ranges to blacklist
+        dangerous_ranges = [
+            "10.0.0.0/8",  # Private range (if not internal)
+            "172.16.0.0/12",  # Private range
+            "192.168.0.0/16",  # Private range
+        ]
 
-        # Check for blocked patterns
-        for pattern in self.blocked_patterns:
-            if re.search(pattern, filename, re.IGNORECASE):
-                return {"valid": False, "error": "Invalid filename characters"}
+        # Note: In production, this would be configured differently
+        # and private ranges might be whitelisted for internal use
 
-        # Check extension
-        file_ext = Path(filename).suffix.lower()
-        if file_ext not in self.allowed_extensions:
-            return {"valid": False, "error": f"Unsupported file type: {file_ext}"}
-
-        return {"valid": True, "sanitized_name": self.sanitize_filename(filename)}
-
-    def sanitize_filename(self, filename: str) -> str:
-        """Sanitize filename for safe storage"""
-        # Remove dangerous characters
-        safe_name = re.sub(r'[<>:"|?*]', '_', filename)
-
-        # Remove path traversal attempts
-        safe_name = safe_name.replace('..', '_')
-
-        # Ensure it doesn't start with a dot
-        if safe_name.startswith('.'):
-            safe_name = '_' + safe_name[1:]
-
-        return safe_name
-
-    def generate_secure_token(self, length: int = 32) -> str:
-        """Generate cryptographically secure token"""
-        return secrets.token_urlsafe(length)
-
-    def hash_content(self, content: bytes) -> str:
-        """Generate secure hash of file content"""
-        return hashlib.sha256(content).hexdigest()
-
-    def verify_file_signature(self, file_path: Path) -> Dict[str, Any]:
-        """Verify file signature matches expected video formats"""
+    async def authenticate_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Authenticate JWT token"""
         try:
-            with open(file_path, 'rb') as f:
-                header = f.read(12)
-
-            # Video file signatures
-            video_signatures = {
-                b'\x00\x00\x00\x18ftypmp4': 'mp4',
-                b'\x00\x00\x00\x1cftypM4V': 'm4v',
-                b'\x00\x00\x00\x20ftypqt': 'mov',
-                b'RIFF': 'avi',
-                b'\x1a\x45\xdf\xa3': 'mkv',
-                b'\x1a\x45\xdf\xa3\x93\x42\x82\x88matroska': 'mkv'
-            }
-
-            for signature, format_type in video_signatures.items():
-                if header.startswith(signature):
-                    return {"valid": True, "format": format_type}
-
-            return {"valid": False, "error": "Invalid video file signature"}
-
-        except Exception as e:
-            return {"valid": False, "error": f"Signature verification failed: {e}"}
-
-    def create_session_token(self, user_data: Dict[str, Any]) -> str:
-        """Create secure session token"""
-        timestamp = str(int(time.time()))
-        data = f"{user_data.get('id', 'anonymous')}:{timestamp}"
-
-        return self.generate_secure_token()
-
-    def validate_upload_size(self, file_size: int, max_size: int) -> Dict[str, Any]:
-        """Validate file size constraints"""
-        if file_size <= 0:
-            return {"valid": False, "error": "Empty file"}
-
-        if file_size > max_size:
-            max_mb = max_size / (1024 * 1024)
-            return {"valid": False, "error": f"File too large. Maximum: {max_mb:.1f}MB"}
-
-        return {"valid": True, "size_mb": file_size / (1024 * 1024)}
-
-    def check_content_policy(self, filename: str, metadata: Optional[Dict] = None) -> Dict[str, Any]:
-        """Check content against policy violations"""
-        # Basic content policy checks
-        blocked_keywords = ['virus', 'malware', 'exploit', 'hack']
-
-        filename_lower = filename.lower()
-        for keyword in blocked_keywords:
-            if keyword in filename_lower:
-                return {"valid": False, "error": "Content policy violation"}
-
-        return {"valid": True, "message": "Content policy check passed"}
-
-    def generate_session_id(self) -> str:
-        """Generate secure session ID"""
-        return secrets.token_urlsafe(32)
-
-    def hash_password(self, password: str, salt: Optional[str] = None) -> Tuple[str, str]:
-        """Hash password with salt using secure algorithm"""
-        if not salt:
-            salt = secrets.token_hex(32)
-
-        # Use PBKDF2 with SHA-256
-        pwdhash = hashlib.pbkdf2_hmac(
-            'sha256',
-            password.encode('utf-8'),
-            salt.encode('utf-8'),
-            100000  # 100k iterations
-        )
-
-        return pwdhash.hex(), salt
-
-    def verify_password(self, password: str, hash_hex: str, salt: str) -> bool:
-        """Verify password against hash"""
-        try:
-            expected_hash = hashlib.pbkdf2_hmac(
-                'sha256',
-                password.encode('utf-8'),
-                salt.encode('utf-8'),
-                100000
+            payload = jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=["HS256"]
             )
-            return hmac.compare_digest(expected_hash.hex(), hash_hex)
-        except Exception as e:
-            logger.error(f"Password verification error: {e}")
-            return False
 
-    def create_jwt_token(
-        self,
-        payload: Dict[str, Any],
-        expires_in: int = 3600,
-        secret_key: Optional[str] = None
-    ) -> Optional[str]:
-        """Create JWT token with expiration"""
-        if not HAS_JWT:
-            logger.warning("JWT library not available")
-            return None
-
-        try:
-            secret = secret_key or settings.secret_key
-            now = datetime.utcnow()
-
-            token_payload = {
-                **payload,
-                'iat': now,
-                'exp': now + timedelta(seconds=expires_in),
-                'jti': self.generate_secure_token(16)  # JWT ID for revocation
-            }
-
-            return jwt.encode(token_payload, secret, algorithm='HS256')
-
-        except Exception as e:
-            logger.error(f"JWT creation error: {e}")
-            return None
-
-    def verify_jwt_token(
-        self,
-        token: str,
-        secret_key: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
-        """Verify and decode JWT token"""
-        if not HAS_JWT:
-            logger.warning("JWT library not available")
-            return None
-
-        try:
-            secret = secret_key or settings.secret_key
-            payload = jwt.decode(token, secret, algorithms=['HS256'])
-
-            # Additional validation
-            if 'exp' in payload and datetime.utcnow() > datetime.fromtimestamp(payload['exp']):
-                logger.warning("Token expired")
+            # Check token expiration
+            if payload.get("exp", 0) < time.time():
                 return None
+
+            # Validate session
+            session_id = payload.get("session_id")
+            if session_id and session_id in self.active_sessions:
+                session = self.active_sessions[session_id]
+                session.last_activity = datetime.utcnow()
+                return {
+                    "user_id": session.user_id,
+                    "session_id": session_id,
+                    "permissions": session.permissions
+                }
 
             return payload
 
-        except jwt.ExpiredSignatureError:
-            logger.warning("Token expired")
-            return None
         except jwt.InvalidTokenError as e:
             logger.warning(f"Invalid token: {e}")
             return None
         except Exception as e:
-            logger.error(f"JWT verification error: {e}")
+            logger.error(f"Token authentication error: {e}")
             return None
 
-    def validate_request_signature(
+    async def create_token(
         self,
-        payload: str,
-        signature: str,
-        secret: str,
-        timestamp: Optional[str] = None,
-        tolerance: int = 300
-    ) -> bool:
-        """Validate request signature (webhook style)"""
+        user_id: str,
+        permissions: List[str] = None,
+        ip_address: str = None,
+        user_agent: str = None
+    ) -> str:
+        """Create authenticated JWT token"""
         try:
-            # Check timestamp if provided (prevent replay attacks)
-            if timestamp:
-                try:
-                    ts = int(timestamp)
-                    if abs(time.time() - ts) > tolerance:
-                        logger.warning("Request timestamp outside tolerance")
-                        return False
-                    payload_to_sign = f"{timestamp}.{payload}"
-                except (ValueError, TypeError):
-                    logger.warning("Invalid timestamp format")
-                    return False
-            else:
-                payload_to_sign = payload
+            session_id = secrets.token_urlsafe(32)
+            now = datetime.utcnow()
 
-            # Calculate expected signature
-            expected_signature = hmac.new(
-                secret.encode('utf-8'),
-                payload_to_sign.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
+            # Create session
+            session = UserSession(
+                session_id=session_id,
+                user_id=user_id,
+                ip_address=ip_address or "unknown",
+                user_agent=user_agent or "unknown",
+                created_at=now,
+                last_activity=now,
+                permissions=permissions or ["read"],
+                metadata={}
+            )
 
-            # Compare signatures
-            return hmac.compare_digest(f"sha256={expected_signature}", signature)
+            self.active_sessions[session_id] = session
+
+            # Create token payload
+            payload = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "permissions": permissions or ["read"],
+                "iat": int(now.timestamp()),
+                "exp": int((now + timedelta(minutes=self.token_expire_minutes)).timestamp()),
+                "iss": "viralclip-pro-v5"
+            }
+
+            token = jwt.encode(
+                payload,
+                self.secret_key,
+                algorithm="HS256"
+            )
+
+            logger.info(f"Token created for user {user_id}")
+            return token
 
         except Exception as e:
-            logger.error(f"Signature validation error: {e}")
-            return False
+            logger.error(f"Token creation error: {e}")
+            raise
 
-    def detect_suspicious_content(self, content: str) -> Dict[str, Any]:
-        """Detect suspicious patterns in content"""
-        threats = []
+    async def validate_request(self, request: Request) -> Dict[str, Any]:
+        """Comprehensive request validation"""
+        client_ip = self._get_client_ip(request)
 
-        for threat_type, patterns in self.suspicious_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, content, re.IGNORECASE):
-                    threats.append({
-                        'type': threat_type,
-                        'pattern': pattern,
-                        'severity': 'high' if threat_type in ['sql_injection', 'xss'] else 'medium'
-                    })
+        # Check IP blacklist
+        if await self._is_blacklisted(client_ip):
+            await self._log_security_event(
+                client_ip=client_ip,
+                threat_type=ThreatType.UNAUTHORIZED_ACCESS,
+                severity=SecurityLevel.HIGH,
+                description="Blacklisted IP access attempt",
+                blocked=True
+            )
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        # Check rate limiting
+        if not await self._check_rate_limit(client_ip):
+            await self._log_security_event(
+                client_ip=client_ip,
+                threat_type=ThreatType.DOS_ATTACK,
+                severity=SecurityLevel.MEDIUM,
+                description="Rate limit exceeded",
+                blocked=True
+            )
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+        # Check for malicious patterns
+        await self._scan_request_for_threats(request, client_ip)
 
         return {
-            'suspicious': len(threats) > 0,
-            'threats': threats,
-            'risk_score': min(len(threats) * 25, 100)
+            "client_ip": client_ip,
+            "user_agent": request.headers.get("user-agent", ""),
+            "validation_passed": True
         }
 
-    def validate_ip_address(self, ip_address: str) -> Dict[str, Any]:
-        """Validate and analyze IP address"""
+    async def _get_client_ip(self, request: Request) -> str:
+        """Extract client IP from request"""
+        # Check for forwarded headers
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip
+
+        return request.client.host
+
+    async def _is_blacklisted(self, ip: str) -> bool:
+        """Check if IP is blacklisted"""
+        # Check explicit blacklist
+        if ip in self.blacklist_ips:
+            return True
+
+        # Check if IP is currently blocked
+        if ip in self.blocked_ips:
+            block_time = self.blocked_ips[ip]
+            if datetime.utcnow() < block_time + timedelta(seconds=self.lockout_duration):
+                return True
+            else:
+                # Remove expired block
+                del self.blocked_ips[ip]
+
+        # Check IP ranges
         try:
-            ip = ipaddress.ip_address(ip_address)
-
-            analysis = {
-                'valid': True,
-                'version': ip.version,
-                'is_private': ip.is_private,
-                'is_loopback': ip.is_loopback,
-                'is_multicast': ip.is_multicast,
-                'is_reserved': ip.is_reserved,
-                'risk_level': 'low'
-            }
-
-            # Risk assessment
-            if ip.is_private or ip.is_loopback:
-                analysis['risk_level'] = 'very_low'
-            elif ip.is_reserved or ip.is_multicast:
-                analysis['risk_level'] = 'medium'
-
-            # Check against known bad ranges (simplified)
-            if self._is_known_bad_ip(str(ip)):
-                analysis['risk_level'] = 'high'
-                analysis['blocked'] = True
-
-            return analysis
-
-        except ValueError:
-            return {
-                'valid': False,
-                'error': 'Invalid IP address format',
-                'risk_level': 'high'
-            }
-
-    def _is_known_bad_ip(self, ip: str) -> bool:
-        """Check if IP is in known bad ranges"""
-        # Simplified - in production, this would check against threat intelligence
-        bad_ranges = [
-            '10.0.0.0/8',    # Example bad range
-            '192.168.0.0/16'  # Example (normally private, but for demo)
-        ]
-
-        try:
-            ip_obj = ipaddress.ip_address(ip)
-            for bad_range in bad_ranges:
-                if ip_obj in ipaddress.ip_network(bad_range):
-                    return True
+            ip_addr = ipaddress.ip_address(ip)
+            for range_str in self.blacklist_ips:
+                if "/" in range_str:  # CIDR notation
+                    network = ipaddress.ip_network(range_str, strict=False)
+                    if ip_addr in network:
+                        return True
         except ValueError:
             pass
 
         return False
 
-    def track_failed_login(self, ip_address: str, username: str = None) -> Dict[str, Any]:
-        """Track failed login attempts and implement progressive delays"""
+    async def _check_rate_limit(self, ip: str) -> bool:
+        """Check rate limiting for IP"""
         now = datetime.utcnow()
+        window_start = now - timedelta(seconds=self.rate_limit_window)
 
-        if ip_address not in self.failed_attempts:
-            self.failed_attempts[ip_address] = {
-                'count': 0,
-                'last_attempt': now,
-                'blocked_until': None,
-                'usernames': set()
-            }
+        # Initialize or clean old requests
+        if ip not in self.request_counts:
+            self.request_counts[ip] = []
 
-        attempt_info = self.failed_attempts[ip_address]
-        attempt_info['count'] += 1
-        attempt_info['last_attempt'] = now
+        # Remove old requests outside window
+        self.request_counts[ip] = [
+            req_time for req_time in self.request_counts[ip]
+            if req_time > window_start
+        ]
 
-        if username:
-            attempt_info['usernames'].add(username)
-
-        # Progressive blocking
-        if attempt_info['count'] >= 5:
-            # Block for increasing duration
-            block_duration = min(2 ** (attempt_info['count'] - 5), 3600)  # Max 1 hour
-            attempt_info['blocked_until'] = now + timedelta(seconds=block_duration)
-
-            logger.warning(
-                f"IP {ip_address} blocked for {block_duration}s after {attempt_info['count']} failed attempts"
-            )
-
-        return {
-            'attempts': attempt_info['count'],
-            'blocked': attempt_info['blocked_until'] is not None and now < attempt_info['blocked_until'],
-            'blocked_until': attempt_info['blocked_until'],
-            'unique_usernames': len(attempt_info['usernames'])
-        }
-
-    def is_ip_blocked(self, ip_address: str) -> bool:
-        """Check if IP is currently blocked"""
-        if ip_address not in self.failed_attempts:
+        # Check if within limit
+        if len(self.request_counts[ip]) >= self.rate_limit_max_requests:
             return False
 
-        attempt_info = self.failed_attempts[ip_address]
-        blocked_until = attempt_info.get('blocked_until')
+        # Add current request
+        self.request_counts[ip].append(now)
+        return True
 
-        if blocked_until and datetime.utcnow() < blocked_until:
-            return True
+    async def _scan_request_for_threats(self, request: Request, client_ip: str):
+        """Scan request for malicious patterns"""
+        import re
 
-        # Clean up expired blocks
-        if blocked_until and datetime.utcnow() >= blocked_until:
-            attempt_info['blocked_until'] = None
+        # Get request data
+        url = str(request.url)
+        headers = dict(request.headers)
 
-        return False
+        # Scan URL for threats
+        for pattern in self.malicious_patterns:
+            if re.search(pattern, url, re.IGNORECASE):
+                await self._log_security_event(
+                    client_ip=client_ip,
+                    threat_type=ThreatType.MALICIOUS_PAYLOAD,
+                    severity=SecurityLevel.HIGH,
+                    description=f"Malicious pattern detected in URL: {pattern}",
+                    details={"url": url, "pattern": pattern},
+                    blocked=True
+                )
+                raise HTTPException(status_code=400, detail="Malicious request detected")
 
-    def reset_failed_attempts(self, ip_address: str):
-        """Reset failed attempts for successful login"""
-        if ip_address in self.failed_attempts:
-            del self.failed_attempts[ip_address]
+        # Scan headers for threats
+        for header, value in headers.items():
+            for pattern in self.malicious_patterns:
+                if re.search(pattern, str(value), re.IGNORECASE):
+                    await self._log_security_event(
+                        client_ip=client_ip,
+                        threat_type=ThreatType.MALICIOUS_PAYLOAD,
+                        severity=SecurityLevel.HIGH,
+                        description=f"Malicious pattern detected in header {header}",
+                        details={"header": header, "value": value, "pattern": pattern},
+                        blocked=True
+                    )
+                    raise HTTPException(status_code=400, detail="Malicious request detected")
 
-    def check_rate_limit(self, identifier: str, max_requests: int = 100, window: int = 3600) -> bool:
-        """Basic rate limiting check"""
-        # Simplified rate limiting implementation
-        return True  # Allow all for now
-
-    def sanitize_filename(self, filename: str) -> str:
-        """Sanitize filename for safe storage"""
-        # Remove dangerous characters
-        safe_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
-        sanitized = ''.join(c for c in filename if c in safe_chars)
-
-        # Limit length
-        if len(sanitized) > 100:
-            name, ext = sanitized.rsplit('.', 1) if '.' in sanitized else (sanitized, '')
-            sanitized = name[:95] + ('.' + ext if ext else '')
-
-        return sanitized or 'unnamed_file'
-
-    def validate_file_type(self, filename: str, allowed_types: list) -> bool:
-        """Validate file type against allowed list"""
-        file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
-        return f'.{file_ext}' in allowed_types
-
-    def validate_file_upload(
+    async def _log_security_event(
         self,
-        filename: str,
-        content_type: str,
-        file_size: int,
-        allowed_types: List[str] = None,
-        max_size: int = None
-    ) -> Dict[str, Any]:
-        """Comprehensive file upload validation"""
+        client_ip: str,
+        threat_type: ThreatType,
+        severity: SecurityLevel,
+        description: str,
+        details: Dict[str, Any] = None,
+        blocked: bool = False
+    ):
+        """Log security event"""
+        event = SecurityEvent(
+            event_id=secrets.token_urlsafe(16),
+            timestamp=datetime.utcnow(),
+            client_ip=client_ip,
+            threat_type=threat_type,
+            severity=severity,
+            description=description,
+            details=details or {},
+            blocked=blocked
+        )
 
-        allowed_types = allowed_types or settings.allowed_video_formats
-        max_size = max_size or settings.max_file_size
+        self.security_events.append(event)
 
-        validation = {
-            'valid': True,
-            'errors': [],
-            'warnings': [],
-            'sanitized_filename': self.sanitize_filename(filename)
-        }
+        # Keep only recent events (last 1000)
+        if len(self.security_events) > 1000:
+            self.security_events = self.security_events[-1000:]
 
-        # File size check
-        if file_size > max_size:
-            validation['valid'] = False
-            validation['errors'].append(f"File size {file_size} exceeds limit {max_size}")
+        # Log to system logger
+        log_level = {
+            SecurityLevel.LOW: logging.INFO,
+            SecurityLevel.MEDIUM: logging.WARNING,
+            SecurityLevel.HIGH: logging.ERROR,
+            SecurityLevel.CRITICAL: logging.CRITICAL
+        }.get(severity, logging.WARNING)
 
-        # File type check
-        file_ext = os.path.splitext(filename)[1].lower().lstrip('.')
-        if file_ext not in allowed_types:
-            validation['valid'] = False
-            validation['errors'].append(f"File type '{file_ext}' not allowed")
+        logger.log(
+            log_level,
+            f"Security Event [{event.event_id}]: {description} - IP: {client_ip} - Type: {threat_type.value}"
+        )
 
-        # Content type validation
-        expected_content_types = {
-            'mp4': 'video/mp4',
-            'mov': 'video/quicktime',
-            'avi': 'video/x-msvideo',
-            'mkv': 'video/x-matroska',
-            'webm': 'video/webm'
-        }
+        # Auto-block for critical threats
+        if severity == SecurityLevel.CRITICAL or blocked:
+            await self._auto_block_ip(client_ip, event)
 
-        expected_type = expected_content_types.get(file_ext)
-        if expected_type and content_type != expected_type:
-            validation['warnings'].append(
-                f"Content type '{content_type}' doesn't match extension '{file_ext}'"
+    async def _auto_block_ip(self, ip: str, event: SecurityEvent):
+        """Automatically block IP for security violations"""
+        # Add to blocked IPs
+        self.blocked_ips[ip] = datetime.utcnow()
+
+        logger.warning(f"Auto-blocked IP {ip} for {self.lockout_duration} seconds due to: {event.description}")
+
+    async def record_failed_login(self, ip: str, user_id: str = None):
+        """Record failed login attempt"""
+        now = datetime.utcnow()
+
+        if ip not in self.failed_attempts:
+            self.failed_attempts[ip] = []
+
+        self.failed_attempts[ip].append(now)
+
+        # Clean old attempts (older than lockout duration)
+        cutoff = now - timedelta(seconds=self.lockout_duration)
+        self.failed_attempts[ip] = [
+            attempt for attempt in self.failed_attempts[ip]
+            if attempt > cutoff
+        ]
+
+        # Check if should block
+        if len(self.failed_attempts[ip]) >= self.max_login_attempts:
+            await self._log_security_event(
+                client_ip=ip,
+                threat_type=ThreatType.BRUTE_FORCE,
+                severity=SecurityLevel.HIGH,
+                description=f"Brute force attack detected - {len(self.failed_attempts[ip])} failed attempts",
+                details={"user_id": user_id, "attempts": len(self.failed_attempts[ip])},
+                blocked=True
             )
 
-        # Filename security check
-        suspicious_content = self.detect_suspicious_content(filename)
-        if suspicious_content['suspicious']:
-            validation['valid'] = False
-            validation['errors'].append("Filename contains suspicious content")
+    async def record_successful_login(self, ip: str, user_id: str):
+        """Record successful login"""
+        # Clear failed attempts for this IP
+        if ip in self.failed_attempts:
+            del self.failed_attempts[ip]
 
-        return validation
+        await self._log_security_event(
+            client_ip=ip,
+            threat_type=ThreatType.UNAUTHORIZED_ACCESS,  # Using as general category
+            severity=SecurityLevel.LOW,
+            description=f"Successful login for user {user_id}",
+            details={"user_id": user_id, "event_type": "successful_login"}
+        )
 
-    def generate_csrf_token(self, session_id: str) -> str:
-        """Generate CSRF token for session"""
-        timestamp = str(int(time.time()))
-        payload = f"{session_id}:{timestamp}"
+    async def revoke_session(self, session_id: str):
+        """Revoke user session"""
+        if session_id in self.active_sessions:
+            session = self.active_sessions[session_id]
+            del self.active_sessions[session_id]
 
-        signature = hmac.new(
-            settings.secret_key.encode('utf-8'),
-            payload.encode('utf-8'),
+            logger.info(f"Session revoked: {session_id} for user {session.user_id}")
+
+    async def cleanup_expired_sessions(self):
+        """Cleanup expired sessions"""
+        now = datetime.utcnow()
+        expired_sessions = []
+
+        for session_id, session in self.active_sessions.items():
+            # Check if session is expired (no activity for 24 hours)
+            if (now - session.last_activity).total_seconds() > (self.token_expire_minutes * 60):
+                expired_sessions.append(session_id)
+
+        for session_id in expired_sessions:
+            await self.revoke_session(session_id)
+
+        logger.debug(f"Cleaned up {len(expired_sessions)} expired sessions")
+
+    async def get_security_stats(self) -> Dict[str, Any]:
+        """Get security statistics"""
+        now = datetime.utcnow()
+        last_24h = now - timedelta(hours=24)
+
+        recent_events = [
+            event for event in self.security_events
+            if event.timestamp > last_24h
+        ]
+
+        threat_counts = {}
+        for event in recent_events:
+            threat_type = event.threat_type.value
+            threat_counts[threat_type] = threat_counts.get(threat_type, 0) + 1
+
+        return {
+            "active_sessions": len(self.active_sessions),
+            "blocked_ips": len(self.blocked_ips),
+            "failed_attempts_ips": len(self.failed_attempts),
+            "security_events_24h": len(recent_events),
+            "threat_breakdown": threat_counts,
+            "blacklisted_ips": len(self.blacklist_ips),
+            "whitelisted_ips": len(self.whitelist_ips)
+        }
+
+    async def add_to_whitelist(self, ip: str):
+        """Add IP to whitelist"""
+        self.whitelist_ips.add(ip)
+        logger.info(f"Added IP to whitelist: {ip}")
+
+    async def add_to_blacklist(self, ip: str):
+        """Add IP to blacklist"""
+        self.blacklist_ips.add(ip)
+        logger.info(f"Added IP to blacklist: {ip}")
+
+    async def remove_from_blacklist(self, ip: str):
+        """Remove IP from blacklist"""
+        self.blacklist_ips.discard(ip)
+        if ip in self.blocked_ips:
+            del self.blocked_ips[ip]
+        logger.info(f"Removed IP from blacklist: {ip}")
+
+    def hash_password(self, password: str) -> str:
+        """Hash password using bcrypt"""
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+    def verify_password(self, password: str, hashed: str) -> bool:
+        """Verify password against hash"""
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+    def generate_secure_token(self, length: int = 32) -> str:
+        """Generate cryptographically secure token"""
+        return secrets.token_urlsafe(length)
+
+    def compute_hmac(self, data: str, key: str = None) -> str:
+        """Compute HMAC-SHA256"""
+        key = key or self.secret_key
+        return hmac.new(
+            key.encode('utf-8'),
+            data.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
 
-        return f"{timestamp}.{signature}"
+    async def validate_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Validate JWT token and return user data"""
+        return await self.authenticate_token(token)
 
-    def validate_csrf_token(self, token: str, session_id: str, max_age: int = 3600) -> bool:
-        """Validate CSRF token"""
-        try:
-            timestamp_str, signature = token.split('.', 1)
-            timestamp = int(timestamp_str)
 
-            # Check age
-            if time.time() - timestamp > max_age:
-                return False
-
-            # Verify signature
-            payload = f"{session_id}:{timestamp_str}"
-            expected_signature = hmac.new(
-                settings.secret_key.encode('utf-8'),
-                payload.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-
-            return hmac.compare_digest(signature, expected_signature)
-
-        except (ValueError, TypeError):
-            return False
-
-    def get_security_headers(self) -> Dict[str, str]:
-        """Get recommended security headers"""
-        return {
-            'X-Content-Type-Options': 'nosniff',
-            'X-Frame-Options': 'DENY',
-            'X-XSS-Protection': '1; mode=block',
-            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            'Content-Security-Policy': (
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: https:; "
-                "connect-src 'self' wss: ws:; "
-                "media-src 'self' blob:; "
-                "object-src 'none'; "
-                "base-uri 'self'"
-            ),
-            'Referrer-Policy': 'strict-origin-when-cross-origin',
-            'Permissions-Policy': (
-                'camera=(), microphone=(), geolocation=(), '
-                'payment=(), usb=(), magnetometer=(), gyroscope=()'
-            )
-        }
-
-    def audit_log(
-        self,
-        action: str,
-        user_id: str = None,
-        ip_address: str = None,
-        details: Dict[str, Any] = None
-    ):
-        """Log security-relevant actions"""
-        log_entry = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'action': action,
-            'user_id': user_id,
-            'ip_address': ip_address,
-            'details': details or {},
-            'session_id': self.generate_secure_token(16)
-        }
-
-        # Log to security log
-        security_logger = logging.getLogger('security')
-        security_logger.info(json.dumps(log_entry))
-
-    def get_security_summary(self) -> Dict[str, Any]:
-        """Get security status summary"""
-        now = datetime.utcnow()
-
-        # Count blocked IPs
-        blocked_ips = sum(
-            1 for attempt_info in self.failed_attempts.values()
-            if attempt_info.get('blocked_until') and now < attempt_info['blocked_until']
-        )
-
-        # Count recent failed attempts
-        recent_failures = sum(
-            1 for attempt_info in self.failed_attempts.values()
-            if (now - attempt_info['last_attempt']).total_seconds() < 3600
-        )
-
-        return {
-            'blocked_ips': blocked_ips,
-            'recent_failed_attempts': recent_failures,
-            'total_tracked_ips': len(self.failed_attempts),
-            'rate_limited_endpoints': len(self.rate_limits),
-            'jwt_available': HAS_JWT,
-            'security_features_enabled': [
-                'rate_limiting',
-                'failed_attempt_tracking',
-                'suspicious_content_detection',
-                'file_upload_validation',
-                'csrf_protection',
-                'security_headers'
-            ]
-        }
-
-    def log_security_event(self, event_type: str, details: Dict[str, Any]):
-        """Log security-related events"""
-        logger.warning(f"Security Event [{event_type}]: {details}")
+# Export main classes
+__all__ = [
+    "SecurityManager",
+    "SecurityLevel",
+    "ThreatType",
+    "SecurityEvent",
+    "UserSession"
+]
