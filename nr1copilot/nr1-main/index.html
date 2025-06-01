@@ -442,6 +442,39 @@
         </div>
     </div>
 
+    
+    <div class="upload-section">
+            <h2 class="step-title">📤 Upload Your Video</h2>
+            <div class="upload-container">
+                <div class="upload-methods">
+                    <div class="upload-method active" data-method="url">
+                        <input type="text" id="video-url" placeholder="Paste YouTube URL or video link..." class="url-input">
+                        <button id="analyze-btn" class="btn btn-primary">🎯 Analyze Video</button>
+                    </div>
+                    <div class="upload-method" data-method="file">
+                        <div class="file-drop-zone" id="file-drop-zone">
+                            <div class="drop-zone-content">
+                                <div class="upload-icon">📁</div>
+                                <p>Drag & drop your video here</p>
+                                <p class="or-text">or</p>
+                                <button class="btn btn-secondary" id="file-select-btn">Choose File</button>
+                                <input type="file" id="video-file" accept="video/*" style="display: none;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="upload-tabs">
+                    <button class="tab-btn active" data-tab="url">🔗 URL</button>
+                    <button class="tab-btn" data-tab="file">📁 File</button>
+                </div>
+            </div>
+            <div class="upload-note">
+                <p>💡 Supports YouTube, TikTok, Instagram, and direct video files (MP4, MOV, AVI)</p>
+                <p>🚀 One-click processing • 📱 Mobile optimized • ⚡ Lightning fast</p>
+            </div>
+        </div>
+    
+
     <script src="/static/app.js"></script>
 </body>
 </html>

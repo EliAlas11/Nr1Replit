@@ -30,10 +30,17 @@ from pydantic import BaseModel, Field, field_validator
 import yt_dlp
 import shutil
 import hashlib
+
+# Make Redis optional
 try:
-    from redis.asyncio import Redis
+    import redis.asyncio as redis
+    Redis = redis.Redis
 except ImportError:
-    Redis = None
+    try:
+        import aioredis
+        Redis = aioredis.Redis
+    except ImportError:
+        Redis = None
 
 from .config import get_settings, is_production
 from .logging_config import setup_logging
