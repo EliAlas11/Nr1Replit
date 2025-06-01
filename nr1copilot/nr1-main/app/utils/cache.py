@@ -1,240 +1,286 @@
 
 """
-Enhanced Cache Management System
-Provides Redis-based caching with fallback to in-memory cache
+Netflix-Level Cache Manager
+Production-grade caching with multiple backends and strategies
 """
 
 import json
 import time
-import hashlib
-import logging
-from typing import Any, Optional, Dict, Union
+import asyncio
+from typing import Any, Dict, Optional, List
 from datetime import datetime, timedelta
-
-try:
-    import redis.asyncio as redis
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-
-from ..config import get_settings
-
-logger = logging.getLogger(__name__)
+from pathlib import Path
+import pickle
+import hashlib
 
 class CacheManager:
-    """Enhanced cache manager with Redis and in-memory fallback"""
+    """Advanced cache manager with TTL and persistence"""
     
     def __init__(self):
-        self.settings = get_settings()
-        self.redis_client: Optional[redis.Redis] = None
+        # In-memory cache
         self.memory_cache: Dict[str, Dict] = {}
-        self.cache_stats = {
+        
+        # File-based cache for persistence
+        self.cache_dir = Path("cache")
+        self.cache_dir.mkdir(exist_ok=True)
+        
+        # Cache configuration
+        self.default_ttl = 3600  # 1 hour
+        self.max_memory_items = 1000
+        self.cleanup_interval = 300  # 5 minutes
+        
+        # Cache statistics
+        self.stats = {
             "hits": 0,
             "misses": 0,
-            "errors": 0,
-            "type": "memory"
+            "evictions": 0,
+            "size": 0
         }
-        self.max_memory_items = 1000
-        self.default_ttl = 3600  # 1 hour
         
-    async def initialize(self):
-        """Initialize cache system with Redis fallback to memory"""
-        if REDIS_AVAILABLE:
-            try:
-                self.redis_client = redis.from_url(
-                    self.settings.redis_url,
-                    password=self.settings.redis_password,
-                    db=self.settings.redis_db,
-                    decode_responses=True,
-                    socket_timeout=5,
-                    socket_connect_timeout=5,
-                    retry_on_timeout=True,
-                    health_check_interval=30
-                )
-                
-                # Test connection
-                await self.redis_client.ping()
-                self.cache_stats["type"] = "redis"
-                logger.info("✅ Redis cache initialized successfully")
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Redis unavailable, using memory cache: {e}")
-                self.redis_client = None
-                self.cache_stats["type"] = "memory"
-        else:
-            logger.warning("⚠️ Redis package not available, using memory cache")
-            self.cache_stats["type"] = "memory"
-    
-    async def get(self, key: str) -> Optional[Any]:
-        """Get value from cache"""
-        try:
-            if self.redis_client:
-                return await self._get_redis(key)
-            else:
-                return await self._get_memory(key)
-        except Exception as e:
-            logger.error(f"Cache get error for key {key}: {e}")
-            self.cache_stats["errors"] += 1
-            return None
+        # Start cleanup task
+        asyncio.create_task(self._cleanup_expired())
     
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
-        """Set value in cache"""
+        """Set cache value with optional TTL"""
         try:
-            if self.redis_client:
-                return await self._set_redis(key, value, ttl)
-            else:
-                return await self._set_memory(key, value, ttl)
+            ttl = ttl or self.default_ttl
+            expiry = time.time() + ttl
+            
+            cache_entry = {
+                "value": value,
+                "expiry": expiry,
+                "created": time.time(),
+                "access_count": 0
+            }
+            
+            # Store in memory
+            self.memory_cache[key] = cache_entry
+            
+            # Enforce memory limits
+            await self._enforce_memory_limits()
+            
+            # Persist to disk for important data
+            if await self._should_persist(key):
+                await self._persist_to_disk(key, cache_entry)
+            
+            self.stats["size"] = len(self.memory_cache)
+            return True
+            
         except Exception as e:
-            logger.error(f"Cache set error for key {key}: {e}")
-            self.cache_stats["errors"] += 1
+            print(f"Cache set error: {e}")
             return False
     
-    async def delete(self, key: str) -> bool:
-        """Delete value from cache"""
+    async def get(self, key: str) -> Optional[Any]:
+        """Get cached value"""
         try:
-            if self.redis_client:
-                result = await self.redis_client.delete(key)
-                return result > 0
-            else:
-                if key in self.memory_cache:
+            # Check memory cache first
+            if key in self.memory_cache:
+                entry = self.memory_cache[key]
+                
+                # Check if expired
+                if time.time() > entry["expiry"]:
                     del self.memory_cache[key]
-                    return True
-                return False
+                    self.stats["misses"] += 1
+                    return None
+                
+                # Update access stats
+                entry["access_count"] += 1
+                entry["last_access"] = time.time()
+                
+                self.stats["hits"] += 1
+                return entry["value"]
+            
+            # Try disk cache
+            disk_value = await self._load_from_disk(key)
+            if disk_value is not None:
+                # Load back to memory with shorter TTL
+                await self.set(key, disk_value, ttl=1800)  # 30 minutes
+                self.stats["hits"] += 1
+                return disk_value
+            
+            self.stats["misses"] += 1
+            return None
+            
         except Exception as e:
-            logger.error(f"Cache delete error for key {key}: {e}")
-            self.cache_stats["errors"] += 1
+            print(f"Cache get error: {e}")
+            self.stats["misses"] += 1
+            return None
+    
+    async def delete(self, key: str) -> bool:
+        """Delete cached value"""
+        try:
+            # Remove from memory
+            if key in self.memory_cache:
+                del self.memory_cache[key]
+            
+            # Remove from disk
+            disk_file = self.cache_dir / f"{self._hash_key(key)}.cache"
+            if disk_file.exists():
+                disk_file.unlink()
+            
+            self.stats["size"] = len(self.memory_cache)
+            return True
+            
+        except Exception as e:
+            print(f"Cache delete error: {e}")
             return False
     
     async def exists(self, key: str) -> bool:
         """Check if key exists in cache"""
-        try:
-            if self.redis_client:
-                return await self.redis_client.exists(key) > 0
-            else:
-                if key in self.memory_cache:
-                    item = self.memory_cache[key]
-                    if item["expires_at"] > time.time():
-                        return True
-                    else:
-                        del self.memory_cache[key]
-                return False
-        except Exception as e:
-            logger.error(f"Cache exists error for key {key}: {e}")
-            return False
+        return await self.get(key) is not None
     
     async def clear(self) -> bool:
         """Clear all cache entries"""
         try:
-            if self.redis_client:
-                await self.redis_client.flushdb()
-            else:
-                self.memory_cache.clear()
-            logger.info("Cache cleared successfully")
+            self.memory_cache.clear()
+            
+            # Clear disk cache
+            for cache_file in self.cache_dir.glob("*.cache"):
+                cache_file.unlink()
+            
+            self.stats = {
+                "hits": 0,
+                "misses": 0,
+                "evictions": 0,
+                "size": 0
+            }
+            
             return True
+            
         except Exception as e:
-            logger.error(f"Cache clear error: {e}")
+            print(f"Cache clear error: {e}")
             return False
     
-    async def _get_redis(self, key: str) -> Optional[Any]:
-        """Get value from Redis"""
+    async def cache_session_data(self, session_id: str, data: Dict[str, Any]):
+        """Cache session-specific data"""
+        await self.set(f"session:{session_id}", data, ttl=7200)  # 2 hours
+    
+    async def get_session_data(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get cached session data"""
+        return await self.get(f"session:{session_id}")
+    
+    async def cache_results(self, task_id: str, results: List[Dict[str, Any]]):
+        """Cache processing results"""
+        await self.set(f"results:{task_id}", results, ttl=86400)  # 24 hours
+    
+    async def get_results(self, task_id: str) -> Optional[List[Dict[str, Any]]]:
+        """Get cached results"""
+        return await self.get(f"results:{task_id}")
+    
+    async def _enforce_memory_limits(self):
+        """Enforce memory cache size limits"""
+        if len(self.memory_cache) <= self.max_memory_items:
+            return
+        
+        # Remove least recently used items
+        items_to_remove = len(self.memory_cache) - self.max_memory_items
+        
+        # Sort by last access time (oldest first)
+        sorted_items = sorted(
+            self.memory_cache.items(),
+            key=lambda x: x[1].get("last_access", x[1]["created"])
+        )
+        
+        for i in range(items_to_remove):
+            key = sorted_items[i][0]
+            del self.memory_cache[key]
+            self.stats["evictions"] += 1
+    
+    async def _should_persist(self, key: str) -> bool:
+        """Determine if key should be persisted to disk"""
+        # Persist session data and results
+        return key.startswith(("session:", "results:", "metadata:"))
+    
+    async def _persist_to_disk(self, key: str, entry: Dict):
+        """Persist cache entry to disk"""
         try:
-            value = await self.redis_client.get(key)
-            if value is not None:
-                self.cache_stats["hits"] += 1
-                return json.loads(value)
-            else:
-                self.cache_stats["misses"] += 1
+            file_path = self.cache_dir / f"{self._hash_key(key)}.cache"
+            
+            with open(file_path, 'wb') as f:
+                pickle.dump({
+                    "key": key,
+                    "entry": entry
+                }, f)
+                
+        except Exception as e:
+            print(f"Disk persist error: {e}")
+    
+    async def _load_from_disk(self, key: str) -> Optional[Any]:
+        """Load cache entry from disk"""
+        try:
+            file_path = self.cache_dir / f"{self._hash_key(key)}.cache"
+            
+            if not file_path.exists():
                 return None
-        except json.JSONDecodeError:
-            logger.warning(f"Invalid JSON in cache for key: {key}")
-            await self.redis_client.delete(key)
+            
+            with open(file_path, 'rb') as f:
+                data = pickle.load(f)
+            
+            entry = data["entry"]
+            
+            # Check if expired
+            if time.time() > entry["expiry"]:
+                file_path.unlink()
+                return None
+            
+            return entry["value"]
+            
+        except Exception as e:
+            print(f"Disk load error: {e}")
             return None
     
-    async def _set_redis(self, key: str, value: Any, ttl: Optional[int]) -> bool:
-        """Set value in Redis"""
-        try:
-            serialized = json.dumps(value, default=str)
-            if ttl:
-                await self.redis_client.setex(key, ttl, serialized)
-            else:
-                await self.redis_client.set(key, serialized)
-            return True
-        except Exception as e:
-            logger.error(f"Redis set error: {e}")
-            return False
+    def _hash_key(self, key: str) -> str:
+        """Create hash for disk filename"""
+        return hashlib.md5(key.encode()).hexdigest()
     
-    async def _get_memory(self, key: str) -> Optional[Any]:
-        """Get value from memory cache"""
-        if key in self.memory_cache:
-            item = self.memory_cache[key]
-            if item["expires_at"] > time.time():
-                self.cache_stats["hits"] += 1
-                return item["value"]
-            else:
-                del self.memory_cache[key]
-                self.cache_stats["misses"] += 1
-        else:
-            self.cache_stats["misses"] += 1
-        return None
-    
-    async def _set_memory(self, key: str, value: Any, ttl: Optional[int]) -> bool:
-        """Set value in memory cache"""
-        # Implement LRU eviction if cache is full
-        if len(self.memory_cache) >= self.max_memory_items:
-            oldest_key = min(self.memory_cache.keys(), 
-                           key=lambda k: self.memory_cache[k]["created_at"])
-            del self.memory_cache[oldest_key]
-        
-        expires_at = time.time() + (ttl or self.default_ttl)
-        self.memory_cache[key] = {
-            "value": value,
-            "expires_at": expires_at,
-            "created_at": time.time()
-        }
-        return True
-    
-    async def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics"""
-        stats = self.cache_stats.copy()
-        
-        if self.redis_client:
+    async def _cleanup_expired(self):
+        """Background task to cleanup expired entries"""
+        while True:
             try:
-                info = await self.redis_client.info()
-                stats.update({
-                    "redis_memory_used": info.get("used_memory_human", "Unknown"),
-                    "redis_connected_clients": info.get("connected_clients", 0),
-                    "redis_keyspace_hits": info.get("keyspace_hits", 0),
-                    "redis_keyspace_misses": info.get("keyspace_misses", 0)
-                })
-            except:
-                pass
-        else:
-            stats.update({
-                "memory_cache_size": len(self.memory_cache),
-                "memory_cache_max_size": self.max_memory_items
-            })
-        
-        return stats
-    
-    async def close(self):
-        """Close cache connections"""
-        if self.redis_client:
-            try:
-                await self.redis_client.close()
-                logger.info("Redis connection closed")
+                await asyncio.sleep(self.cleanup_interval)
+                
+                current_time = time.time()
+                expired_keys = []
+                
+                # Find expired memory entries
+                for key, entry in self.memory_cache.items():
+                    if current_time > entry["expiry"]:
+                        expired_keys.append(key)
+                
+                # Remove expired entries
+                for key in expired_keys:
+                    del self.memory_cache[key]
+                
+                # Cleanup disk cache
+                for cache_file in self.cache_dir.glob("*.cache"):
+                    try:
+                        with open(cache_file, 'rb') as f:
+                            data = pickle.load(f)
+                        
+                        if current_time > data["entry"]["expiry"]:
+                            cache_file.unlink()
+                            
+                    except Exception:
+                        # Remove corrupted files
+                        cache_file.unlink()
+                
+                self.stats["size"] = len(self.memory_cache)
+                
             except Exception as e:
-                logger.error(f"Error closing Redis connection: {e}")
-        
-        self.memory_cache.clear()
+                print(f"Cache cleanup error: {e}")
     
-    def generate_key(self, prefix: str, *args, **kwargs) -> str:
-        """Generate a consistent cache key"""
-        key_parts = [prefix]
-        key_parts.extend(str(arg) for arg in args)
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics"""
+        hit_rate = 0
+        total_requests = self.stats["hits"] + self.stats["misses"]
         
-        if kwargs:
-            sorted_kwargs = sorted(kwargs.items())
-            key_parts.extend(f"{k}:{v}" for k, v in sorted_kwargs)
+        if total_requests > 0:
+            hit_rate = (self.stats["hits"] / total_requests) * 100
         
-        key_string = ":".join(key_parts)
-        return hashlib.md5(key_string.encode()).hexdigest()
+        return {
+            **self.stats,
+            "hit_rate": round(hit_rate, 2),
+            "memory_usage": len(self.memory_cache),
+            "max_memory": self.max_memory_items,
+            "disk_files": len(list(self.cache_dir.glob("*.cache")))
+        }

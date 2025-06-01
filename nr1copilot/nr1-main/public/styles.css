@@ -212,6 +212,39 @@ body {
   -webkit-user-select: none;
 }
 
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.upload-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-md);
+  opacity: 0.8;
+}
+
+.upload-content h3 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.upload-content p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.upload-specs {
+  display: flex;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
 .upload-area:hover,
 .upload-area.drag-over {
   border-color: var(--primary);
