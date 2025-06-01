@@ -161,15 +161,21 @@
                     <span>OR</span>
                 </div>
                 
-                <!-- File Upload -->
+                <!-- Enhanced File Upload -->
                 <div id="upload-area" class="upload-area">
                     <div class="upload-content">
-                        <div class="upload-icon">📁</div>
-                        <h3>Drag & Drop Video File</h3>
-                        <p>Supports MP4, MOV, AVI, MKV, WebM (max 2GB)</p>
-                        <button id="upload-btn" class="btn btn-secondary">
-                            Choose File
+                        <div class="upload-icon">🎬</div>
+                        <h3>Drop Your Video Here</h3>
+                        <p>Or click to browse • MP4, MOV, AVI, MKV, WebM • Max 2GB</p>
+                        <button id="upload-btn" class="btn btn-primary">
+                            <span class="btn-icon">📁</span>
+                            Choose Video File
                         </button>
+                        <div class="upload-features">
+                            <span class="feature-item">⚡ Instant Preview</span>
+                            <span class="feature-item">📊 Real-time Progress</span>
+                            <span class="feature-item">🤖 AI Analysis</span>
+                        </div>
                     </div>
                     <input type="file" id="file-input" accept="video/*" hidden>
                 </div>

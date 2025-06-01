@@ -96,29 +96,9 @@ class ViralClipApp {
 
         if (!uploadArea || !fileInput) return;
 
-        // Drag and drop
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('drag-over');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('drag-over');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('drag-over');
-
-            const files = Array.from(e.dataTransfer.files);
-            const videoFile = files.find(file => file.type.startsWith('video/'));
-
-            if (videoFile) {
-                this.handleFileUpload(videoFile);
-            } else {
-                this.showNotification('Please upload a video file', 'error');
-            }
-        });
+        // Enhanced drag and drop with global drop zone
+        this.setupGlobalDragDrop();
+        this.setupLocalDragDrop(uploadArea);
 
         // File input change
         fileInput.addEventListener('change', (e) => {
@@ -134,6 +114,123 @@ class ViralClipApp {
 
         // Click to upload
         uploadArea.addEventListener('click', () => fileInput.click());
+
+        // Paste support
+        document.addEventListener('paste', (e) => {
+            const items = Array.from(e.clipboardData.items);
+            const videoItem = items.find(item => item.type.startsWith('video/'));
+            
+            if (videoItem) {
+                const file = videoItem.getAsFile();
+                if (file) {
+                    this.handleFileUpload(file);
+                }
+            }
+        });
+    }
+
+    setupGlobalDragDrop() {
+        let dragCounter = 0;
+        const dragOverlay = this.createDragOverlay();
+
+        document.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            
+            if (this.isDraggedFile(e)) {
+                document.body.appendChild(dragOverlay);
+                dragOverlay.classList.add('show');
+            }
+        });
+
+        document.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            
+            if (dragCounter === 0) {
+                dragOverlay.classList.remove('show');
+                setTimeout(() => {
+                    if (dragOverlay.parentNode) {
+                        dragOverlay.parentNode.removeChild(dragOverlay);
+                    }
+                }, 200);
+            }
+        });
+
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            
+            dragOverlay.classList.remove('show');
+            setTimeout(() => {
+                if (dragOverlay.parentNode) {
+                    dragOverlay.parentNode.removeChild(dragOverlay);
+                }
+            }, 200);
+
+            if (this.isDraggedFile(e)) {
+                const files = Array.from(e.dataTransfer.files);
+                const videoFile = files.find(file => file.type.startsWith('video/'));
+
+                if (videoFile) {
+                    this.handleFileUpload(videoFile);
+                } else {
+                    this.showNotification('Please upload a video file', 'error');
+                }
+            }
+        });
+    }
+
+    setupLocalDragDrop(uploadArea) {
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.remove('drag-over');
+
+            const files = Array.from(e.dataTransfer.files);
+            const videoFile = files.find(file => file.type.startsWith('video/'));
+
+            if (videoFile) {
+                this.handleFileUpload(videoFile);
+            } else {
+                this.showNotification('Please upload a video file', 'error');
+            }
+        });
+    }
+
+    createDragOverlay() {
+        const overlay = document.createElement('div');
+        overlay.className = 'drag-overlay';
+        overlay.innerHTML = `
+            <div class="drag-content">
+                <div class="drag-icon">📁</div>
+                <h3>Drop your video here</h3>
+                <p>Release to upload and start creating viral clips</p>
+            </div>
+        `;
+        return overlay;
+    }
+
+    isDraggedFile(e) {
+        return e.dataTransfer && 
+               e.dataTransfer.types && 
+               Array.from(e.dataTransfer.types).includes('Files');
     }
 
     setupServiceWorker() {
@@ -233,10 +330,13 @@ class ViralClipApp {
         }
     }
 
-    // File Upload
+    // Enhanced File Upload with instant preview
     async handleFileUpload(file) {
         if (!this.validateFile(file)) return;
 
+        // Show instant preview first
+        this.showInstantPreview(file);
+        
         this.setState({ isLoading: true, currentStep: 'upload' });
 
         const uploadId = this.generateId();
@@ -247,10 +347,11 @@ class ViralClipApp {
         formData.append('upload_id', uploadId);
 
         try {
-            this.updateProgress(0, 'Uploading video...');
+            this.updateProgress(0, 'Starting upload...');
 
             const response = await this.uploadWithProgress(formData, (progress) => {
                 this.updateProgress(progress, `Uploading... ${Math.round(progress)}%`);
+                this.updateInstantPreview(progress);
             });
 
             if (response.success) {
@@ -259,14 +360,120 @@ class ViralClipApp {
                 this.displayUploadResults(response);
                 this.setState({ currentStep: 'process' });
                 this.showNotification('Upload successful!', 'success');
+                this.hideInstantPreview();
             } else {
                 throw new Error(response.error || 'Upload failed');
             }
         } catch (error) {
             this.handleError(error, 'Upload failed');
+            this.hideInstantPreview();
         } finally {
             this.setState({ isLoading: false });
         }
+    }
+
+    showInstantPreview(file) {
+        const uploadArea = document.getElementById('upload-area');
+        if (!uploadArea) return;
+
+        // Create preview element
+        const preview = document.createElement('div');
+        preview.className = 'instant-preview';
+        preview.id = 'instant-preview';
+
+        // Create video preview if possible
+        const videoURL = URL.createObjectURL(file);
+        
+        preview.innerHTML = `
+            <video class="preview-video" src="${videoURL}" muted controls></video>
+            <div class="preview-overlay">
+                <div class="preview-info">
+                    <div class="file-details">
+                        <h4>${file.name}</h4>
+                        <div class="file-stats">
+                            <span>📁 ${this.formatFileSize(file.size)}</span>
+                            <span>🎬 ${file.type.split('/')[1].toUpperCase()}</span>
+                            <span>⏱️ Analyzing...</span>
+                        </div>
+                    </div>
+                    <div class="preview-actions">
+                        <button class="btn btn-primary btn-small">
+                            ⚡ Processing...
+                        </button>
+                        <button class="btn btn-ghost btn-small" onclick="viralClipApp.cancelUpload()">
+                            ❌ Cancel
+                        </button>
+                    </div>
+                </div>
+                <div class="upload-progress-mini">
+                    <div class="progress-bar-mini">
+                        <div class="progress-fill-mini" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        uploadArea.appendChild(preview);
+        
+        // Animate in
+        setTimeout(() => {
+            preview.classList.add('show');
+        }, 50);
+
+        // Get video duration if possible
+        const video = preview.querySelector('video');
+        video.addEventListener('loadedmetadata', () => {
+            const duration = this.formatDuration(video.duration);
+            const durationSpan = preview.querySelector('.file-stats span:last-child');
+            if (durationSpan) {
+                durationSpan.textContent = `⏱️ ${duration}`;
+            }
+        });
+    }
+
+    updateInstantPreview(progress) {
+        const preview = document.getElementById('instant-preview');
+        if (!preview) return;
+
+        const progressFill = preview.querySelector('.progress-fill-mini');
+        const processingBtn = preview.querySelector('.btn-primary');
+
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
+        }
+
+        if (processingBtn) {
+            if (progress >= 100) {
+                processingBtn.innerHTML = '✅ Complete!';
+                processingBtn.classList.add('success');
+            } else {
+                processingBtn.innerHTML = `⚡ ${Math.round(progress)}%`;
+            }
+        }
+    }
+
+    hideInstantPreview() {
+        const preview = document.getElementById('instant-preview');
+        if (preview) {
+            preview.classList.remove('show');
+            setTimeout(() => {
+                if (preview.parentNode) {
+                    preview.parentNode.removeChild(preview);
+                }
+            }, 300);
+        }
+    }
+
+    cancelUpload() {
+        this.hideInstantPreview();
+        
+        if (this.uploadWebSocket) {
+            this.uploadWebSocket.close();
+        }
+        
+        this.setState({ isLoading: false });
+        this.updateProgress(0, 'Upload cancelled');
+        this.showNotification('Upload cancelled', 'info');
     }
 
     // Processing
