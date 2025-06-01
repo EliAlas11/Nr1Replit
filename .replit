@@ -53,11 +53,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir"
+args = "cd nr1copilot/nr1-main && upm add fastapi uvicorn python-multipart websockets pydantic pydantic-settings psutil python-jose passlib asyncio-throttle aiofiles"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
@@ -70,11 +66,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir --no-deps"
+args = "cd nr1copilot/nr1-main && upm add fastapi uvicorn python-multipart websockets pydantic pydantic-settings psutil python-jose passlib asyncio-throttle aiofiles"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
@@ -168,11 +160,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && pip install --upgrade pip"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd nr1copilot/nr1-main && pip install -r requirements.txt"
+args = "cd nr1copilot/nr1-main && upm add fastapi uvicorn python-multipart websockets pydantic pydantic-settings psutil python-jose passlib asyncio-throttle aiofiles pytest pytest-asyncio black isort flake8"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
