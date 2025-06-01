@@ -44,7 +44,7 @@ echo "⚡ Creating optimized configurations..."
 
 # 10) Generate API documentation
 echo "📚 Generating API documentation..."
-python -c "
+python3 -c "
 import json
 from app.main import app
 with open('api_schema.json', 'w') as f:
