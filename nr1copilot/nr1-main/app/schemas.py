@@ -4,7 +4,7 @@ Pydantic Schemas
 All request/response models for the API with proper validation
 """
 
-from pydantic import BaseModel, EmailStr, validator, Field
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -16,7 +16,8 @@ class SignupRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
     name: str = Field(..., min_length=1, max_length=100)
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         if not any(c.isupper() for c in v):
             raise ValueError('Password must contain at least one uppercase letter')
@@ -73,17 +74,18 @@ class VideoQuality(str, Enum):
     HIGH = "1080p"
 
 class VideoProcessRequest(BaseModel):
-    youtube_url: str = Field(..., regex=r'^https?://(www\.)?(youtube\.com|youtu\.be)/.+')
+    youtube_url: str = Field(..., pattern=r'^https?://(www\.)?(youtube\.com|youtu\.be)/.+')
     start_time: float = Field(..., ge=0)
     end_time: float = Field(..., gt=0)
     quality: VideoQuality = VideoQuality.MEDIUM
     audio_effect: Optional[str] = None
     
-    @validator('end_time')
-    def validate_times(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
+    @field_validator('end_time')
+    @classmethod
+    def validate_times(cls, v, info):
+        if info.data.get('start_time') is not None and v <= info.data['start_time']:
             raise ValueError('End time must be greater than start time')
-        if v - values.get('start_time', 0) > 300:  # Max 5 minutes
+        if v - info.data.get('start_time', 0) > 300:  # Max 5 minutes
             raise ValueError('Clip duration cannot exceed 5 minutes')
         return v
 
@@ -115,7 +117,7 @@ class VideoListResponse(BaseModel):
 # ============= Analytics Schemas =============
 
 class AnalyticsEvent(BaseModel):
-    event_type: str = Field(..., regex=r'^[a-z_]+$')
+    event_type: str = Field(..., pattern=r'^[a-z_]+$')
     properties: Optional[Dict[str, Any]] = {}
     video_id: Optional[str] = None
 
@@ -156,7 +158,7 @@ class FeedbackOut(BaseModel):
 
 class TranslationRequest(BaseModel):
     key: str
-    language: str = Field(..., regex=r'^[a-z]{2}$')
+    language: str = Field(..., pattern=r'^[a-z]{2}$')
 
 class TranslationOut(BaseModel):
     key: str

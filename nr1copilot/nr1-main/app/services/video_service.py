@@ -140,6 +140,124 @@ class VideoService:
     async def create_clip(
         self,
         input_path: str,
+        output_path: str,
+        start_time: float,
+        end_time: float,
+        quality: str = "720p"
+    ) -> dict:
+        """
+        Create a video clip from input video
+        
+        Args:
+            input_path: Path to input video file
+            output_path: Path for output clip
+            start_time: Start time in seconds
+            end_time: End time in seconds
+            quality: Output quality (360p, 720p, 1080p)
+            
+        Returns:
+            dict: Clip creation result with file info
+        """
+        try:
+            logger.info(f"Creating clip: {start_time}s-{end_time}s at {quality}")
+            
+            # Validate inputs
+            if not os.path.exists(input_path):
+                raise VideoServiceError(f"Input file not found: {input_path}")
+                
+            if end_time <= start_time:
+                raise VideoServiceError("End time must be greater than start time")
+                
+            duration = end_time - start_time
+            if duration > 300:  # 5 minutes max
+                raise VideoServiceError("Clip duration cannot exceed 5 minutes")
+            
+            # Quality settings
+            quality_settings = {
+                "360p": {"height": 360, "bitrate": "1M"},
+                "720p": {"height": 720, "bitrate": "2.5M"},
+                "1080p": {"height": 1080, "bitrate": "5M"}
+            }
+            
+            settings = quality_settings.get(quality, quality_settings["720p"])
+            
+            # Create output directory
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+            # FFmpeg command for high-quality clip creation
+            import ffmpeg
+            
+            input_stream = ffmpeg.input(input_path, ss=start_time, t=duration)
+            output_stream = ffmpeg.output(
+                input_stream,
+                output_path,
+                vcodec='libx264',
+                acodec='aac',
+                vf=f'scale=-2:{settings["height"]}',
+                video_bitrate=settings["bitrate"],
+                audio_bitrate='128k',
+                preset='medium',
+                crf=23,
+                movflags='faststart'
+            )
+            
+            # Run FFmpeg with progress tracking
+            ffmpeg.run(output_stream, overwrite_output=True, quiet=True)
+            
+            # Get file info
+            file_size = os.path.getsize(output_path)
+            
+            result = {
+                "output_path": output_path,
+                "duration": duration,
+                "quality": quality,
+                "file_size": file_size,
+                "format": "mp4"
+            }
+            
+            logger.info(f"✅ Clip created successfully: {file_size} bytes")
+            return result
+            
+        except ffmpeg.Error as e:
+            logger.error(f"❌ FFmpeg error: {e}")
+            raise VideoServiceError(f"Video processing failed: {e}")
+        except Exception as e:
+            logger.error(f"❌ Failed to create clip: {e}")
+            raise VideoServiceError(f"Clip creation failed: {e}")
+    
+    async def get_video_info(self, video_path: str) -> dict:
+        """Get video metadata and information"""
+        try:
+            import ffmpeg
+            probe = ffmpeg.probe(video_path)
+            
+            video_stream = next((stream for stream in probe['streams'] 
+                               if stream['codec_type'] == 'video'), None)
+            audio_stream = next((stream for stream in probe['streams'] 
+                               if stream['codec_type'] == 'audio'), None)
+            
+            if not video_stream:
+                raise VideoServiceError("No video stream found")
+            
+            return {
+                "duration": float(probe['format']['duration']),
+                "width": int(video_stream['width']),
+                "height": int(video_stream['height']),
+                "fps": eval(video_stream['r_frame_rate']),
+                "codec": video_stream['codec_name'],
+                "bitrate": int(probe['format'].get('bit_rate', 0)),
+                "has_audio": audio_stream is not None,
+                "file_size": int(probe['format']['size'])
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get video info: {e}")
+            raise VideoServiceError(f"Could not read video info: {e}")
+
+
+class VideoServiceError(Exception):
+    """Custom exception for video service errors"""
+    passth: str,
         output_filename: str,
         start_time: int,
         duration: int = 60

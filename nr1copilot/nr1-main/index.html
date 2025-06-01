@@ -4,423 +4,306 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viral Clip Generator - Professional Video Processing</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <meta name="description" content="Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.">
+    <meta name="keywords" content="viral clips, YouTube, TikTok, Reels, Shorts, video editing, AI">
+    <meta name="author" content="Viral Clip Generator">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://viralclipgenerator.com/">
+    <meta property="og:title" content="Viral Clip Generator - AI-Powered Video Editing">
+    <meta property="og:description" content="Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.">
+    <meta property="og:image" content="/public/screenshot1.png">
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://viralclipgenerator.com/">
+    <meta property="twitter:title" content="Viral Clip Generator - AI-Powered Video Editing">
+    <meta property="twitter:description" content="Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.">
+    <meta property="twitter:image" content="/public/screenshot1.png">
 
-        .header {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 1rem 2rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .header h1 {
-            color: white;
-            font-size: 2rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
-
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            margin-bottom: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .card h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: #2d3748;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .input-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .input-group label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-            color: #4a5568;
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            background: white;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 0.75rem 2rem;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #718096 0%, #4a5568 100%);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-        }
-
-        .status {
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-            font-weight: 500;
-        }
-
-        .status.success {
-            background: #f0fff4;
-            color: #22543d;
-            border: 1px solid #9ae6b4;
-        }
-
-        .status.error {
-            background: #fed7d7;
-            color: #742a2a;
-            border: 1px solid #fc8181;
-        }
-
-        .status.info {
-            background: #ebf8ff;
-            color: #2c5282;
-            border: 1px solid #90cdf4;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e2e8f0;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 1rem 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s ease;
-        }
-
-        .video-list {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 1rem;
-        }
-
-        .video-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            border-bottom: 1px solid #e2e8f0;
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-            background: #f7fafc;
-        }
-
-        .video-item:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-        }
-
-        .video-info h4 {
-            font-weight: 600;
-            color: #2d3748;
-            margin-bottom: 0.25rem;
-        }
-
-        .video-info p {
-            font-size: 0.875rem;
-            color: #718096;
-        }
-
-        .video-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .highlight-item {
-            background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .highlight-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-
-        .highlight-time {
-            font-weight: 600;
-            color: #4a5568;
-        }
-
-        .highlight-score {
-            background: #667eea;
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 1rem;
-            height: 1rem;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .api-docs {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 10px;
-            padding: 1rem;
-            margin-top: 2rem;
-        }
-
-        .api-docs a {
-            color: white;
-            text-decoration: none;
-            font-weight: 500;
-            margin: 0 1rem;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        .api-docs a:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 0 1rem;
-            }
-            
-            .grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .header {
-                padding: 1rem;
-            }
-            
-            .header h1 {
-                font-size: 1.5rem;
-            }
-        }
-    </style>
+    <title>Viral Clip Generator - AI-Powered Video Editing</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="manifest" href="/public/manifest.json">
+    
+    <!-- Theme -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ViralClip">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/public/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 </head>
 <body>
-    <header class="header">
-        <h1><i class="fas fa-video"></i> Viral Clip Generator</h1>
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 bg-primary text-white p-2 rounded">Skip to main content</a>
+
+    <header class="header" role="banner">
+        <h1><i class="fas fa-video" aria-hidden="true"></i> Viral Clip Generator</h1>
     </header>
 
-    <div class="container">
+    <main id="main-content" class="container" role="main">
         <div class="grid">
-            <!-- YouTube Download -->
-            <div class="card">
-                <h2><i class="fab fa-youtube"></i> YouTube Download</h2>
-                <div class="input-group">
-                    <label for="youtube-url">YouTube URL</label>
-                    <input type="url" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..." />
+            <!-- YouTube Download Section -->
+            <section class="card" aria-labelledby="download-heading">
+                <h2 id="download-heading"><i class="fab fa-youtube" aria-hidden="true"></i> YouTube Download</h2>
+                <form id="download-form" novalidate>
+                    <div class="input-group">
+                        <label for="youtube-url">YouTube URL *</label>
+                        <input 
+                            type="url" 
+                            id="youtube-url" 
+                            name="youtube-url"
+                            placeholder="https://www.youtube.com/watch?v=..." 
+                            required
+                            aria-describedby="url-help"
+                            autocomplete="url"
+                        />
+                        <small id="url-help" class="text-gray-600">Enter a valid YouTube video URL</small>
+                    </div>
+                    <button type="submit" class="btn" aria-describedby="download-status">
+                        <i class="fas fa-download" aria-hidden="true"></i> Download Video
+                    </button>
+                </form>
+                <div id="download-status" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
+
+            <!-- Video Analysis Section -->
+            <section class="card" aria-labelledby="analysis-heading">
+                <h2 id="analysis-heading"><i class="fas fa-chart-line" aria-hidden="true"></i> Video Analysis</h2>
+                <form id="analysis-form" novalidate>
+                    <div class="input-group">
+                        <label for="analysis-video-id">Video ID *</label>
+                        <input 
+                            type="text" 
+                            id="analysis-video-id" 
+                            name="video-id"
+                            placeholder="Enter video ID..." 
+                            required
+                            aria-describedby="video-id-help"
+                        />
+                        <small id="video-id-help" class="text-gray-600">ID from downloaded video</small>
+                    </div>
+                    <button type="submit" class="btn" aria-describedby="analysis-status">
+                        <i class="fas fa-search" aria-hidden="true"></i> Analyze Video
+                    </button>
+                </form>
+                <div id="analysis-status" role="status" aria-live="polite" aria-atomic="true"></div>
+                
+                <div id="analysis-results" class="hidden" aria-labelledby="highlights-heading">
+                    <h3 id="highlights-heading">Highlights Found:</h3>
+                    <div id="highlights-list" role="list"></div>
                 </div>
-                <button class="btn" onclick="downloadVideo()">
-                    <i class="fas fa-download"></i> Download Video
+            </section>
+
+            <!-- Clip Creation Section -->
+            <section class="card" aria-labelledby="clip-heading">
+                <h2 id="clip-heading"><i class="fas fa-cut" aria-hidden="true"></i> Create Clip</h2>
+                <form id="clip-form" novalidate>
+                    <div class="input-group">
+                        <label for="clip-video-id">Video ID *</label>
+                        <input 
+                            type="text" 
+                            id="clip-video-id" 
+                            name="video-id"
+                            placeholder="Enter video ID..." 
+                            required
+                        />
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="start-time">Start Time (seconds) *</label>
+                        <input 
+                            type="number" 
+                            id="start-time" 
+                            name="start-time"
+                            min="0" 
+                            step="0.1" 
+                            placeholder="0"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="end-time">End Time (seconds) *</label>
+                        <input 
+                            type="number" 
+                            id="end-time" 
+                            name="end-time"
+                            min="0.1" 
+                            step="0.1" 
+                            placeholder="30"
+                            required
+                        />
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="quality">Quality</label>
+                        <select id="quality" name="quality">
+                            <option value="360p">360p (Low)</option>
+                            <option value="720p" selected>720p (Medium)</option>
+                            <option value="1080p">1080p (High)</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn" aria-describedby="clip-status">
+                        <i class="fas fa-magic" aria-hidden="true"></i> Create Clip
+                    </button>
+                </form>
+                <div id="clip-status" role="status" aria-live="polite" aria-atomic="true"></div>
+                
+                <div id="clip-progress" class="hidden">
+                    <div class="progress-container">
+                        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div id="progress-text" class="text-center mt-2">Processing...</div>
+                </div>
+            </section>
+
+            <!-- Dashboard Section -->
+            <section class="card" aria-labelledby="dashboard-heading" id="dashboardSection">
+                <h2 id="dashboard-heading"><i class="fas fa-tachometer-alt" aria-hidden="true"></i> Dashboard</h2>
+                <div id="dashboard-content">
+                    <div class="video-list" id="video-list" role="list" aria-label="Your videos">
+                        <div class="text-center text-gray-600">
+                            <i class="fas fa-video fa-3x mb-2"></i>
+                            <p>No videos yet. Start by downloading a YouTube video!</p>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary mt-4" onclick="loadVideoList()" aria-describedby="refresh-help">
+                    <i class="fas fa-refresh" aria-hidden="true"></i> Refresh Videos
                 </button>
-                <div id="download-status"></div>
-            </div>
-
-            <!-- Video Analysis -->
-            <div class="card">
-                <h2><i class="fas fa-chart-line"></i> Video Analysis</h2>
-                <div class="input-group">
-                    <label for="analysis-video-id">Video ID</label>
-                    <input type="text" id="analysis-video-id" placeholder="Enter video ID..." />
-                </div>
-                <button class="btn" onclick="analyzeVideo()">
-                    <i class="fas fa-search"></i> Analyze Video
-                </button>
-                <div id="analysis-results" class="hidden">
-                    <h3>Highlights Found:</h3>
-                    <div id="highlights-list"></div>
-                </div>
-            </div>
+                <small id="refresh-help" class="text-gray-600">Click to update video list</small>
+            </section>
         </div>
 
-        <!-- Video List -->
-        <div class="card">
-            <h2><i class="fas fa-list"></i> Available Videos</h2>
-            <button class="btn btn-secondary" onclick="loadVideoList()">
-                <i class="fas fa-refresh"></i> Refresh List
-            </button>
-            <div id="video-list" class="video-list"></div>
-        </div>
-
-        <!-- Clip Creation -->
-        <div class="card">
-            <h2><i class="fas fa-cut"></i> Create Clip</h2>
-            <div class="grid">
-                <div class="input-group">
-                    <label for="clip-video-id">Source Video ID</label>
-                    <input type="text" id="clip-video-id" placeholder="Enter video ID..." />
+        <!-- Analytics Section -->
+        <section class="card" aria-labelledby="analytics-heading">
+            <h2 id="analytics-heading"><i class="fas fa-chart-bar" aria-hidden="true"></i> Analytics</h2>
+            <div id="analytics-content" class="grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="total-videos">0</div>
+                    <div class="stat-label">Total Videos</div>
                 </div>
-                <div class="input-group">
-                    <label for="clip-start">Start Time (seconds)</label>
-                    <input type="number" id="clip-start" placeholder="0" min="0" />
+                <div class="stat-card">
+                    <div class="stat-number" id="total-duration">0s</div>
+                    <div class="stat-label">Total Duration</div>
                 </div>
-                <div class="input-group">
-                    <label for="clip-duration">Duration (seconds)</label>
-                    <input type="number" id="clip-duration" placeholder="60" min="1" max="300" />
-                </div>
-                <div class="input-group">
-                    <label for="clip-title">Clip Title</label>
-                    <input type="text" id="clip-title" placeholder="My Viral Clip" />
+                <div class="stat-card">
+                    <div class="stat-number" id="success-rate">0%</div>
+                    <div class="stat-label">Success Rate</div>
                 </div>
             </div>
-            <button class="btn btn-success" onclick="createClip()">
-                <i class="fas fa-magic"></i> Create Clip
-            </button>
-            <div id="clip-status"></div>
-        </div>
+        </section>
+    </main>
 
-        <!-- API Documentation -->
-        <div class="api-docs">
-            <h3 style="color: white; margin-bottom: 1rem;">API Documentation</h3>
-            <a href="/docs" target="_blank"><i class="fas fa-book"></i> Swagger UI</a>
-            <a href="/redoc" target="_blank"><i class="fas fa-file-alt"></i> ReDoc</a>
-            <a href="/health" target="_blank"><i class="fas fa-heartbeat"></i> Health Check</a>
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden" role="status" aria-live="polite">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
+    </div>
+
+    <!-- Error modal -->
+    <div id="error-modal" class="modal hidden" role="dialog" aria-labelledby="error-title" aria-describedby="error-message">
+        <div class="modal-content">
+            <h3 id="error-title">Error</h3>
+            <p id="error-message"></p>
+            <button class="btn" onclick="closeErrorModal()">Close</button>
         </div>
     </div>
 
     <script>
+        // Configuration
         const API_BASE = '/api/v1';
-        
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 1000;
+
+        // Utility functions
         function showStatus(elementId, message, type = 'info') {
             const element = document.getElementById(elementId);
-            element.innerHTML = `<div class="status ${type} fade-in">${message}</div>`;
+            element.innerHTML = `<div class="status ${type}">
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}" aria-hidden="true"></i>
+                ${message}
+            </div>`;
+            element.classList.remove('hidden');
+            
+            // Clear after 10 seconds
+            setTimeout(() => {
+                element.classList.add('hidden');
+            }, 10000);
         }
 
         function showSpinner(elementId, message) {
             const element = document.getElementById(elementId);
-            element.innerHTML = `<div class="status info"><span class="spinner"></span> ${message}</div>`;
+            element.innerHTML = `<div class="status info">
+                <span class="spinner" aria-hidden="true"></span> ${message}
+            </div>`;
+            element.classList.remove('hidden');
         }
 
+        function hideElement(elementId) {
+            document.getElementById(elementId).classList.add('hidden');
+        }
+
+        function showElement(elementId) {
+            document.getElementById(elementId).classList.remove('hidden');
+        }
+
+        // API functions with retry logic
+        async function apiRequest(url, options = {}, retries = MAX_RETRIES) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                if (retries > 0 && error.name !== 'TypeError') {
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    return apiRequest(url, options, retries - 1);
+                }
+                throw error;
+            }
+        }
+
+        // Download video
         async function downloadVideo() {
-            const url = document.getElementById('youtube-url').value.trim();
+            const form = document.getElementById('download-form');
+            const formData = new FormData(form);
+            const url = formData.get('youtube-url').trim();
+
             if (!url) {
                 showStatus('download-status', 'Please enter a YouTube URL', 'error');
+                document.getElementById('youtube-url').focus();
                 return;
             }
 
             showSpinner('download-status', 'Downloading video...');
 
             try {
-                const response = await fetch(`${API_BASE}/video/download`, {
+                const data = await apiRequest(`${API_BASE}/video/download`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
                 });
-
-                const data = await response.json();
 
                 if (data.success) {
                     showStatus('download-status', 
@@ -430,6 +313,7 @@
                     document.getElementById('analysis-video-id').value = data.data.video_id;
                     document.getElementById('clip-video-id').value = data.data.video_id;
                     loadVideoList();
+                    loadAnalytics();
                 } else {
                     showStatus('download-status', `❌ ${data.message}`, 'error');
                 }
@@ -438,197 +322,370 @@
             }
         }
 
+        // Analyze video
         async function analyzeVideo() {
-            const videoId = document.getElementById('analysis-video-id').value.trim();
+            const form = document.getElementById('analysis-form');
+            const formData = new FormData(form);
+            const videoId = formData.get('video-id').trim();
+
             if (!videoId) {
-                showStatus('analysis-results', 'Please enter a video ID', 'error');
+                showStatus('analysis-status', 'Please enter a video ID', 'error');
+                document.getElementById('analysis-video-id').focus();
                 return;
             }
 
-            showSpinner('analysis-results', 'Analyzing video...');
-            document.getElementById('analysis-results').classList.remove('hidden');
+            showSpinner('analysis-status', 'Analyzing video for highlights...');
 
             try {
-                const response = await fetch(`${API_BASE}/video/analyze`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ video_id: videoId })
+                const data = await apiRequest(`${API_BASE}/video/${videoId}/analyze`, {
+                    method: 'POST'
                 });
 
-                const data = await response.json();
-
                 if (data.success) {
+                    showStatus('analysis-status', '✅ Analysis completed!', 'success');
                     displayHighlights(data.data.highlights);
                 } else {
-                    showStatus('analysis-results', `❌ ${data.message}`, 'error');
+                    showStatus('analysis-status', `❌ ${data.message}`, 'error');
                 }
             } catch (error) {
-                showStatus('analysis-results', `❌ Error: ${error.message}`, 'error');
+                showStatus('analysis-status', `❌ Error: ${error.message}`, 'error');
             }
         }
 
+        // Display highlights
         function displayHighlights(highlights) {
-            const highlightsList = document.getElementById('highlights-list');
-            
-            if (highlights.length === 0) {
-                highlightsList.innerHTML = '<p>No highlights found.</p>';
+            const container = document.getElementById('highlights-list');
+            const resultsSection = document.getElementById('analysis-results');
+
+            if (!highlights || highlights.length === 0) {
+                container.innerHTML = '<p class="text-gray-600">No highlights found.</p>';
+                showElement('analysis-results');
                 return;
             }
 
-            highlightsList.innerHTML = highlights.map(highlight => `
-                <div class="highlight-item">
-                    <div class="highlight-header">
-                        <span class="highlight-time">
-                            ${Math.floor(highlight.start_time / 60)}:${(highlight.start_time % 60).toString().padStart(2, '0')} - 
-                            ${Math.floor(highlight.end_time / 60)}:${(highlight.end_time % 60).toString().padStart(2, '0')}
-                        </span>
-                        <span class="highlight-score">${Math.round(highlight.score * 100)}%</span>
+            container.innerHTML = highlights.map((highlight, index) => `
+                <div class="video-item" role="listitem">
+                    <div class="video-thumbnail">
+                        <i class="fas fa-play"></i>
                     </div>
-                    <p>${highlight.description}</p>
-                    <button class="btn" onclick="useHighlight(${highlight.start_time}, ${highlight.end_time - highlight.start_time})">
-                        <i class="fas fa-magic"></i> Use This Highlight
+                    <div class="video-info">
+                        <div class="video-title">Highlight ${index + 1}</div>
+                        <div class="video-meta">
+                            ${formatTime(highlight.start_time)} - ${formatTime(highlight.end_time)} 
+                            (Score: ${Math.round(highlight.score * 100)}%)
+                        </div>
+                        <div class="text-gray-600">${highlight.description}</div>
+                    </div>
+                    <button class="btn btn-sm" onclick="useHighlight(${highlight.start_time}, ${highlight.end_time})">
+                        Use This Clip
                     </button>
                 </div>
             `).join('');
+
+            showElement('analysis-results');
         }
 
-        function useHighlight(startTime, duration) {
-            document.getElementById('clip-start').value = startTime;
-            document.getElementById('clip-duration').value = duration;
-            showStatus('clip-status', '✅ Highlight data applied to clip creation form', 'success');
+        // Use highlight for clip creation
+        function useHighlight(startTime, endTime) {
+            document.getElementById('start-time').value = startTime;
+            document.getElementById('end-time').value = endTime;
+            document.getElementById('start-time').scrollIntoView({ behavior: 'smooth' });
         }
 
+        // Create clip
         async function createClip() {
-            const videoId = document.getElementById('clip-video-id').value.trim();
-            const startTime = parseInt(document.getElementById('clip-start').value) || 0;
-            const duration = parseInt(document.getElementById('clip-duration').value) || 60;
-            const title = document.getElementById('clip-title').value.trim() || 'Generated Clip';
+            const form = document.getElementById('clip-form');
+            const formData = new FormData(form);
+            
+            const clipData = {
+                video_id: formData.get('video-id').trim(),
+                start_time: parseFloat(formData.get('start-time')),
+                end_time: parseFloat(formData.get('end-time')),
+                quality: formData.get('quality')
+            };
 
-            if (!videoId) {
+            // Validation
+            if (!clipData.video_id) {
                 showStatus('clip-status', 'Please enter a video ID', 'error');
                 return;
             }
 
-            showSpinner('clip-status', 'Creating clip...');
-
-            try {
-                const response = await fetch(`${API_BASE}/video/create-clip`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        video_id: videoId,
-                        start_time: startTime,
-                        duration: duration,
-                        title: title
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    const clipData = data.data;
-                    showStatus('clip-status', `
-                        <div class="fade-in">
-                            <h4>✅ Clip created successfully!</h4>
-                            <p><strong>Filename:</strong> ${clipData.filename}</p>
-                            <p><strong>Duration:</strong> ${clipData.duration}s</p>
-                            <p><strong>Size:</strong> ${(clipData.file_size / 1024 / 1024).toFixed(2)} MB</p>
-                            <div style="margin-top: 1rem;">
-                                <a href="/api/v1/video/download-clip/${videoId}/${clipData.filename}" class="btn" download>
-                                    <i class="fas fa-download"></i> Download Clip
-                                </a>
-                                <a href="/api/v1/video/preview/${videoId}/${clipData.filename}" class="btn btn-secondary" target="_blank">
-                                    <i class="fas fa-play"></i> Preview Clip
-                                </a>
-                            </div>
-                        </div>
-                    `, 'success');
-                    loadVideoList();
-                } else {
-                    showStatus('clip-status', `❌ ${data.message}`, 'error');
-                }
-            } catch (error) {
-                showStatus('clip-status', `❌ Error: ${error.message}`, 'error');
-            }
-        }
-
-        async function loadVideoList() {
-            try {
-                const response = await fetch(`${API_BASE}/video/list`);
-                const data = await response.json();
-
-                if (data.success) {
-                    displayVideoList(data.data);
-                } else {
-                    document.getElementById('video-list').innerHTML = '<p>Failed to load videos</p>';
-                }
-            } catch (error) {
-                document.getElementById('video-list').innerHTML = '<p>Error loading videos</p>';
-            }
-        }
-
-        function displayVideoList(data) {
-            const videoList = document.getElementById('video-list');
-            
-            if (data.videos.length === 0 && data.clips.length === 0) {
-                videoList.innerHTML = '<p>No videos or clips found. Download a video to get started!</p>';
+            if (isNaN(clipData.start_time) || isNaN(clipData.end_time)) {
+                showStatus('clip-status', 'Please enter valid times', 'error');
                 return;
             }
 
-            let html = '';
-
-            if (data.videos.length > 0) {
-                html += '<h4>📹 Original Videos</h4>';
-                data.videos.forEach(video => {
-                    html += `
-                        <div class="video-item">
-                            <div class="video-info">
-                                <h4>${video.filename}</h4>
-                                <p>ID: ${video.video_id} • Size: ${(video.size / 1024 / 1024).toFixed(2)} MB</p>
-                            </div>
-                            <div class="video-actions">
-                                <button class="btn" onclick="analyzeVideoById('${video.video_id}')">
-                                    <i class="fas fa-search"></i> Analyze
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                });
+            if (clipData.end_time <= clipData.start_time) {
+                showStatus('clip-status', 'End time must be greater than start time', 'error');
+                return;
             }
 
-            if (data.clips.length > 0) {
-                html += '<h4 style="margin-top: 1rem;">✂️ Generated Clips</h4>';
-                data.clips.forEach(clip => {
-                    const videoId = clip.filename.split('_')[0];
-                    html += `
-                        <div class="video-item">
-                            <div class="video-info">
-                                <h4>${clip.filename}</h4>
-                                <p>Size: ${(clip.size / 1024 / 1024).toFixed(2)} MB</p>
-                            </div>
-                            <div class="video-actions">
-                                <a href="/api/v1/video/preview/${videoId}/${clip.filename}" class="btn btn-secondary" target="_blank">
-                                    <i class="fas fa-play"></i> Preview
-                                </a>
-                                <a href="/api/v1/video/download-clip/${videoId}/${clip.filename}" class="btn" download>
-                                    <i class="fas fa-download"></i> Download
-                                </a>
-                            </div>
-                        </div>
-                    `;
-                });
+            if (clipData.end_time - clipData.start_time > 300) {
+                showStatus('clip-status', 'Clip duration cannot exceed 5 minutes', 'error');
+                return;
             }
 
-            videoList.innerHTML = html;
+            showSpinner('clip-status', 'Creating clip...');
+            showElement('clip-progress');
+
+            try {
+                const data = await apiRequest(`${API_BASE}/video/clip`, {
+                    method: 'POST',
+                    body: JSON.stringify(clipData)
+                });
+
+                if (data.success) {
+                    showStatus('clip-status', '✅ Clip created successfully!', 'success');
+                    pollJobProgress(data.data.job_id);
+                } else {
+                    showStatus('clip-status', `❌ ${data.message}`, 'error');
+                    hideElement('clip-progress');
+                }
+            } catch (error) {
+                showStatus('clip-status', `❌ Error: ${error.message}`, 'error');
+                hideElement('clip-progress');
+            }
         }
 
-        function analyzeVideoById(videoId) {
-            document.getElementById('analysis-video-id').value = videoId;
+        // Poll job progress
+        async function pollJobProgress(jobId) {
+            try {
+                const data = await apiRequest(`${API_BASE}/jobs/${jobId}`);
+                
+                updateProgress(data.data.progress);
+                
+                if (data.data.status === 'completed') {
+                    hideElement('clip-progress');
+                    showStatus('clip-status', '✅ Clip processing completed!', 'success');
+                    loadVideoList();
+                } else if (data.data.status === 'failed') {
+                    hideElement('clip-progress');
+                    showStatus('clip-status', `❌ Processing failed: ${data.data.error}`, 'error');
+                } else {
+                    setTimeout(() => pollJobProgress(jobId), 2000);
+                }
+            } catch (error) {
+                hideElement('clip-progress');
+                showStatus('clip-status', `❌ Error checking progress: ${error.message}`, 'error');
+            }
+        }
+
+        // Update progress bar
+        function updateProgress(progress) {
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            
+            progressBar.style.width = `${progress}%`;
+            progressText.textContent = `Processing... ${progress}%`;
+        }
+
+        // Load video list
+        async function loadVideoList() {
+            try {
+                const data = await apiRequest(`${API_BASE}/videos`);
+                
+                if (data.success) {
+                    displayVideoList(data.data.videos);
+                }
+            } catch (error) {
+                console.error('Error loading videos:', error);
+            }
+        }
+
+        // Display video list
+        function displayVideoList(videos) {
+            const container = document.getElementById('video-list');
+            
+            if (!videos || videos.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-600">
+                        <i class="fas fa-video fa-3x mb-2"></i>
+                        <p>No videos yet. Start by downloading a YouTube video!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = videos.map(video => `
+                <div class="video-item" role="listitem">
+                    <div class="video-thumbnail">
+                        <i class="fas fa-play"></i>
+                    </div>
+                    <div class="video-info">
+                        <div class="video-title">${escapeHtml(video.title || 'Untitled')}</div>
+                        <div class="video-meta">
+                            ${video.status} • ${formatTime(video.duration)} • ${video.quality}
+                        </div>
+                        <div class="text-gray-600">${formatDate(video.created_at)}</div>
+                    </div>
+                    ${video.file_url ? `
+                        <a href="${video.file_url}" class="btn btn-sm" download>
+                            <i class="fas fa-download" aria-hidden="true"></i> Download
+                        </a>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Load analytics
+        async function loadAnalytics() {
+            try {
+                const data = await apiRequest(`${API_BASE}/analytics`);
+                
+                if (data.success) {
+                    updateAnalytics(data.data);
+                }
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+            }
+        }
+
+        // Update analytics display
+        function updateAnalytics(analytics) {
+            document.getElementById('total-videos').textContent = analytics.total_videos || 0;
+            document.getElementById('total-duration').textContent = formatTime(analytics.total_duration || 0);
+            document.getElementById('success-rate').textContent = `${Math.round((analytics.success_rate || 0) * 100)}%`;
+        }
+
+        // Utility functions
+        function formatTime(seconds) {
+            if (!seconds) return '0s';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        }
+
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function closeErrorModal() {
+            document.getElementById('error-modal').classList.add('hidden');
+        }
+
+        // Form event listeners
+        document.getElementById('download-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            downloadVideo();
+        });
+
+        document.getElementById('analysis-form').addEventListener('submit', (e) => {
+            e.preventDefault();
             analyzeVideo();
+        });
+
+        document.getElementById('clip-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            createClip();
+        });
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadVideoList();
+            loadAnalytics();
+            
+            // Register service worker for PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .catch(error => console.log('SW registration failed'));
+            }
+        });
+
+        // Handle offline/online events
+        window.addEventListener('online', () => {
+            showStatus('network-status', 'Connection restored', 'success');
+        });
+
+        window.addEventListener('offline', () => {
+            showStatus('network-status', 'You are offline', 'error');
+        });
+    </script>
+
+    <!-- Additional CSS for components not in main stylesheet -->
+    <style>
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
-        // Load video list on page load
-        window.addEventListener('load', loadVideoList);
-    </script>
-</body>
+        .stat-card {
+            text-align: center;
+            padding: 1rem;
+            background: var(--gray-50);
+            border-radius: 8px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: var(--gray-600);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            width: auto;
+        }
+    </style>
+</head>
 </html>

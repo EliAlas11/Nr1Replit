@@ -69,4 +69,13 @@ def setup_logging():
     logging.getLogger("motor").setLevel(logging.WARNING)
     logging.getLogger("redis").setLevel(logging.WARNING)
     
-    logging.info("🔧 Logging system initialized")
+    logging.info("🔧 Logging system initialized successfully")
+    
+    # Setup request ID middleware logging
+    logging.getLogger("app.middleware").setLevel(logging.INFO)
+    
+    # Setup performance logging
+    logging.getLogger("app.performance").setLevel(logging.INFO)
+    
+    # Setup security logging
+    logging.getLogger("app.security").setLevel(logging.WARNING)d")
