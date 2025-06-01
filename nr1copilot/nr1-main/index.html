@@ -3,254 +3,215 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ViralClip Pro v3.0 - Netflix-Level Viral Content Creator</title>
+    <meta name="description" content="ViralClip Pro - Transform your videos into viral clips with AI-powered analysis and real-time feedback">
+    <meta name="keywords" content="viral videos, AI video editing, social media clips, video analysis">
+    <meta name="author" content="ViralClip Pro">
 
-    <!-- Performance optimizations -->
-    <link rel="preload" href="/static/app.js" as="script">
-    <link rel="preload" href="/public/styles.css" as="style">
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://viralclip.pro/">
+    <meta property="og:title" content="ViralClip Pro - AI-Powered Viral Video Generator">
+    <meta property="og:description" content="Transform your videos into viral clips with advanced AI analysis">
+    <meta property="og:image" content="/public/og-image.jpg">
 
-    <!-- PWA manifest -->
-    <link rel="manifest" href="/public/manifest.json">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://viralclip.pro/">
+    <meta property="twitter:title" content="ViralClip Pro - AI-Powered Viral Video Generator">
+    <meta property="twitter:description" content="Transform your videos into viral clips with advanced AI analysis">
+    <meta property="twitter:image" content="/public/twitter-image.jpg">
+
+    <title>ViralClip Pro - AI-Powered Viral Video Generator</title>
+
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Styles -->
     <link rel="stylesheet" href="/public/styles.css">
 
-    <!-- Meta tags for sharing -->
-    <meta name="description" content="Create viral video clips with AI-powered real-time analysis and Netflix-level quality">
-    <meta property="og:title" content="ViralClip Pro v3.0">
-    <meta property="og:description" content="Transform your videos into viral clips with instant feedback">
-    <meta property="og:type" content="website">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
 
-    <!-- Performance monitoring -->
-    <script>
-        window.performanceMarks = {
-            domContentLoaded: 0,
-            loadComplete: 0
-        };
+    <!-- Theme color -->
+    <meta name="theme-color" content="#e50914">
 
-        document.addEventListener('DOMContentLoaded', () => {
-            window.performanceMarks.domContentLoaded = performance.now();
-            console.log('📊 Page Load Performance:');
-            console.log('DOM Content Loaded:', window.performanceMarks.domContentLoaded, 'ms');
-        });
-
-        window.addEventListener('load', () => {
-            window.performanceMarks.loadComplete = performance.now();
-            console.log('Full Load Time:', window.performanceMarks.loadComplete - window.performanceMarks.domContentLoaded, 'ms');
-        });
-    </script>
+    <!-- Manifest -->
+    <link rel="manifest" href="/public/manifest.json">
 </head>
-<body>
-    <!-- Loading Splash Screen -->
-    <div class="loading-splash">
-        <div class="loading-logo">🎬 ViralClip Pro</div>
-        <div class="loading-spinner"></div>
-        <p>Loading Netflix-level experience...</p>
-    </div>
-
-    <!-- Main Application Container -->
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="logo">🎬 ViralClip Pro v3.0</div>
-            <div class="header-actions">
-                <div class="system-status">
-                    <span class="status-indicator" id="system-status"></span>
-                    <span class="status-text">System Ready</span>
+<body data-state="idle">
+    <!-- Header -->
+    <header class="header" role="banner">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo" aria-label="ViralClip Pro">
+                    🎬 ViralClip Pro
                 </div>
-                <button class="btn-secondary" data-action="restart">🔄 Restart</button>
-            </div>
-        </header>
-
-        <!-- Step Navigation -->
-        <nav class="step-nav">
-            <div class="nav-item active" data-step="upload">
-                <div class="nav-circle">1</div>
-                <div class="nav-label">Upload & Preview</div>
-            </div>
-            <div class="nav-item" data-step="analysis">
-                <div class="nav-circle">2</div>
-                <div class="nav-label">Real-time Analysis</div>
-            </div>
-            <div class="nav-item" data-step="processing">
-                <div class="nav-circle">3</div>
-                <div class="nav-label">Smart Processing</div>
-            </div>
-            <div class="nav-item" data-step="results">
-                <div class="nav-circle">4</div>
-                <div class="nav-label">Viral Results</div>
-            </div>
-        </nav>
-
-        <!-- Step 1: Enhanced Upload with Instant Preview -->
-        <div class="step active" id="step-upload">
-            <div class="upload-container">
-                <h2>🚀 Upload Your Video for Instant Viral Analysis</h2>
-                <p class="step-description">
-                    Drop your video below and watch real-time analysis unfold with Netflix-level processing
-                </p>
-
-                <form id="upload-form" enctype="multipart/form-data">
-                    <div class="upload-area" id="upload-area">
-                        <div class="upload-icon">📹</div>
-                        <div class="upload-text">Drop your video here or click to browse</div>
-                        <div class="upload-subtitle">Get instant viral potential analysis</div>
-
-                        <div class="upload-specs">
-                            <div class="spec-item">
-                                <span class="spec-icon">📦</span>
-                                <span>Max 2GB</span>
-                            </div>
-                            <div class="spec-item">
-                                <span class="spec-icon">🎬</span>
-                                <span>MP4, MOV, AVI, MKV</span>
-                            </div>
-                            <div class="spec-item">
-                                <span class="spec-icon">⚡</span>
-                                <span>Real-time Preview</span>
-                            </div>
-                            <div class="spec-item">
-                                <span class="spec-icon">🎯</span>
-                                <span>Instant Viral Score</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <input type="file" id="file-input" name="file" accept="video/*" style="display: none;">
-
-                    <button type="submit" class="btn btn-primary" disabled>
-                        <span class="btn-icon">🎯</span>
-                        <span class="btn-text">Select a video to analyze</span>
-                    </button>
-                </form>
+                <nav class="nav" role="navigation" aria-label="Main navigation">
+                    <ul class="nav-menu">
+                        <li><a href="#features" class="nav-item">Features</a></li>
+                        <li><a href="#pricing" class="nav-item">Pricing</a></li>
+                        <li><a href="#about" class="nav-item">About</a></li>
+                        <li><a href="#contact" class="nav-item">Contact</a></li>
+                    </ul>
+                </nav>
             </div>
         </div>
+    </header>
 
-        <!-- Step 2: Real-time Analysis with Interactive Timeline -->
-        <div class="step" id="step-analysis">
-            <div class="analysis-container">
-                <h2>🎯 Real-time Viral Analysis Dashboard</h2>
-                <p class="step-description">
-                    Watch your video's viral potential unfold in real-time with interactive timeline and live feedback
+    <!-- Main Content -->
+    <main class="main-content" role="main">
+        <div class="container">
+            <!-- Hero Section -->
+            <section class="hero" aria-labelledby="hero-title">
+                <h1 id="hero-title" class="hero-title">
+                    Transform Videos into Viral Clips with AI
+                </h1>
+                <p class="hero-subtitle">
+                    Upload any video and get AI-powered viral clips optimized for TikTok, Instagram, and YouTube Shorts. 
+                    Real-time analysis, instant feedback, and Netflix-level quality.
                 </p>
+            </section>
 
-                <div class="realtime-analysis-container">
-                    <!-- Real-time Viral Score Chart -->
-                    <div class="viral-chart-section">
-                        <h3>📈 Live Viral Score Tracking</h3>
-                        <div id="viral-chart">
-                            <!-- Dynamic viral chart will be inserted here -->
-                        </div>
-                    </div>
-
-                    <!-- Interactive Timeline -->
-                    <div class="timeline-section">
-                        <h3>🎬 Interactive Timeline</h3>
-                        <div id="interactive-timeline">
-                            <!-- Interactive timeline will be inserted here -->
-                        </div>
+            <!-- Upload Section -->
+            <section class="upload-section" aria-labelledby="upload-title">
+                <div id="dropZone" class="drop-zone" role="button" tabindex="0" 
+                     aria-label="Click or drag files to upload video">
+                    <div class="drop-icon" aria-hidden="true">📁</div>
+                    <h2 id="upload-title" class="drop-text">Drop your video here or click to browse</h2>
+                    <p class="drop-subtext">
+                        Supports MP4, MOV, AVI, MKV • Max 500MB • Up to 10 minutes
+                    </p>
+                    <input type="file" id="fileInput" class="file-input" 
+                           accept="video/mp4,video/mov,video/avi,video/mkv"
+                           aria-describedby="file-requirements">
+                    <div id="file-requirements" class="sr-only">
+                        Upload video files up to 500MB. Supported formats: MP4, MOV, AVI, MKV. Maximum duration: 10 minutes.
                     </div>
                 </div>
 
-                <!-- Real-time Preview Player -->
-                <div class="preview-section">
-                    <h3>⚡ Live Preview Generator</h3>
-                    <div id="realtime-preview">
-                        <!-- Real-time preview player will be inserted here -->
+                <!-- File Preview -->
+                <div id="filePreview" class="file-preview" style="display: none;" role="region" aria-label="Video preview">
+                    <video id="videoPreview" controls preload="metadata" 
+                           style="max-width: 100%; border-radius: 8px; margin-top: 20px;">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="preview-actions">
+                        <button id="processButton" class="btn btn-primary">
+                            🚀 Generate Viral Clips
+                        </button>
+                        <button id="cancelButton" class="btn btn-secondary" style="display: none;">
+                            ⏹️ Cancel Processing
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-container" aria-labelledby="progress-title" role="region" aria-live="polite">
+                <div class="progress-header">
+                    <h2 id="progress-title" class="progress-title">Processing Your Video</h2>
+                    <span id="progressPercentage" class="progress-percentage">0%</span>
+                </div>
+
+                <!-- Upload Progress -->
+                <div id="uploadProgress" class="progress-section">
+                    <h3>📤 Uploading Video</h3>
+                    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div id="uploadProgressFill" class="progress-fill" style="width: 0%"></div>
                     </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div class="analysis-actions">
-                    <button class="btn btn-secondary" data-action="back">← Back to Upload</button>
-                    <button class="btn btn-primary" id="start-processing">
-                        <span class="btn-icon">🚀</span>
-                        <span class="btn-text">Start Enhanced Processing</span>
-                    </button>
+                <!-- Processing Progress -->
+                <div id="processingProgress" class="progress-section">
+                    <h3>🧠 AI Analysis in Progress</h3>
+                    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div id="processingProgressFill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div id="processingStage" class="processing-stage">Initializing...</div>
+                    <div id="processingETA" class="processing-eta"></div>
                 </div>
-            </div>
+            </section>
+
+            <!-- Real-time Preview -->
+            <section class="realtime-preview" aria-labelledby="preview-title">
+                <h2 id="preview-title">🔴 Live Processing Preview</h2>
+                <div id="realtimePreview" class="preview-container" aria-live="polite">
+                    <!-- Real-time thumbnails will be inserted here -->
+                </div>
+            </section>
+
+            <!-- Timeline Visualization -->
+            <section class="timeline-container" aria-labelledby="timeline-title">
+                <div class="timeline-header">
+                    <h2 id="timeline-title">📊 Viral Score Timeline</h2>
+                    <p class="timeline-subtitle">Real-time analysis of viral potential across your video</p>
+                </div>
+                <div id="timeline" class="timeline" role="slider" aria-label="Video timeline with viral scores"
+                     aria-valuemin="0" aria-valuemax="100" tabindex="0">
+                    <!-- Timeline segments will be dynamically generated -->
+                </div>
+                <div class="timeline-legend">
+                    <div class="legend-item">
+                        <span class="legend-color viral-low"></span>
+                        <span>Low Viral Potential (0-40%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color viral-medium"></span>
+                        <span>Medium Viral Potential (40-70%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color viral-high"></span>
+                        <span>High Viral Potential (70-90%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color viral-excellent"></span>
+                        <span>Excellent Viral Potential (90%+)</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Overall Viral Score -->
+            <section class="viral-score-section" aria-labelledby="score-title">
+                <div class="score-display">
+                    <h2 id="score-title">🎯 Overall Viral Score</h2>
+                    <div id="overallViralScore" class="score-value viral-medium" role="meter" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">--</div>
+                    <p class="score-description">
+                        Based on AI analysis of engagement patterns, content quality, and viral indicators
+                    </p>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results" class="results" aria-labelledby="results-title">
+                <!-- Results will be dynamically populated -->
+            </section>
         </div>
+    </main>
 
-        <!-- Step 3: Enhanced Processing with Entertainment -->
-        <div class="step" id="step-processing">
-            <div class="processing-container">
-                <h2>🎪 Creating Your Viral Masterpiece</h2>
-                <p class="step-description">
-                    Sit back and enjoy our entertaining processing experience while we craft your viral clips
-                </p>
-
-                <div id="processing-status">
-                    <!-- Enhanced processing interface will be inserted here -->
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="processing-actions" style="margin-top: 2rem;">
-                    <button class="btn btn-secondary" data-action="back">← Back to Analysis</button>
-                    <button class="btn btn-primary" id="view-results" style="display: none;">
-                        <span class="btn-icon">🎉</span>
-                        <span class="btn-text">View Your Viral Clips</span>
-                    </button>
-                </div>
-            </div>
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <p>&copy; 2024 ViralClip Pro. All rights reserved. | Built with ❤️ and AI</p>
         </div>
-
-        <!-- Step 4: Results -->
-        <div class="step" id="step-results">
-            <div class="results-container">
-                <h2>🎉 Your Viral Clips Are Ready!</h2>
-                <p class="step-description">
-                    Download your professionally crafted viral clips optimized for maximum engagement
-                </p>
-
-                <div id="results-grid">
-                    <!-- Results will be populated here -->
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="results-actions">
-                    <button class="btn btn-secondary" data-action="restart">🔄 Create Another</button>
-                    <button class="btn btn-primary" id="download-all">
-                        <span class="btn-icon">📥</span>
-                        <span class="btn-text">Download All Clips</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Global Error Boundary -->
-    <div id="error-boundary" style="display: none;">
-        <div class="error-content">
-            <h3>Something went wrong</h3>
-            <p>The application encountered an unexpected error. Please refresh the page.</p>
-            <button onclick="location.reload()" class="btn btn-primary">Reload</button>
-        </div>
-    </div>
+    </footer>
 
     <!-- Scripts -->
     <script src="/static/app.js"></script>
 
-    <!-- Analytics and monitoring -->
+    <!-- Error Boundary -->
     <script>
-        // Basic error tracking
-        window.addEventListener('error', (event) => {
-            console.error('Global error caught:', {
-                message: event.message,
-                filename: event.filename,
-                lineno: event.lineno,
-                colno: event.colno,
-                error: event.error
-            });
+        window.addEventListener('unhandledrejection', event => {
+            console.error('Unhandled promise rejection:', event.reason);
+            event.preventDefault();
         });
 
-        // Performance monitoring
-        window.addEventListener('load', () => {
-            if ('performance' in window && 'timing' in performance) {
-                const timing = performance.timing;
-                const loadTime = timing.loadEventEnd - timing.navigationStart;
-                console.log(`📊 Total Load Time: ${loadTime}ms`);
-            }
+        window.addEventListener('error', event => {
+            console.error('Global error caught:', event.error);
         });
     </script>
 </body>

@@ -28,6 +28,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -123,15 +124,24 @@ app = FastAPI(
     redoc_url="/api/redoc"
 )
 
-# Enhanced middleware
+# Configure enterprise-grade middleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Process-Time", "X-Request-ID"]
 )
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Initialize Netflix-level components
+realtime_engine = RealtimeEngine()
+security_manager = SecurityManager()
+rate_limiter = RateLimiter()
+cache_manager = CacheManager()
+health_checker = HealthChecker()
 
 # Static file serving
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -363,6 +373,57 @@ async def stream_preview(
     except Exception as e:
         logger.error(f"Preview streaming error: {e}")
         raise HTTPException(status_code=500, detail="Preview streaming failed")
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    """Add processing time and request ID headers"""
+    start_time = time.time()
+    request_id = f"req_{int(start_time * 1000)}_{os.urandom(4).hex()}"
+
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        response.headers["X-Request-ID"] = request_id
+
+        # Log request details for monitoring
+        logger.info(f"Request {request_id} - {request.method} {request.url.path} - {process_time:.3f}s")
+        return response
+    except Exception as e:
+        logger.error(f"Request {request_id} failed: {e}")
+        return JSONResponse(
+            content={"error": "Internal server error", "request_id": request_id},
+            status_code=500
+        )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Custom HTTP exception handler"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail,
+            "status_code": exc.status_code,
+            "path": str(request.url.path),
+            "timestamp": time.time()
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Global exception handler for production reliability"""
+    error_id = f"err_{int(time.time() * 1000)}_{os.urandom(4).hex()}"
+    logger.error(f"Unhandled exception {error_id}: {exc}\n{traceback.format_exc()}")
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "error_id": error_id,
+            "message": "An unexpected error occurred. Please try again.",
+            "timestamp": time.time()
+        }
+    )
 
 # Health check with real-time metrics
 @app.get("/api/v3/health")
