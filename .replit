@@ -1,5 +1,5 @@
 run = "npm run dev"
-modules = ["python-3.12", "nodejs-20", "web"]
+modules = ["python-3.12", "web", "nodejs-20"]
 [nix]
 channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
