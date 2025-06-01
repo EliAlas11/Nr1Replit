@@ -121,3 +121,106 @@ def setup_logging():
     logging.getLogger('fastapi').setLevel(logging.INFO)
     
     return root_logger
+"""
+Netflix-Level Logging Configuration
+"""
+
+import logging
+import logging.config
+import os
+from datetime import datetime
+
+def setup_logging():
+    """Setup Netflix-level logging configuration"""
+    
+    # Create logs directory
+    os.makedirs("logs", exist_ok=True)
+    
+    # Get current date for log file naming
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    logging_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "detailed": {
+                "format": "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            },
+            "simple": {
+                "format": "%(levelname)s - %(message)s"
+            },
+            "json": {
+                "format": '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s", "function": "%(funcName)s", "line": %(lineno)d}',
+                "datefmt": "%Y-%m-%d %H:%M:%S"
+            }
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": "INFO",
+                "formatter": "simple",
+                "stream": "ext://sys.stdout"
+            },
+            "file_debug": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "level": "DEBUG",
+                "formatter": "detailed",
+                "filename": f"logs/viralclip_debug_{current_date}.log",
+                "maxBytes": 10485760,  # 10MB
+                "backupCount": 5
+            },
+            "file_error": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "level": "ERROR",
+                "formatter": "detailed",
+                "filename": f"logs/viralclip_error_{current_date}.log",
+                "maxBytes": 10485760,  # 10MB
+                "backupCount": 10
+            },
+            "file_access": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "level": "INFO",
+                "formatter": "json",
+                "filename": f"logs/viralclip_access_{current_date}.log",
+                "maxBytes": 10485760,  # 10MB
+                "backupCount": 7
+            }
+        },
+        "loggers": {
+            "": {  # Root logger
+                "level": "INFO",
+                "handlers": ["console", "file_debug", "file_error"]
+            },
+            "app": {
+                "level": "DEBUG",
+                "handlers": ["console", "file_debug", "file_error"],
+                "propagate": False
+            },
+            "app.main": {
+                "level": "INFO",
+                "handlers": ["console", "file_access", "file_error"],
+                "propagate": False
+            },
+            "uvicorn": {
+                "level": "INFO",
+                "handlers": ["console", "file_access"],
+                "propagate": False
+            },
+            "uvicorn.access": {
+                "level": "INFO",
+                "handlers": ["file_access"],
+                "propagate": False
+            }
+        }
+    }
+    
+    logging.config.dictConfig(logging_config)
+    
+    # Set specific log levels for third-party libraries
+    logging.getLogger("yt_dlp").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
+    
+    logger = logging.getLogger(__name__)
+    logger.info("🎬 ViralClip Pro logging system initialized")

@@ -7,39 +7,95 @@ import hashlib
 import secrets
 import time
 from typing import Dict, Any, Optional
-import jwt
-from passlib.context import CryptContext
+import logging
+
+# Make JWT optional to avoid import errors
+try:
+    import jwt
+except ImportError:
+    jwt = None
+
+# Make passlib optional
+try:
+    from passlib.context import CryptContext
+    HAS_PASSLIB = True
+except ImportError:
+    HAS_PASSLIB = False
+
+logger = logging.getLogger(__name__)
 
 class SecurityManager:
     """Netflix-level security utilities"""
     
     def __init__(self):
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        if HAS_PASSLIB:
+            self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        else:
+            self.pwd_context = None
+            
         self.secret_key = "your-secret-key-here"  # Should be from environment
         self.algorithm = "HS256"
+        self.failed_attempts = {}
     
     def hash_password(self, password: str) -> str:
         """Hash password securely"""
-        return self.pwd_context.hash(password)
+        if self.pwd_context:
+            return self.pwd_context.hash(password)
+        else:
+            # Fallback to PBKDF2 if passlib not available
+            salt = secrets.token_hex(32)
+            password_hash = hashlib.pbkdf2_hmac(
+                'sha256',
+                password.encode('utf-8'),
+                salt.encode('utf-8'),
+                100000
+            )
+            return salt + password_hash.hex()
     
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash"""
-        return self.pwd_context.verify(plain_password, hashed_password)
+        if self.pwd_context:
+            return self.pwd_context.verify(plain_password, hashed_password)
+        else:
+            # Fallback verification
+            salt = hashed_password[:64]
+            stored_password_hash = hashed_password[64:]
+            
+            password_hash = hashlib.pbkdf2_hmac(
+                'sha256',
+                plain_password.encode('utf-8'),
+                salt.encode('utf-8'),
+                100000
+            )
+            
+            return password_hash.hex() == stored_password_hash
     
     def create_access_token(self, data: Dict[str, Any], expires_delta: Optional[int] = None) -> str:
         """Create JWT access token"""
+        if not jwt:
+            logger.warning("JWT library not available, returning basic token")
+            return secrets.token_urlsafe(32)
+            
         to_encode = data.copy()
         expire = time.time() + (expires_delta or 3600)  # Default 1 hour
         to_encode.update({"exp": expire})
         
-        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+        try:
+            return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+        except Exception as e:
+            logger.error(f"Failed to create JWT token: {e}")
+            return secrets.token_urlsafe(32)
     
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify JWT token"""
+        if not jwt:
+            return None
+            
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             return payload
-        except jwt.PyJWTError:
+        except Exception as e:
+            logger.error(f"Token verification failed: {e}")
             return None
     
     def generate_api_key(self) -> str:
@@ -65,49 +121,6 @@ class SecurityManager:
         # Only allow alphanumeric, dots, dashes, and underscores
         filename = re.sub(r'[^a-zA-Z0-9.\-_]', '', filename)
         return filename[:255]  # Limit length
-"""
-Security Utilities
-Netflix-level security implementation
-"""
-
-import hashlib
-import secrets
-from typing import Dict, Any, Optional
-
-class SecurityManager:
-    """Netflix-level security manager"""
-    
-    def __init__(self):
-        self.failed_attempts = {}
-    
-    def hash_password(self, password: str) -> str:
-        """Hash password with salt"""
-        salt = secrets.token_hex(32)
-        password_hash = hashlib.pbkdf2_hmac(
-            'sha256',
-            password.encode('utf-8'),
-            salt.encode('utf-8'),
-            100000
-        )
-        return salt + password_hash.hex()
-    
-    def verify_password(self, password: str, stored_hash: str) -> bool:
-        """Verify password against stored hash"""
-        salt = stored_hash[:64]
-        stored_password_hash = stored_hash[64:]
-        
-        password_hash = hashlib.pbkdf2_hmac(
-            'sha256',
-            password.encode('utf-8'),
-            salt.encode('utf-8'),
-            100000
-        )
-        
-        return password_hash.hex() == stored_password_hash
-    
-    def generate_api_key(self) -> str:
-        """Generate secure API key"""
-        return secrets.token_urlsafe(32)
     
     def validate_input(self, data: str, max_length: int = 1000) -> bool:
         """Basic input validation"""
