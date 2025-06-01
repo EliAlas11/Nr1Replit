@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, BackgroundTasks, Depends, status
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, BackgroundTasks, Depends, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -62,6 +62,39 @@ security_manager: Optional[SecurityManager] = None
 processing_queue = {}
 user_sessions = {}
 active_processes = {}
+
+# WebSocket connection manager for real-time updates
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+
+    async def connect(self, websocket: WebSocket, task_id: str):
+        await websocket.accept()
+        self.active_connections[task_id] = websocket
+        logger.info(f"WebSocket connected for task: {task_id}")
+
+    def disconnect(self, task_id: str):
+        if task_id in self.active_connections:
+            del self.active_connections[task_id]
+            logger.info(f"WebSocket disconnected for task: {task_id}")
+
+    async def send_message(self, task_id: str, message: dict):
+        if task_id in self.active_connections:
+            try:
+                await self.active_connections[task_id].send_json(message)
+            except Exception as e:
+                logger.error(f"Failed to send WebSocket message: {e}")
+                self.disconnect(task_id)
+
+    async def broadcast_to_task(self, task_id: str, message_type: str, data: Any):
+        message = {
+            "type": message_type,
+            "timestamp": datetime.now().isoformat(),
+            "data": data
+        }
+        await self.send_message(task_id, message)
+
+connection_manager = ConnectionManager()
 
 # Advanced Pydantic Models
 class VideoProcessRequest(BaseModel):
@@ -537,6 +570,50 @@ async def get_processing_status_v2(task_id: str):
     
     return {"success": True, "data": task}
 
+@app.websocket("/api/v2/ws/{task_id}")
+async def websocket_endpoint(websocket: WebSocket, task_id: str):
+    """Real-time WebSocket updates for processing tasks"""
+    try:
+        await connection_manager.connect(websocket, task_id)
+        
+        # Send initial status
+        if task_id in processing_queue:
+            task = processing_queue[task_id]
+            await connection_manager.broadcast_to_task(
+                task_id, 
+                "status_update", 
+                {
+                    "status": task["status"],
+                    "progress": task["progress"],
+                    "message": "WebSocket connected successfully"
+                }
+            )
+        
+        # Keep connection alive and handle messages
+        while True:
+            try:
+                # Wait for messages from client (heartbeat, etc.)
+                data = await websocket.receive_text()
+                
+                # Handle client messages if needed
+                try:
+                    message = json.loads(data)
+                    if message.get("type") == "ping":
+                        await connection_manager.send_message(task_id, {"type": "pong"})
+                except json.JSONDecodeError:
+                    pass
+                    
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"WebSocket error for task {task_id}: {e}")
+                break
+                
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {e}")
+    finally:
+        connection_manager.disconnect(task_id)
+
 @app.get("/api/v2/download/{task_id}/{clip_index}")
 async def download_clip_v2(task_id: str, clip_index: int):
     """Netflix-level file download with streaming"""
@@ -584,9 +661,30 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
         
         logger.info(f"Starting processing for task {task_id} with priority {priority_score}")
         
+        # Send WebSocket update
+        await connection_manager.broadcast_to_task(
+            task_id, 
+            "status_update", 
+            {
+                "status": "processing",
+                "progress": 0,
+                "message": "Processing started"
+            }
+        )
+        
         # Download video with Netflix-level optimizations
         task["progress"] = 10
         task["current_step"] = "downloading"
+        
+        await connection_manager.broadcast_to_task(
+            task_id, 
+            "progress_update", 
+            {
+                "progress": 10,
+                "current_step": "downloading",
+                "message": "Downloading video..."
+            }
+        )
         
         download_path = f"{settings.temp_path}/{task_id}_video.%(ext)s"
         
@@ -611,13 +709,34 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
         task["progress"] = 30
         task["current_step"] = "ai_analysis"
         
+        await connection_manager.broadcast_to_task(
+            task_id, 
+            "progress_update", 
+            {
+                "progress": 30,
+                "current_step": "ai_analysis",
+                "message": "AI analyzing content..."
+            }
+        )
+        
         # Process each clip with AI enhancement
         results = []
         total_clips = len(clip_settings)
         
         for i, clip in enumerate(clip_settings):
-            task["progress"] = 30 + (i / total_clips) * 60
+            progress = 30 + (i / total_clips) * 60
+            task["progress"] = progress
             task["current_step"] = f"processing_clip_{i+1}"
+            
+            await connection_manager.broadcast_to_task(
+                task_id, 
+                "progress_update", 
+                {
+                    "progress": progress,
+                    "current_step": f"processing_clip_{i+1}",
+                    "message": f"Processing clip {i+1} of {total_clips}..."
+                }
+            )
             
             output_path = f"output/{task_id}_clip_{i}_{int(time.time())}.mp4"
             
@@ -656,6 +775,19 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
         task["completed_at"] = datetime.now()
         task["total_processing_time"] = (task["completed_at"] - task["started_at"]).total_seconds()
         
+        # Send completion notification
+        await connection_manager.broadcast_to_task(
+            task_id, 
+            "processing_complete", 
+            {
+                "status": "completed",
+                "progress": 100,
+                "results": results,
+                "total_time": task["total_processing_time"],
+                "message": f"All {len(results)} clips processed successfully!"
+            }
+        )
+        
         # Cleanup input file
         if os.path.exists(input_file):
             os.remove(input_file)
@@ -667,6 +799,17 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
         task["status"] = "failed"
         task["error"] = str(e)
         task["failed_at"] = datetime.now()
+        
+        # Send error notification
+        await connection_manager.broadcast_to_task(
+            task_id, 
+            "processing_error", 
+            {
+                "status": "failed",
+                "error": str(e),
+                "message": f"Processing failed: {str(e)}"
+            }
+        )
 
 # Background tasks for Netflix-level performance
 async def cleanup_old_files():
