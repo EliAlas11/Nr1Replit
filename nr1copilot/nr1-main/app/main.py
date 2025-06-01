@@ -26,7 +26,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exception_handlers import http_exception_handler
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import redis.asyncio as redis
 
 from .config import get_settings
@@ -388,9 +388,10 @@ class SuggestedClip(BaseModel):
     clip_type: str
     confidence: int = Field(..., ge=0, le=100)
     
-    @validator('end_time')
-    def end_time_must_be_greater_than_start_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
+    @field_validator('end_time')
+    @classmethod
+    def end_time_must_be_greater_than_start_time(cls, v, info):
+        if hasattr(info, 'data') and 'start_time' in info.data and v <= info.data['start_time']:
             raise ValueError('end_time must be greater than start_time')
         return v
 
@@ -412,9 +413,10 @@ class ClipConfig(BaseModel):
     end_time: float = Field(..., gt=0)
     custom_title: Optional[str] = Field(None, max_length=100)
     
-    @validator('end_time')
-    def validate_end_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
+    @field_validator('end_time')
+    @classmethod
+    def validate_end_time(cls, v, info):
+        if hasattr(info, 'data') and 'start_time' in info.data and v <= info.data['start_time']:
             raise ValueError('end_time must be greater than start_time')
         return v
 
@@ -428,7 +430,8 @@ class ProcessingRequest(BaseModel):
         description="Target platforms for optimization"
     )
     
-    @validator('platform_optimizations')
+    @field_validator('platform_optimizations')
+    @classmethod
     def validate_platforms(cls, v):
         allowed_platforms = {"tiktok", "instagram", "youtube_shorts", "snapchat", "twitter"}
         invalid_platforms = set(v) - allowed_platforms

@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "npm run dev"]
 
 [workflows]
-runButton = "ViralClip Server"
+runButton = "Fixed ViralClip Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -113,6 +113,19 @@ args = "cd nr1copilot/nr1-main && python3 -m pytest app/tests/ -v --cov=app --co
 name = "ViralClip Server"
 author = 43360626
 mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
+
+[[workflows.workflow]]
+name = "Fixed ViralClip Server"
+author = 43360626
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install pydantic-settings==2.1.0"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"

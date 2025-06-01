@@ -228,23 +228,28 @@ class ViralClipApp {
 
     setupDragAndDrop() {
         const uploadArea = document.getElementById('upload-area');
-        const dragOverlay = document.getElementById('drag-overlay');
+        let dragOverlay = document.getElementById('drag-overlay');
 
         if (!uploadArea) return;
 
-        // Create drag overlay if it doesn't exist
+        // Create enhanced drag overlay if it doesn't exist
         if (!dragOverlay) {
-            const overlay = document.createElement('div');
-            overlay.id = 'drag-overlay';
-            overlay.className = 'drag-overlay';
-            overlay.innerHTML = `
+            dragOverlay = document.createElement('div');
+            dragOverlay.id = 'drag-overlay';
+            dragOverlay.className = 'drag-overlay';
+            dragOverlay.innerHTML = `
                 <div class="drag-content">
-                    <div class="drag-icon">📁</div>
-                    <h3>Drop your video here</h3>
-                    <p>Release to upload your video file</p>
+                    <div class="drag-icon">🎬</div>
+                    <h3>Drop Your Video Here</h3>
+                    <p>Release to start AI analysis and clip creation</p>
+                    <div class="drag-info">
+                        <span>✓ Instant preview</span>
+                        <span>✓ Real-time progress</span>
+                        <span>✓ AI-powered analysis</span>
+                    </div>
                 </div>
             `;
-            document.body.appendChild(overlay);
+            document.body.appendChild(dragOverlay);
         }
 
         // Enhanced click to upload with better mobile support
@@ -254,17 +259,31 @@ class ViralClipApp {
             }
         });
 
-        // Touch support for mobile devices
+        // Enhanced touch support for mobile devices with haptic feedback
         uploadArea.addEventListener('touchstart', (e) => {
             uploadArea.classList.add('touch-active');
+            // Add haptic feedback if available
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
         }, { passive: true });
 
         uploadArea.addEventListener('touchend', (e) => {
             uploadArea.classList.remove('touch-active');
             if (e.touches.length === 0) {
-                document.getElementById('file-input').click();
+                // Add visual feedback before file picker
+                uploadArea.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    uploadArea.style.transform = '';
+                    document.getElementById('file-input').click();
+                }, 100);
             }
         }, { passive: true });
+
+        // Enhanced touch move handling
+        uploadArea.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent scrolling while touching upload area
+        }, { passive: false });
 
         // Enhanced drag counter for better state management
         this.dragCounter = 0;
@@ -425,16 +444,17 @@ class ViralClipApp {
         const preview = document.createElement('div');
         preview.className = 'instant-preview';
         
-        // Create video element with better loading handling
+        // Enhanced video element with better mobile support
         const video = document.createElement('video');
         video.className = 'preview-video';
         video.autoplay = true;
         video.muted = true;
         video.loop = true;
         video.controls = false;
-        video.playsInline = true; // Better mobile support
+        video.playsInline = true;
+        video.preload = 'metadata';
         
-        // Better file URL handling
+        // Enhanced file URL handling with validation
         const fileURL = URL.createObjectURL(file);
         video.src = fileURL;
         
@@ -630,13 +650,23 @@ class ViralClipApp {
         const progressEta = preview.querySelector('.progress-eta');
         const fileStatus = preview.querySelector('.file-status');
 
-        // Update progress bar with smooth animation
+        // Enhanced progress bar with smooth animation and visual feedback
         if (progressFill) {
             progressFill.style.width = `${Math.min(progress, 100)}%`;
             
-            // Add pulsing effect during upload
+            // Add dynamic color coding based on progress
+            if (progress < 30) {
+                progressFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+            } else if (progress < 70) {
+                progressFill.style.background = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
+            } else {
+                progressFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+            }
+            
+            // Enhanced pulsing effect during upload
             if (progress > 0 && progress < 100) {
                 preview.classList.add('uploading');
+                progressFill.style.boxShadow = `0 0 10px rgba(59, 130, 246, 0.5)`;
             }
         }
 
