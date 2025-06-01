@@ -1,4 +1,3 @@
-
 /**
  * ViralClip Pro v4.0 - Netflix-Level Client Application
  * Real-time instant feedback system with advanced WebSocket integration
@@ -14,33 +13,41 @@ class NetflixLevelApp {
         this.processingStatus = null;
         this.entertainmentFacts = [];
         this.animationFrameId = null;
-        
+
         // Performance monitoring
         this.performanceMetrics = {
             previewGenerationTime: [],
             websocketLatency: [],
-            timelineRenderTime: []
+            timelineRenderTime: [],
+            interactionResponseTime: [] // Added interaction response time
         };
 
         // Cache for instant feedback
         this.previewCache = new Map();
         this.timelineCache = new Map();
-        
+
+        // Ultra-fast cache
+        this.ultraFastCache = {
+            previews: new Map(),
+            viralScores: new Map(),
+            interactions: new Map()
+        };
+
         this.init();
     }
 
     async init() {
         console.log('🚀 Initializing ViralClip Pro v4.0 - Netflix-Level Experience');
-        
+
         this.setupUI();
         this.setupWebSocket();
         this.setupEventListeners();
         this.setupDragAndDrop();
         this.setupKeyboardShortcuts();
-        
+
         // Initialize performance monitoring
         this.initPerformanceMonitoring();
-        
+
         console.log('✅ Netflix-Level App initialized successfully');
     }
 
@@ -246,18 +253,18 @@ class NetflixLevelApp {
     initTimelineCanvas() {
         const canvas = document.getElementById('viralTimeline');
         const ctx = canvas.getContext('2d');
-        
+
         // Set canvas size
         canvas.width = canvas.offsetWidth * window.devicePixelRatio;
         canvas.height = 120 * window.devicePixelRatio;
         canvas.style.width = canvas.offsetWidth + 'px';
         canvas.style.height = '120px';
-        
+
         ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-        
+
         this.timelineCanvas = canvas;
         this.timelineContext = ctx;
-        
+
         // Add timeline interaction
         canvas.addEventListener('click', (e) => this.handleTimelineClick(e));
         canvas.addEventListener('mousemove', (e) => this.handleTimelineHover(e));
@@ -279,29 +286,29 @@ class NetflixLevelApp {
     setupWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/v4/ws/app`;
-        
+
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
             console.log('✅ WebSocket connected');
             document.getElementById('ws-status').textContent = 'Connected';
             document.getElementById('ws-status').className = 'stat-value websocket-status connected';
         };
-        
+
         this.ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             this.handleWebSocketMessage(data);
         };
-        
+
         this.ws.onclose = () => {
             console.log('❌ WebSocket disconnected');
             document.getElementById('ws-status').textContent = 'Disconnected';
             document.getElementById('ws-status').className = 'stat-value websocket-status disconnected';
-            
+
             // Attempt to reconnect after 3 seconds
             setTimeout(() => this.setupWebSocket(), 3000);
         };
-        
+
         this.ws.onerror = (error) => {
             console.error('WebSocket error:', error);
         };
@@ -309,36 +316,36 @@ class NetflixLevelApp {
 
     handleWebSocketMessage(data) {
         const startTime = performance.now();
-        
+
         switch (data.type) {
             case 'connection_established':
                 console.log('WebSocket connection established:', data.connection_id);
                 break;
-                
+
             case 'upload_progress':
                 this.updateUploadProgress(data);
                 break;
-                
+
             case 'processing_status':
                 this.updateProcessingStatus(data);
                 break;
-                
+
             case 'viral_score_update':
                 this.updateViralScore(data);
                 break;
-                
+
             case 'interactive_timeline_data':
                 this.updateTimeline(data);
                 break;
-                
+
             case 'live_preview_data':
                 this.updateLivePreview(data);
                 break;
-                
+
             case 'timeline_update':
                 this.handleTimelineUpdate(data);
                 break;
-                
+
             case 'heartbeat':
                 // Respond to heartbeat
                 if (this.ws.readyState === WebSocket.OPEN) {
@@ -346,7 +353,7 @@ class NetflixLevelApp {
                 }
                 break;
         }
-        
+
         // Track WebSocket latency
         const latency = performance.now() - startTime;
         this.performanceMetrics.websocketLatency.push(latency);
@@ -359,41 +366,41 @@ class NetflixLevelApp {
         // File input
         const fileInput = document.getElementById('fileInput');
         fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
-        
+
         // Timeline controls
         document.getElementById('playBtn').addEventListener('click', () => this.playTimeline());
         document.getElementById('pauseBtn').addEventListener('click', () => this.pauseTimeline());
-        
+
         // Preview controls
         document.getElementById('previewQuality').addEventListener('change', () => this.regeneratePreview());
         document.getElementById('platformOptimization').addEventListener('change', () => this.regeneratePreview());
-        
+
         // Generate clips button
         document.getElementById('generateClipsBtn').addEventListener('click', () => this.generateClips());
-        
+
         // Export timeline button
         document.getElementById('exportTimelineBtn').addEventListener('click', () => this.exportTimeline());
-        
+
         // Window resize
         window.addEventListener('resize', () => this.handleResize());
     }
 
     setupDragAndDrop() {
         const uploadZone = document.getElementById('uploadZone');
-        
+
         uploadZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadZone.classList.add('drag-over');
         });
-        
+
         uploadZone.addEventListener('dragleave', () => {
             uploadZone.classList.remove('drag-over');
         });
-        
+
         uploadZone.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadZone.classList.remove('drag-over');
-            
+
             const files = e.dataTransfer.files;
             if (files.length > 0 && files[0].type.startsWith('video/')) {
                 this.handleFileSelect({ target: { files } });
@@ -415,7 +422,7 @@ class NetflixLevelApp {
                         break;
                 }
             }
-            
+
             switch (e.key) {
                 case ' ':
                     e.preventDefault();
@@ -434,40 +441,40 @@ class NetflixLevelApp {
     async handleFileSelect(event) {
         const file = event.target.files[0];
         if (!file) return;
-        
+
         console.log('📁 File selected:', file.name);
-        
+
         // Show upload progress
         document.getElementById('uploadProgress').style.display = 'block';
         document.querySelector('.upload-content').style.display = 'none';
-        
+
         // Generate upload ID
         const uploadId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         this.currentUploadId = uploadId;
-        
+
         // Setup upload WebSocket
         this.setupUploadWebSocket(uploadId);
-        
+
         // Create form data
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_id', uploadId);
-        
+
         try {
             const response = await fetch('/api/v4/upload-video', {
                 method: 'POST',
                 body: formData
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 this.currentSession = result.session_id;
                 this.showAnalysisSection(result);
             } else {
                 throw new Error(result.error || 'Upload failed');
             }
-            
+
         } catch (error) {
             console.error('Upload error:', error);
             this.showError('Upload failed: ' + error.message);
@@ -477,9 +484,9 @@ class NetflixLevelApp {
     setupUploadWebSocket(uploadId) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/v4/ws/upload/${uploadId}`;
-        
+
         this.uploadWs = new WebSocket(wsUrl);
-        
+
         this.uploadWs.onmessage = (event) => {
             const data = JSON.parse(event.data);
             this.handleUploadWebSocketMessage(data);
@@ -491,11 +498,11 @@ class NetflixLevelApp {
             case 'processing_status':
                 this.updateProcessingStatus(data);
                 break;
-                
+
             case 'viral_score_update':
                 this.updateViralScore(data);
                 break;
-                
+
             case 'timeline_update':
                 this.handleTimelineUpdate(data);
                 break;
@@ -505,11 +512,11 @@ class NetflixLevelApp {
     showAnalysisSection(uploadResult) {
         // Hide upload section
         document.querySelector('.upload-section').style.display = 'none';
-        
+
         // Show analysis section
         const analysisSection = document.getElementById('analysisSection');
         analysisSection.style.display = 'block';
-        
+
         // Initialize with upload result data
         if (uploadResult.preview && uploadResult.preview.viral_analysis) {
             this.updateViralScore({
@@ -518,7 +525,7 @@ class NetflixLevelApp {
                 factors: uploadResult.preview.viral_analysis.factors
             });
         }
-        
+
         // Show processing status
         this.showProcessingStatus();
     }
@@ -526,7 +533,7 @@ class NetflixLevelApp {
     showProcessingStatus() {
         const processingStatus = document.getElementById('processingStatus');
         processingStatus.style.display = 'block';
-        
+
         // Start entertainment rotation
         this.startEntertainmentRotation();
     }
@@ -535,15 +542,15 @@ class NetflixLevelApp {
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
         const uploadStats = document.getElementById('uploadStats');
-        
+
         if (progressFill) {
             progressFill.style.width = data.progress + '%';
         }
-        
+
         if (progressText) {
             progressText.textContent = `Uploading... ${Math.round(data.progress)}%`;
         }
-        
+
         if (uploadStats && data.uploaded_size && data.total_size) {
             const uploadedMB = (data.uploaded_size / 1024 / 1024).toFixed(1);
             const totalMB = (data.total_size / 1024 / 1024).toFixed(1);
@@ -557,38 +564,38 @@ class NetflixLevelApp {
         const taskDescription = document.getElementById('taskDescription');
         const progressPercentage = document.getElementById('progressPercentage');
         const progressCircle = document.getElementById('progressCircle');
-        
+
         // Update task info
         if (taskName) {
             taskName.textContent = this.getStageDisplayName(data.stage);
         }
-        
+
         if (taskDescription) {
             taskDescription.textContent = data.message || 'Processing with Netflix-level quality...';
         }
-        
+
         // Update progress
         if (progressPercentage) {
             progressPercentage.textContent = Math.round(data.progress) + '%';
         }
-        
+
         if (progressCircle) {
             const circumference = 2 * Math.PI * 25;
             const offset = circumference - (data.progress / 100) * circumference;
             progressCircle.style.strokeDasharray = circumference;
             progressCircle.style.strokeDashoffset = offset;
         }
-        
+
         // Update icon based on stage
         if (taskIcon) {
             taskIcon.textContent = this.getStageIcon(data.stage);
         }
-        
+
         // Show entertaining fact if provided
         if (data.entertaining_fact) {
             this.showEntertainingFact(data.entertaining_fact);
         }
-        
+
         // Hide processing status when complete
         if (data.stage === 'complete') {
             setTimeout(() => {
@@ -603,26 +610,26 @@ class NetflixLevelApp {
         const confidenceFill = document.getElementById('confidenceFill');
         const confidenceValue = document.getElementById('confidenceValue');
         const viralFactors = document.getElementById('viralFactors');
-        
+
         // Animate score update
         if (scoreNumber) {
             this.animateNumberTo(scoreNumber, data.viral_score);
         }
-        
+
         // Update score circle color
         if (scoreCircle) {
             scoreCircle.className = 'score-circle ' + this.getScoreClass(data.viral_score);
         }
-        
+
         // Update confidence
         if (confidenceFill && data.confidence) {
             confidenceFill.style.width = (data.confidence * 100) + '%';
         }
-        
+
         if (confidenceValue && data.confidence) {
             confidenceValue.textContent = Math.round(data.confidence * 100) + '%';
         }
-        
+
         // Update viral factors
         if (viralFactors && data.factors) {
             viralFactors.innerHTML = data.factors.map(factor => 
@@ -633,17 +640,17 @@ class NetflixLevelApp {
 
     handleTimelineUpdate(data) {
         const startTime = performance.now();
-        
+
         this.timelineData = data;
         this.renderTimeline();
-        
+
         // Track timeline render performance
         const renderTime = performance.now() - startTime;
         this.performanceMetrics.timelineRenderTime.push(renderTime);
         if (this.performanceMetrics.timelineRenderTime.length > 100) {
             this.performanceMetrics.timelineRenderTime.shift();
         }
-        
+
         // Add key moment markers
         if (data.key_moments) {
             this.addTimelineMarkers(data.key_moments);
@@ -652,29 +659,29 @@ class NetflixLevelApp {
 
     renderTimeline() {
         if (!this.timelineData || !this.timelineContext) return;
-        
+
         const canvas = this.timelineCanvas;
         const ctx = this.timelineContext;
         const width = canvas.offsetWidth;
         const height = 120;
-        
+
         // Clear canvas
         ctx.clearRect(0, 0, width, height);
-        
+
         // Draw viral score heatmap
         const scores = this.timelineData.viral_heatmap || [];
         const segmentWidth = width / scores.length;
-        
+
         scores.forEach((score, index) => {
             const x = index * segmentWidth;
             const barHeight = (score / 100) * height;
             const y = height - barHeight;
-            
+
             // Color based on viral score
             const color = this.getViralScoreColor(score);
             ctx.fillStyle = color;
             ctx.fillRect(x, y, segmentWidth, barHeight);
-            
+
             // Add subtle gradient
             const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
             gradient.addColorStop(0, color);
@@ -682,11 +689,11 @@ class NetflixLevelApp {
             ctx.fillStyle = gradient;
             ctx.fillRect(x, y, segmentWidth, barHeight);
         });
-        
+
         // Draw timeline grid
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.lineWidth = 1;
-        
+
         // Vertical grid lines (time markers)
         for (let i = 0; i <= 10; i++) {
             const x = (i / 10) * width;
@@ -695,7 +702,7 @@ class NetflixLevelApp {
             ctx.lineTo(x, height);
             ctx.stroke();
         }
-        
+
         // Horizontal grid lines (score markers)
         for (let i = 0; i <= 4; i++) {
             const y = (i / 4) * height;
@@ -704,7 +711,7 @@ class NetflixLevelApp {
             ctx.lineTo(width, y);
             ctx.stroke();
         }
-        
+
         // Draw current selection if any
         if (this.timelineSelection) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
@@ -720,36 +727,288 @@ class NetflixLevelApp {
     addTimelineMarkers(keyMoments) {
         const markersContainer = document.getElementById('timelineMarkers');
         markersContainer.innerHTML = '';
-        
+
         keyMoments.forEach(moment => {
             const marker = document.createElement('div');
             marker.className = 'timeline-marker ' + moment.type;
             marker.style.left = (moment.timestamp / this.timelineData.duration * 100) + '%';
             marker.title = moment.description;
             marker.innerHTML = this.getMarkerIcon(moment.type);
-            
+
             marker.addEventListener('click', () => {
                 this.seekToTime(moment.timestamp);
                 this.generateInstantPreview(moment.timestamp, moment.timestamp + 10);
             });
-            
+
             markersContainer.appendChild(marker);
         });
     }
 
-    handleTimelineClick(event) {
+    async handleTimelineClick(event) {
+        const startTime = performance.now();
         const rect = this.timelineCanvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const clickRatio = x / rect.width;
-        
+
         if (this.timelineData && this.timelineData.duration) {
             const clickTime = clickRatio * this.timelineData.duration;
-            this.seekToTime(clickTime);
-            
-            // Generate instant preview around click point
+
+            // Ultra-fast timeline interaction
+            await this.handleUltraFastTimelineInteraction({
+                type: 'click',
+                timestamp: clickTime,
+                position: { x, y: event.clientY - rect.top },
+                clickRatio
+            });
+
+            // Instant preview generation with predictive caching
             const previewStart = Math.max(0, clickTime - 5);
             const previewEnd = Math.min(this.timelineData.duration, clickTime + 5);
-            this.generateInstantPreview(previewStart, previewEnd);
+            await this.generateUltraFastPreview(previewStart, previewEnd, 'instant');
+
+            // Track interaction performance
+            const responseTime = performance.now() - startTime;
+            this.performanceMetrics.interactionResponseTime.push(responseTime);
+
+            // Update performance display
+            this.updatePerformanceDisplay('timeline_click', responseTime);
+        }
+    }
+
+    async handleUltraFastTimelineInteraction(interaction) {
+        const interactionStart = performance.now();
+
+        try {
+            // Check interaction cache first
+            const cacheKey = `interaction_${interaction.type}_${Math.floor(interaction.timestamp)}`;
+            if (this.ultraFastCache.interactions.has(cacheKey)) {
+                const cachedResponse = this.ultraFastCache.interactions.get(cacheKey);
+                await this.processInteractionResponse(cachedResponse);
+                return;
+            }
+
+            // Send real-time interaction to server
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({
+                    type: 'timeline_interaction',
+                    session_id: this.currentSession,
+                    interaction_data: {
+                        ...interaction,
+                        client_timestamp: performance.now()
+                    }
+                }));
+            }
+
+            // Immediate local response for ultra-fast feel
+            await this.provideInstantLocalFeedback(interaction);
+
+            const responseTime = performance.now() - interactionStart;
+            this.trackPerformanceMetric('timeline_interaction', responseTime);
+
+        } catch (error) {
+            console.error('Ultra-fast timeline interaction failed:', error);
+        }
+    }
+
+    async generateUltraFastPreview(startTime, endTime, quality = 'ultra_fast') {
+        const generationStart = performance.now();
+
+        try {
+            // Ultra-fast cache check
+            const cacheKey = `preview_${this.currentSession}_${startTime}_${endTime}_${quality}`;
+            if (this.ultraFastCache.previews.has(cacheKey)) {
+                const cachedPreview = this.ultraFastCache.previews.get(cacheKey);
+                await this.displayUltraFastPreview(cachedPreview);
+                this.trackCacheHit('preview');
+                return;
+            }
+
+            // Show instant loading with smooth animation
+            this.showUltraFastPreviewLoading(startTime, endTime);
+
+            // Parallel processing: request + local preparation
+            const [serverResponse] = await Promise.all([
+                this.requestServerPreview(startTime, endTime, quality),
+                this.preparePreviewContainer(),
+                this.preloadViralAnalysis(startTime, endTime)
+            ]);
+
+            if (serverResponse.success) {
+                // Cache the result for instant future access
+                this.ultraFastCache.previews.set(cacheKey, serverResponse);
+
+                // Display with smooth transition
+                await this.displayUltraFastPreview(serverResponse);
+
+                // Track generation performance
+                const generationTime = performance.now() - generationStart;
+                this.performanceMetrics.previewGenerationTime.push(generationTime);
+
+                // Update real-time performance display
+                this.updatePerformanceDisplay('preview_generation', generationTime);
+            }
+
+        } catch (error) {
+            console.error('Ultra-fast preview generation failed:', error);
+            this.showPreviewError(error.message);
+        }
+    }
+
+    async displayUltraFastPreview(previewData) {
+        const previewPlayer = document.getElementById('previewPlayer');
+        const previewInfo = document.getElementById('previewInfo');
+
+        // Ultra-smooth transition
+        previewPlayer.style.transition = 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+
+        // Enhanced preview display with Netflix-level quality indicators
+        previewPlayer.innerHTML = `
+            <div class="ultra-fast-preview-container">
+                <video controls class="preview-video ultra-fast" autoplay muted>
+                    <source src="${previewData.preview_url}" type="video/mp4">
+                    Your browser does not support ultra-fast video previews.
+                </video>
+                <div class="preview-quality-badge">⚡ Ultra-Fast</div>
+                <div class="preview-generation-time">${previewData.generation_time?.toFixed(1)}ms</div>
+            </div>
+        `;
+
+        // Enhanced viral analysis display
+        if (previewData.viral_analysis) {
+            previewInfo.innerHTML = `
+                <div class="ultra-fast-preview-analysis">
+                    <div class="analysis-header">
+                        <div class="viral-score-indicator ${this.getScoreClass(previewData.viral_analysis.viral_score)}">
+                            <span class="score-number">${previewData.viral_analysis.viral_score}</span>
+                            <span class="score-label">Viral Score</span>
+                        </div>
+                        <div class="confidence-meter">
+                            <div class="confidence-fill" style="width: ${(previewData.viral_analysis.confidence * 100)}%"></div>
+                            <span class="confidence-text">${Math.round(previewData.viral_analysis.confidence * 100)}% Confidence</span>
+                        </div>
+                    </div>
+                    <div class="viral-factors-grid">
+                        ${previewData.viral_analysis.factors?.map(factor => 
+                            `<div class="factor-chip">✓ ${factor}</div>`
+                        ).join('') || ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Display optimization suggestions with interactive elements
+        if (previewData.suggestions && previewData.suggestions.length > 0) {
+            previewInfo.innerHTML += `
+                <div class="ultra-fast-suggestions">
+                    <h4>⚡ Instant Optimization Suggestions</h4>
+                    <div class="suggestions-list">
+                        ${previewData.suggestions.map((suggestion, index) => 
+                            `<div class="suggestion-item interactive" data-suggestion="${index}">
+                                <span class="suggestion-icon">💡</span>
+                                <span class="suggestion-text">${suggestion}</span>
+                                <button class="apply-suggestion-btn" onclick="window.viralClipApp.applySuggestion('${index}')">Apply</button>
+                            </div>`
+                        ).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Add performance indicators
+        if (previewData.cache_hit) {
+            this.showCacheHitIndicator('preview');
+        }
+    }
+
+    showUltraFastPreviewLoading(startTime, endTime) {
+        const previewPlayer = document.getElementById('previewPlayer');
+        previewPlayer.innerHTML = `
+            <div class="ultra-fast-loading">
+                <div class="loading-animation">
+                    <div class="netflix-spinner"></div>
+                    <div class="loading-particles"></div>
+                </div>
+                <div class="loading-info">
+                    <h3>⚡ Generating Ultra-Fast Preview</h3>
+                    <p>Segment: ${startTime.toFixed(1)}s - ${endTime.toFixed(1)}s</p>
+                    <div class="loading-progress">
+                        <div class="progress-bar ultra-fast" id="ultraFastProgress"></div>
+                    </div>
+                    <div class="loading-stats">
+                        <span>Target: &lt; 75ms</span>
+                        <span>Quality: Netflix-Level</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Animate progress bar for visual feedback
+        this.animateUltraFastProgress();
+    }
+
+    animateUltraFastProgress() {
+        const progressBar = document.getElementById('ultraFastProgress');
+        if (!progressBar) return;
+
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 15 + 5; // Random but fast progress
+            progressBar.style.width = Math.min(progress, 95) + '%';
+
+            if (progress >= 95) {
+                clearInterval(interval);
+            }
+        }, 10);
+    }
+
+    async requestServerPreview(startTime, endTime, quality) {
+        try {
+            const response = await fetch('/api/v5/generate-preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    session_id: this.currentSession,
+                    start_time: startTime,
+                    end_time: endTime,
+                    quality: quality,
+                    ultra_fast_mode: true,
+                    client_timestamp: performance.now()
+                })
+            });
+
+            return await response.json();
+        } catch (error) {
+            console.error('Server preview request failed:', error);
+            throw error;
+        }
+    }
+
+    async preparePreviewContainer() {
+        // Pre-prepare container elements for smoother transitions
+        const previewPlayer = document.getElementById('previewPlayer');
+        previewPlayer.classList.add('preparing');
+
+        // Pre-allocate DOM elements to avoid layout thrashing
+        await new Promise(resolve => setTimeout(resolve, 5));
+
+        previewPlayer.classList.remove('preparing');
+    }
+
+    async preloadViralAnalysis(startTime, endTime) {
+        // Pre-calculate or cache viral analysis for instant display
+        const cacheKey = `viral_${this.currentSession}_${Math.floor(startTime)}_${Math.floor(endTime)}`;
+
+        if (!this.ultraFastCache.viralScores.has(cacheKey)) {
+            // Mock pre-calculation - in production, this would be real analysis
+            const mockAnalysis = {
+                viral_score: Math.floor(Math.random() * 40) + 60,
+                confidence: Math.random() * 0.3 + 0.7,
+                factors: ['High engagement potential', 'Good timing', 'Strong visuals']
+            };
+
+            this.ultraFastCache.viralScores.set(cacheKey, mockAnalysis);
         }
     }
 
@@ -757,7 +1016,7 @@ class NetflixLevelApp {
         const rect = this.timelineCanvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const ratio = x / rect.width;
-        
+
         this.isSelecting = true;
         this.timelineSelection = {
             start: ratio,
@@ -767,24 +1026,24 @@ class NetflixLevelApp {
 
     handleTimelineSelectionMove(event) {
         if (!this.isSelecting) return;
-        
+
         const rect = this.timelineCanvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const ratio = Math.max(0, Math.min(1, x / rect.width));
-        
+
         this.timelineSelection.end = ratio;
         this.renderTimeline();
     }
 
     handleTimelineSelectionEnd(event) {
         if (!this.isSelecting) return;
-        
+
         this.isSelecting = false;
-        
+
         if (this.timelineSelection && this.timelineData) {
             const startTime = this.timelineSelection.start * this.timelineData.duration;
             const endTime = this.timelineSelection.end * this.timelineData.duration;
-            
+
             if (Math.abs(endTime - startTime) > 1) { // Minimum 1 second selection
                 this.generateInstantPreview(Math.min(startTime, endTime), Math.max(startTime, endTime));
             }
@@ -793,19 +1052,19 @@ class NetflixLevelApp {
 
     async generateInstantPreview(startTime, endTime) {
         if (!this.currentSession) return;
-        
+
         const startGenTime = performance.now();
-        
+
         // Check cache first
         const cacheKey = `${this.currentSession}_${startTime}_${endTime}`;
         if (this.previewCache.has(cacheKey)) {
             this.displayPreview(this.previewCache.get(cacheKey));
             return;
         }
-        
+
         // Show loading state
         this.showPreviewLoading();
-        
+
         try {
             const response = await fetch('/api/v4/generate-preview', {
                 method: 'POST',
@@ -821,25 +1080,25 @@ class NetflixLevelApp {
                         [document.getElementById('platformOptimization').value] : null
                 })
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 // Cache the result
                 this.previewCache.set(cacheKey, result);
-                
+
                 // Track generation time
                 const genTime = performance.now() - startGenTime;
                 this.performanceMetrics.previewGenerationTime.push(genTime);
                 if (this.performanceMetrics.previewGenerationTime.length > 100) {
                     this.performanceMetrics.previewGenerationTime.shift();
                 }
-                
+
                 this.displayPreview(result);
             } else {
                 throw new Error(result.error || 'Preview generation failed');
             }
-            
+
         } catch (error) {
             console.error('Preview generation error:', error);
             this.showPreviewError(error.message);
@@ -859,7 +1118,7 @@ class NetflixLevelApp {
     displayPreview(previewData) {
         const previewPlayer = document.getElementById('previewPlayer');
         const previewInfo = document.getElementById('previewInfo');
-        
+
         // Display video preview
         previewPlayer.innerHTML = `
             <video controls class="preview-video">
@@ -867,7 +1126,7 @@ class NetflixLevelApp {
                 Your browser does not support the video tag.
             </video>
         `;
-        
+
         // Display viral analysis
         if (previewData.viral_analysis) {
             previewInfo.innerHTML = `
@@ -886,7 +1145,7 @@ class NetflixLevelApp {
                 </div>
             `;
         }
-        
+
         // Display suggestions
         if (previewData.suggestions) {
             previewInfo.innerHTML += `
@@ -924,28 +1183,28 @@ class NetflixLevelApp {
             "The best posting time is 6-10 PM in your audience's timezone! ⏰",
             "Using trending sounds can boost views by 300%! 🎵"
         ];
-        
+
         let factIndex = 0;
-        
+
         const rotateFacts = () => {
             if (document.getElementById('processingStatus').style.display === 'none') {
                 return; // Stop rotation if processing is hidden
             }
-            
+
             const entertainmentText = document.getElementById('entertainmentText');
             if (entertainmentText) {
                 entertainmentText.style.opacity = '0';
-                
+
                 setTimeout(() => {
                     entertainmentText.textContent = entertainmentFacts[factIndex];
                     entertainmentText.style.opacity = '1';
                     factIndex = (factIndex + 1) % entertainmentFacts.length;
                 }, 300);
             }
-            
+
             setTimeout(rotateFacts, 3000); // Rotate every 3 seconds
         };
-        
+
         rotateFacts();
     }
 
@@ -969,11 +1228,11 @@ class NetflixLevelApp {
     updatePerformanceStats() {
         const performanceStats = document.getElementById('performanceStats');
         if (!performanceStats) return;
-        
+
         const avgPreviewTime = this.getAverageTime(this.performanceMetrics.previewGenerationTime);
         const avgWebSocketLatency = this.getAverageTime(this.performanceMetrics.websocketLatency);
         const avgTimelineRender = this.getAverageTime(this.performanceMetrics.timelineRenderTime);
-        
+
         performanceStats.innerHTML = `
             <div class="perf-stat">
                 <span class="perf-label">Preview Gen:</span>
@@ -1047,22 +1306,22 @@ class NetflixLevelApp {
         const startValue = parseInt(element.textContent) || 0;
         const duration = 1000; // 1 second animation
         const startTime = performance.now();
-        
+
         const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // Easing function
             const easeOutCubic = 1 - Math.pow(1 - progress, 3);
             const currentValue = Math.round(startValue + (targetValue - startValue) * easeOutCubic);
-            
+
             element.textContent = currentValue;
-            
+
             if (progress < 1) {
                 requestAnimationFrame(animate);
             }
         };
-        
+
         requestAnimationFrame(animate);
     }
 
@@ -1124,9 +1383,45 @@ class NetflixLevelApp {
     showError(message) {
         // Show error notification
         console.error(message);
-        
+
         // You could implement a toast notification system here
         alert('Error: ' + message);
+    }
+
+    // New methods for ultra-fast interactions
+    async processInteractionResponse(response) {
+        console.log('Processing interaction response:', response);
+        // Implement response handling logic
+    }
+
+    async provideInstantLocalFeedback(interaction) {
+        console.log('Providing instant local feedback for interaction:', interaction);
+        // Implement visual or auditory feedback
+    }
+
+    trackPerformanceMetric(metricName, duration) {
+        console.log(`Performance Metric ${metricName}:`, duration, 'ms');
+        // Store and display performance metrics
+    }
+
+    trackCacheHit(cacheType) {
+        console.log(`Cache hit for ${cacheType}`);
+        // Implement cache hit tracking
+    }
+
+    updatePerformanceDisplay(metricName, duration) {
+        console.log(`Updating display for ${metricName}:`, duration, 'ms');
+        // Update UI elements with performance data
+    }
+
+    showCacheHitIndicator(type) {
+        console.log(`Showing cache hit indicator for ${type}`);
+        // Implement cache hit indicator
+    }
+
+    applySuggestion(suggestionIndex) {
+        console.log(`Applying suggestion at index ${suggestionIndex}`);
+        // Implement suggestion application logic
     }
 }
 
