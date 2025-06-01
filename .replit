@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "npm run dev"]
 
 [workflows]
-runButton = "ViralClip Pro Server"
+runButton = "Development Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -53,6 +53,69 @@ args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --n
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
+
+[[workflows.workflow]]
+name = "Development Server"
+author = 43358821
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
+
+[[workflows.workflow]]
+name = "Production Build"
+author = 43358821
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir --no-deps"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"import app.main; print('Import successful')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level warning"
+
+[[workflows.workflow]]
+name = "Quality Assurance"
+author = 43358821
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pip install black isort flake8 pytest pytest-asyncio pytest-cov"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m black . --check --diff"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m isort . --check-only --diff"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m flake8 app/ --max-line-length=88 --ignore=E203,W503"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m pytest app/tests/ -v --cov=app --cov-report=term-missing"
 
 [[ports]]
 localPort = 5000

@@ -170,7 +170,27 @@ class ViralClipApp {
             }
         } catch (error) {
             console.error('Analysis error:', error);
-            this.showNotification(`Analysis failed: ${error.message}`, 'error');
+            
+            // Enhanced error handling with user-friendly messages
+            let errorMessage = 'Analysis failed';
+            if (error.message.includes('fetch')) {
+                errorMessage = 'Network error - please check your connection and try again';
+            } else if (error.message.includes('404')) {
+                errorMessage = 'Video not found - please check the URL';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = 'Request timed out - the video might be too large';
+            } else if (error.message.includes('rate limit')) {
+                errorMessage = 'Too many requests - please wait a moment and try again';
+            } else {
+                errorMessage = `Analysis failed: ${error.message}`;
+            }
+            
+            this.showNotification(errorMessage, 'error');
+            
+            // Show retry option for network errors
+            if (error.message.includes('fetch') || error.message.includes('timeout')) {
+                this.showRetryOption(() => this.analyzeVideo());
+            }
         } finally {
             this.setButtonLoading('analyze-btn', false);
         }
@@ -1061,27 +1081,106 @@ class ViralClipApp {
         }
     }
 
-    showNotification(message, type = 'info') {
+    showNotification(message, type = 'info', duration = 5000, actions = null) {
         const container = document.getElementById('notification-container');
         if (!container) return;
 
+        const notificationId = `notification-${Date.now()}`;
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
+        notification.id = notificationId;
+        
+        let actionsHtml = '';
+        if (actions) {
+            actionsHtml = `
+                <div class="notification-actions">
+                    ${actions.map(action => `
+                        <button class="notification-action-btn" onclick="${action.onclick}">
+                            ${action.text}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
         notification.innerHTML = `
             <div class="notification-content">
-                <span class="notification-message">${message}</span>
-                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+                <div class="notification-header">
+                    <span class="notification-icon">${this.getNotificationIcon(type)}</span>
+                    <span class="notification-message">${message}</span>
+                    <button class="notification-close" onclick="app.closeNotification('${notificationId}')">×</button>
+                </div>
+                ${actionsHtml}
             </div>
         `;
 
         container.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => notification.classList.add('show'), 10);
 
-        // Auto remove after 5 seconds
+        // Auto remove after duration (unless it's an error with actions)
+        if (duration > 0 && !(type === 'error' && actions)) {
+            setTimeout(() => {
+                this.closeNotification(notificationId);
+            }, duration);
+        }
+    }
+    
+    closeNotification(notificationId) {
+        const notification = document.getElementById(notificationId);
+        if (notification) {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 300);
+        }
+    }
+    
+    getNotificationIcon(type) {
+        const icons = {
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️',
+            'info': 'ℹ️'
+        };
+        return icons[type] || 'ℹ️';
+    }
+    
+    showRetryOption(retryCallback) {
+        this.showNotification(
+            'Operation failed. Would you like to try again?',
+            'error',
+            0, // Don't auto-dismiss
+            [
+                {
+                    text: 'Retry',
+                    onclick: `app.handleRetry(${retryCallback})`
+                },
+                {
+                    text: 'Cancel',
+                    onclick: `app.closeNotification(this.closest('.notification').id)`
+                }
+            ]
+        );
+    }
+    
+    async handleRetry(retryCallback) {
+        // Close all error notifications
+        const errorNotifications = document.querySelectorAll('.notification.error');
+        errorNotifications.forEach(n => this.closeNotification(n.id));
+        
+        // Show retry attempt
+        this.showNotification('Retrying...', 'info', 2000);
+        
+        // Wait a moment then retry
         setTimeout(() => {
-            if (notification.parentElement) {
-                notification.remove();
+            if (typeof retryCallback === 'function') {
+                retryCallback();
             }
-        }, 5000);
+        }, 1000);
     }
 
     formatDuration(seconds) {
@@ -1147,17 +1246,125 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// Handle online/offline status
-window.addEventListener('online', () => {
-    console.log('📶 Back online');
-    if (window.app) {
-        window.app.showNotification('Connection restored', 'success');
+// Enhanced connection monitoring
+class ConnectionMonitor {
+    constructor(app) {
+        this.app = app;
+        this.isOnline = navigator.onLine;
+        this.retryQueue = [];
+        this.heartbeatInterval = null;
+        
+        this.setupEventListeners();
+        this.startHeartbeat();
     }
-});
+    
+    setupEventListeners() {
+        window.addEventListener('online', () => this.handleOnline());
+        window.addEventListener('offline', () => this.handleOffline());
+        
+        // Monitor connection quality
+        if ('connection' in navigator) {
+            navigator.connection.addEventListener('change', () => {
+                this.handleConnectionChange();
+            });
+        }
+    }
+    
+    handleOnline() {
+        console.log('📶 Back online');
+        this.isOnline = true;
+        this.app.showNotification('Connection restored', 'success', 3000);
+        
+        // Process retry queue
+        this.processRetryQueue();
+        
+        // Update UI
+        document.body.classList.remove('offline');
+        this.startHeartbeat();
+    }
+    
+    handleOffline() {
+        console.log('📵 Gone offline');
+        this.isOnline = false;
+        this.app.showNotification(
+            'Connection lost - some features may be limited',
+            'warning',
+            0
+        );
+        
+        // Update UI
+        document.body.classList.add('offline');
+        this.stopHeartbeat();
+    }
+    
+    handleConnectionChange() {
+        if ('connection' in navigator) {
+            const connection = navigator.connection;
+            const speed = connection.effectiveType;
+            
+            if (speed === 'slow-2g' || speed === '2g') {
+                this.app.showNotification(
+                    'Slow connection detected - uploads may take longer',
+                    'info',
+                    5000
+                );
+            }
+        }
+    }
+    
+    startHeartbeat() {
+        if (this.heartbeatInterval) return;
+        
+        this.heartbeatInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/health', {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Server not responding');
+                }
+                
+                // Connection is good
+                if (!this.isOnline) {
+                    this.handleOnline();
+                }
+                
+            } catch (error) {
+                if (this.isOnline) {
+                    this.handleOffline();
+                }
+            }
+        }, 30000); // Check every 30 seconds
+    }
+    
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+    }
+    
+    addToRetryQueue(operation) {
+        this.retryQueue.push(operation);
+    }
+    
+    async processRetryQueue() {
+        while (this.retryQueue.length > 0 && this.isOnline) {
+            const operation = this.retryQueue.shift();
+            try {
+                await operation();
+            } catch (error) {
+                console.error('Retry operation failed:', error);
+            }
+        }
+    }
+}
 
-window.addEventListener('offline', () => {
-    console.log('📵 Gone offline');
+// Handle online/offline status with enhanced monitoring
+window.addEventListener('DOMContentLoaded', () => {
     if (window.app) {
-        window.app.showNotification('Connection lost - working offline', 'warning');
+        window.app.connectionMonitor = new ConnectionMonitor(window.app);
     }
 });
