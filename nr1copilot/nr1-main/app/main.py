@@ -1,70 +1,129 @@
+
 """
-Main FastAPI application entrypoint for Viral Clip Generator.
-- Configures CORS, static files, logging, and error handling.
-- Mounts all API routers and health endpoints.
+FastAPI Main Application
+Production-ready viral clip generator backend with comprehensive features
 """
-import os
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse, FileResponse
+
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from .config import settings
-from .logging_config import setup_logging
-from .utils.health import health_check, dependencies_check
+from fastapi.responses import FileResponse
+from contextlib import asynccontextmanager
+import uvicorn
+import logging
+import os
+from datetime import datetime
 
-# Load environment variables from .env if present
-load_dotenv()
+# Import all routes
+from app.routes import video, auth, user, analytics, feedback, i18n
+from app.config import get_settings
+from app.logging_config import setup_logging
+from app.utils.health import health_check
+from app.db.session import connect_to_mongo, close_mongo_connection
 
-# Setup logging based on environment
+# Setup logging
 setup_logging()
+logger = logging.getLogger("main")
 
-app = FastAPI(title="Viral Clip Generator", version="1.0.0")
+settings = get_settings()
 
-# Configure CORS for frontend/backend integration
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan management"""
+    # Startup
+    logger.info("Starting Viral Clip Generator API...")
+    await connect_to_mongo()
+    
+    # Create necessary directories
+    os.makedirs("videos/original", exist_ok=True)
+    os.makedirs("videos/processed", exist_ok=True)
+    os.makedirs("videos/thumbnails", exist_ok=True)
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Viral Clip Generator API...")
+    await close_mongo_connection()
+
+# Create FastAPI app
+app = FastAPI(
+    title="Viral Clip Generator API",
+    description="Professional video processing API for creating viral clips from YouTube videos",
+    version="2.0.0",
+    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+    lifespan=lifespan
+)
+
+# Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve static files (frontend)
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public")
-app.mount("/public", StaticFiles(directory=STATIC_DIR), name="public")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Health check endpoints
+# Custom middleware for request logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.utcnow()
+    
+    response = await call_next(request)
+    
+    process_time = (datetime.utcnow() - start_time).total_seconds()
+    logger.info(
+        f"{request.method} {request.url.path} - "
+        f"Status: {response.status_code} - "
+        f"Time: {process_time:.3f}s"
+    )
+    
+    return response
+
+# Include all routers
+app.include_router(video.router, prefix="/api/v1/video", tags=["Video"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(user.router, prefix="/api/v1/user", tags=["User"])
+app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"])
+app.include_router(i18n.router, prefix="/api/v1/i18n", tags=["Internationalization"])
+
+# Health check endpoint
 @app.get("/health", tags=["Health"])
-def health():
-    """Basic health check endpoint."""
-    return health_check()
+async def health():
+    """Health check endpoint for monitoring"""
+    return await health_check()
 
-@app.get("/health/dependencies", tags=["Health"])
-def health_dependencies():
-    """Check status of external dependencies (DB, Redis, etc)."""
-    return dependencies_check()
+# Serve static files
+app.mount("/public", StaticFiles(directory="public"), name="public")
 
-# Global error handler for robust API responses
+# Serve the main HTML file
+@app.get("/", response_class=FileResponse)
+async def read_root():
+    """Serve the main application"""
+    return FileResponse("index.html")
+
+@app.get("/favicon.ico", response_class=FileResponse)
+async def favicon():
+    """Serve favicon"""
+    return FileResponse("favicon.ico")
+
+# Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catch-all error handler for unhandled exceptions."""
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"success": False, "error": str(exc), "path": str(request.url)},
+    logger.error(f"Global exception on {request.url.path}: {exc}")
+    return HTTPException(
+        status_code=500,
+        detail="Internal server error. Please try again later."
     )
 
-# Root route serves frontend index.html
-@app.get("/", include_in_schema=False)
-def root():
-    index_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public", "index.html")
-    return FileResponse(index_path)
-
-# Import and mount all API routers
-from .routes import video, analytics, feedback, i18n, auth, user
-app.include_router(video.router)
-app.include_router(analytics.router)
-app.include_router(feedback.router)
-app.include_router(i18n.router)
-app.include_router(auth.router)
-app.include_router(user.router)
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 5000)),
+        reload=settings.ENVIRONMENT == "development"
+    )
