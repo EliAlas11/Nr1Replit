@@ -11,18 +11,23 @@ import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
+from contextlib import asynccontextmanager
 
 import aiofiles
 from fastapi import (
     FastAPI, HTTPException, WebSocket, WebSocketDisconnect, 
-    File, UploadFile, Form, Depends, Request, BackgroundTasks
+    File, UploadFile, Form, Depends, Request, BackgroundTasks,
+    status, Query
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from fastapi.exception_handlers import http_exception_handler
+from pydantic import BaseModel, Field, validator
+import redis.asyncio as redis
 
 from .config import get_settings
 from .logging_config import get_logger
@@ -30,29 +35,127 @@ from .services.video_service import VideoProcessor
 from .utils.security import SecurityManager
 from .utils.rate_limiter import RateLimiter
 from .utils.health import HealthChecker
+from .utils.cache import CacheManager
+from .utils.metrics import MetricsCollector
 
 # Initialize
 settings = get_settings()
 logger = get_logger(__name__)
 
-# FastAPI app
+# Global services
+cache_manager: Optional[CacheManager] = None
+metrics_collector: Optional[MetricsCollector] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan management"""
+    global cache_manager, metrics_collector
+    
+    # Startup
+    logger.info("🚀 Starting ViralClip Pro API v2.0.0")
+    
+    try:
+        # Initialize cache
+        cache_manager = CacheManager()
+        await cache_manager.initialize()
+        
+        # Initialize metrics
+        metrics_collector = MetricsCollector()
+        
+        # Warm up services
+        await video_processor.initialize()
+        
+        logger.info("✅ All services initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize services: {e}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    logger.info("🛑 Shutting down ViralClip Pro API")
+    
+    if cache_manager:
+        await cache_manager.close()
+    
+    if metrics_collector:
+        await metrics_collector.close()
+
+# FastAPI app with enhanced configuration
 app = FastAPI(
     title="ViralClip Pro API",
-    description="Netflix-level AI-powered viral video creation platform",
+    description="Netflix-level AI-powered viral video creation platform with real-time processing",
     version="2.0.0",
     docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None
+    redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan,
+    openapi_tags=[
+        {"name": "upload", "description": "Video upload operations"},
+        {"name": "processing", "description": "Video processing operations"},
+        {"name": "analytics", "description": "Analytics and insights"},
+        {"name": "health", "description": "Health and monitoring"},
+    ]
 )
 
-# Middleware
+# Enhanced Middleware Stack
+app.add_middleware(
+    TrustedHostMiddleware, 
+    allowed_hosts=["*"] if settings.debug else settings.allowed_hosts
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Process-Time", "X-Request-ID"],
 )
+
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Custom middleware for request tracking and performance
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    request_id = str(uuid.uuid4())
+    
+    # Add request ID to headers
+    request.state.request_id = request_id
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        
+        # Add performance headers
+        response.headers["X-Process-Time"] = str(f"{process_time:.4f}")
+        response.headers["X-Request-ID"] = request_id
+        
+        # Log performance metrics
+        if metrics_collector:
+            await metrics_collector.record_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration=process_time
+            )
+        
+        return response
+        
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"Request {request_id} failed after {process_time:.4f}s: {e}")
+        
+        # Return proper error response
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "request_id": request_id,
+                "timestamp": datetime.now().isoformat()
+            }
+        )
 
 # Services
 video_processor = VideoProcessor()
@@ -60,70 +163,281 @@ security_manager = SecurityManager()
 rate_limiter = RateLimiter()
 health_checker = HealthChecker()
 
-# WebSocket connection manager
+# Enhanced WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, Dict[str, WebSocket]] = {}
+        self.connection_metadata: Dict[str, Dict] = {}
         self.upload_progress: Dict[str, Dict] = {}
         self.processing_progress: Dict[str, Dict] = {}
+        self._heartbeat_interval = 30  # seconds
+        self._max_connections_per_session = 5
 
     async def connect(self, websocket: WebSocket, session_id: str, connection_type: str = "general"):
-        await websocket.accept()
-        if session_id not in self.active_connections:
-            self.active_connections[session_id] = {}
-        self.active_connections[session_id][connection_type] = websocket
-        logger.info(f"WebSocket connected: {session_id} ({connection_type})")
+        """Connect WebSocket with enhanced validation and monitoring"""
+        try:
+            await websocket.accept()
+            
+            # Validate connection limits
+            if session_id in self.active_connections:
+                if len(self.active_connections[session_id]) >= self._max_connections_per_session:
+                    await websocket.close(code=1008, reason="Too many connections")
+                    logger.warning(f"Connection limit exceeded for session {session_id}")
+                    return False
+            
+            # Initialize session if not exists
+            if session_id not in self.active_connections:
+                self.active_connections[session_id] = {}
+                self.connection_metadata[session_id] = {}
+            
+            # Store connection with metadata
+            self.active_connections[session_id][connection_type] = websocket
+            self.connection_metadata[session_id][connection_type] = {
+                "connected_at": datetime.now(),
+                "last_ping": datetime.now(),
+                "message_count": 0
+            }
+            
+            logger.info(f"✅ WebSocket connected: {session_id} ({connection_type})")
+            
+            # Send welcome message
+            await self.send_message(session_id, {
+                "type": "connection_established",
+                "session_id": session_id,
+                "connection_type": connection_type,
+                "timestamp": datetime.now().isoformat(),
+                "heartbeat_interval": self._heartbeat_interval
+            }, connection_type)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to establish WebSocket connection: {e}")
+            return False
 
     def disconnect(self, session_id: str, connection_type: str = "general"):
-        if session_id in self.active_connections:
-            if connection_type in self.active_connections[session_id]:
-                del self.active_connections[session_id][connection_type]
-            if not self.active_connections[session_id]:
-                del self.active_connections[session_id]
-        logger.info(f"WebSocket disconnected: {session_id} ({connection_type})")
+        """Enhanced disconnect with cleanup"""
+        try:
+            if session_id in self.active_connections:
+                if connection_type in self.active_connections[session_id]:
+                    # Get connection metadata for logging
+                    metadata = self.connection_metadata.get(session_id, {}).get(connection_type, {})
+                    connected_duration = datetime.now() - metadata.get("connected_at", datetime.now())
+                    message_count = metadata.get("message_count", 0)
+                    
+                    # Clean up connections
+                    del self.active_connections[session_id][connection_type]
+                    if session_id in self.connection_metadata:
+                        self.connection_metadata[session_id].pop(connection_type, None)
+                    
+                    # Clean up session if no more connections
+                    if not self.active_connections[session_id]:
+                        del self.active_connections[session_id]
+                        self.connection_metadata.pop(session_id, None)
+                        self.upload_progress.pop(session_id, None)
+                        self.processing_progress.pop(session_id, None)
+                    
+                    logger.info(
+                        f"🔌 WebSocket disconnected: {session_id} ({connection_type}) "
+                        f"- Duration: {connected_duration}, Messages: {message_count}"
+                    )
+                    
+        except Exception as e:
+            logger.error(f"❌ Error during disconnect cleanup: {e}")
 
     async def send_message(self, session_id: str, message: dict, connection_type: str = "general"):
-        if session_id in self.active_connections:
-            websocket = self.active_connections[session_id].get(connection_type)
-            if websocket:
-                try:
-                    await websocket.send_text(json.dumps(message))
-                except Exception as e:
-                    logger.error(f"Failed to send WebSocket message: {e}")
-                    self.disconnect(session_id, connection_type)
+        """Enhanced message sending with error handling and metrics"""
+        if session_id not in self.active_connections:
+            logger.warning(f"⚠️ No active connections for session {session_id}")
+            return False
+            
+        websocket = self.active_connections[session_id].get(connection_type)
+        if not websocket:
+            logger.warning(f"⚠️ No {connection_type} connection for session {session_id}")
+            return False
+            
+        try:
+            # Add metadata to message
+            enhanced_message = {
+                **message,
+                "timestamp": message.get("timestamp", datetime.now().isoformat()),
+                "session_id": session_id,
+                "connection_type": connection_type
+            }
+            
+            await websocket.send_text(json.dumps(enhanced_message))
+            
+            # Update connection metadata
+            if session_id in self.connection_metadata:
+                metadata = self.connection_metadata[session_id].get(connection_type, {})
+                metadata["message_count"] = metadata.get("message_count", 0) + 1
+                metadata["last_message"] = datetime.now()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to send WebSocket message to {session_id}: {e}")
+            self.disconnect(session_id, connection_type)
+            return False
 
     async def broadcast_to_session(self, session_id: str, message: dict):
-        if session_id in self.active_connections:
-            for connection_type, websocket in self.active_connections[session_id].items():
-                try:
-                    await websocket.send_text(json.dumps(message))
-                except Exception as e:
-                    logger.error(f"Failed to broadcast to {connection_type}: {e}")
+        """Enhanced broadcast with success tracking"""
+        if session_id not in self.active_connections:
+            return 0
+            
+        success_count = 0
+        failed_connections = []
+        
+        for connection_type, websocket in self.active_connections[session_id].items():
+            try:
+                enhanced_message = {
+                    **message,
+                    "timestamp": message.get("timestamp", datetime.now().isoformat()),
+                    "session_id": session_id,
+                    "connection_type": connection_type,
+                    "broadcast": True
+                }
+                
+                await websocket.send_text(json.dumps(enhanced_message))
+                success_count += 1
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to broadcast to {connection_type}: {e}")
+                failed_connections.append(connection_type)
+        
+        # Clean up failed connections
+        for connection_type in failed_connections:
+            self.disconnect(session_id, connection_type)
+        
+        return success_count
+
+    async def send_heartbeat(self, session_id: str, connection_type: str = "general"):
+        """Send heartbeat to keep connection alive"""
+        return await self.send_message(session_id, {
+            "type": "heartbeat",
+            "timestamp": datetime.now().isoformat()
+        }, connection_type)
+
+    def get_connection_stats(self) -> Dict[str, Any]:
+        """Get comprehensive connection statistics"""
+        total_connections = sum(len(connections) for connections in self.active_connections.values())
+        connection_types = {}
+        
+        for session_connections in self.active_connections.values():
+            for conn_type in session_connections.keys():
+                connection_types[conn_type] = connection_types.get(conn_type, 0) + 1
+        
+        return {
+            "total_sessions": len(self.active_connections),
+            "total_connections": total_connections,
+            "connection_types": connection_types,
+            "active_uploads": len(self.upload_progress),
+            "active_processing": len(self.processing_progress)
+        }
 
 manager = ConnectionManager()
 
-# Pydantic models
+# Enhanced Pydantic models with validation
+class FileInfo(BaseModel):
+    filename: str
+    size: int = Field(..., gt=0, description="File size in bytes")
+    type: str
+    path: str
+    thumbnail: Optional[str] = None
+    processing_time: float = Field(..., ge=0)
+    
+class VideoInfo(BaseModel):
+    duration: float = Field(..., gt=0)
+    width: int = Field(..., gt=0)
+    height: int = Field(..., gt=0)
+    fps: float = Field(..., gt=0)
+    bitrate: Optional[int] = None
+    codec: Optional[str] = None
+    
+class AIInsights(BaseModel):
+    viral_potential: int = Field(..., ge=0, le=100)
+    confidence_score: int = Field(..., ge=0, le=100)
+    engagement_prediction: int = Field(..., ge=0, le=100)
+    content_type: str
+    best_platforms: List[str]
+    optimal_length: str
+    peak_moments: List[float]
+    mood: str
+    target_audience: str
+
+class SuggestedClip(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(..., max_length=500)
+    start_time: float = Field(..., ge=0)
+    end_time: float = Field(..., gt=0)
+    viral_score: int = Field(..., ge=0, le=100)
+    recommended_platforms: List[str]
+    estimated_views: str
+    clip_type: str
+    confidence: int = Field(..., ge=0, le=100)
+    
+    @validator('end_time')
+    def end_time_must_be_greater_than_start_time(cls, v, values):
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('end_time must be greater than start_time')
+        return v
+
 class UploadResponse(BaseModel):
     success: bool
     message: str
-    session_id: str
-    file_info: Dict[str, Any]
-    video_info: Optional[Dict[str, Any]] = None
-    ai_insights: Optional[Dict[str, Any]] = None
-    suggested_clips: Optional[List[Dict[str, Any]]] = None
+    session_id: str = Field(..., regex=r'^session_[a-f0-9]{8}_\d+$')
+    file_info: FileInfo
+    video_info: Optional[VideoInfo] = None
+    ai_insights: Optional[AIInsights] = None
+    suggested_clips: Optional[List[SuggestedClip]] = None
+    request_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+class ClipConfig(BaseModel):
+    index: int = Field(..., ge=0)
+    title: str = Field(..., min_length=1, max_length=100)
+    start_time: float = Field(..., ge=0)
+    end_time: float = Field(..., gt=0)
+    custom_title: Optional[str] = Field(None, max_length=100)
+    
+    @validator('end_time')
+    def validate_end_time(cls, v, values):
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('end_time must be greater than start_time')
+        return v
 
 class ProcessingRequest(BaseModel):
-    session_id: str
-    clips: List[Dict[str, Any]]
-    priority: str = "normal"
-    quality: str = "high"
-    platform_optimizations: List[str] = ["tiktok", "instagram"]
+    session_id: str = Field(..., regex=r'^session_[a-f0-9]{8}_\d+$')
+    clips: List[ClipConfig] = Field(..., min_items=1, max_items=10)
+    priority: str = Field(default="normal", regex=r'^(low|normal|high|urgent)$')
+    quality: str = Field(default="high", regex=r'^(draft|standard|high|premium)$')
+    platform_optimizations: List[str] = Field(
+        default=["tiktok", "instagram"],
+        description="Target platforms for optimization"
+    )
+    
+    @validator('platform_optimizations')
+    def validate_platforms(cls, v):
+        allowed_platforms = {"tiktok", "instagram", "youtube_shorts", "snapchat", "twitter"}
+        invalid_platforms = set(v) - allowed_platforms
+        if invalid_platforms:
+            raise ValueError(f"Invalid platforms: {invalid_platforms}")
+        return v
 
 class ProcessingResponse(BaseModel):
     success: bool
     message: str
-    task_id: str
-    estimated_time: int
+    task_id: str = Field(..., regex=r'^task_[a-f0-9]{8}_\d+$')
+    estimated_time: int = Field(..., gt=0, description="Estimated time in seconds")
+    request_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+class ErrorResponse(BaseModel):
+    error: str
+    message: str
+    request_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+    details: Optional[Dict[str, Any]] = None
 
 # Create directories
 upload_dir = Path("uploads")
@@ -147,40 +461,82 @@ async def serve_index():
 async def favicon():
     return FileResponse("favicon.ico")
 
-@app.post("/api/v2/upload-video", response_model=UploadResponse)
+@app.post("/api/v2/upload-video", response_model=UploadResponse, tags=["upload"])
 async def upload_video(
+    request: Request,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    upload_id: str = Form(...)
+    file: UploadFile = File(..., description="Video file to upload"),
+    upload_id: str = Form(..., regex=r'^id_[a-z0-9]+$', description="Unique upload ID")
 ):
-    """Enhanced video upload with instant analysis and WebSocket progress"""
+    """
+    Enhanced video upload with instant analysis and WebSocket progress
+    
+    Features:
+    - Real-time upload progress via WebSocket
+    - Instant video validation and analysis
+    - AI-powered viral potential scoring
+    - Automatic clip suggestions
+    - Comprehensive error handling
+    """
     start_time = time.time()
+    request_id = getattr(request.state, 'request_id', str(uuid.uuid4()))
 
     try:
-        # Validate file
+        # Enhanced file validation
         if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No file provided"
+            )
 
-        # Check file size
-        file_size = 0
+        # Validate file extension
+        file_extension = Path(file.filename).suffix.lower()
+        allowed_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'}
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
+            )
+
+        # Check content type
+        if not file.content_type or not file.content_type.startswith('video/'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid content type. Must be a video file."
+            )
+
+        # Read file content
+        logger.info(f"📤 Starting upload for {file.filename} (request: {request_id})")
         content = await file.read()
         file_size = len(content)
 
-        if file_size > settings.max_file_size:
+        # Validate file size
+        max_size = getattr(settings, 'max_file_size', 2 * 1024 * 1024 * 1024)  # 2GB default
+        if file_size > max_size:
             raise HTTPException(
-                status_code=413,
-                detail=f"File too large. Maximum size: {settings.max_file_size / (1024**3):.1f}GB"
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Maximum size: {max_size / (1024**3):.1f}GB"
             )
 
-        # Generate session ID
-        session_id = f"session_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+        if file_size < 1024:  # Minimum 1KB
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too small. Minimum size: 1KB"
+            )
 
-        # Save uploaded file
-        file_extension = Path(file.filename).suffix.lower()
+        # Generate secure session ID
+        session_id = f"session_{uuid.uuid4().hex[:8]}_{int(time.time())}"
+        
+        # Create secure filename
         safe_filename = f"upload_{session_id}{file_extension}"
         file_path = upload_dir / safe_filename
 
+        # Ensure upload directory exists
+        upload_dir.mkdir(exist_ok=True)
+
         # Write file with progress updates
+        logger.info(f"💾 Saving file: {safe_filename}")
+        
         async with aiofiles.open(file_path, 'wb') as f:
             chunk_size = 8192
             total_written = 0
@@ -190,71 +546,131 @@ async def upload_video(
                 await f.write(chunk)
                 total_written += len(chunk)
 
-                # Send progress update
-                progress = min((total_written / file_size) * 100, 100)
-                await manager.send_message(upload_id, {
-                    "type": "upload_progress",
-                    "progress": progress,
-                    "uploaded": total_written,
-                    "total": file_size,
-                    "timestamp": datetime.now().isoformat()
-                }, "upload")
+                # Send progress update every 1% or 100KB
+                if total_written % max(file_size // 100, 100_000) == 0 or total_written == file_size:
+                    progress = min((total_written / file_size) * 100, 100)
+                    await manager.send_message(upload_id, {
+                        "type": "upload_progress",
+                        "progress": round(progress, 2),
+                        "uploaded": total_written,
+                        "total": file_size,
+                        "speed": total_written / (time.time() - start_time),
+                        "eta": ((file_size - total_written) / max(total_written / (time.time() - start_time), 1)),
+                        "timestamp": datetime.now().isoformat()
+                    }, "upload")
 
-        # Validate video
+        logger.info(f"✅ File saved successfully: {file_path}")
+
+        # Validate video file
+        logger.info(f"🔍 Validating video file...")
         validation_result = await video_processor.validate_video(str(file_path))
+        
         if not validation_result.get("valid", False):
+            # Clean up invalid file
+            if file_path.exists():
+                file_path.unlink()
+            
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=validation_result.get("error", "Invalid video file")
             )
 
         # Extract thumbnail
+        logger.info(f"🖼️ Extracting thumbnail...")
         thumbnail_path = await video_processor.extract_thumbnail(str(file_path))
 
-        # Generate mock AI insights
+        # Generate AI insights
+        logger.info(f"🤖 Generating AI insights...")
         ai_insights = await generate_ai_insights(validation_result["metadata"])
 
         # Generate suggested clips
+        logger.info(f"✂️ Generating clip suggestions...")
         suggested_clips = await generate_suggested_clips(validation_result["metadata"], ai_insights)
+
+        # Cache results for faster subsequent access
+        if cache_manager:
+            await cache_manager.set(
+                f"session:{session_id}",
+                {
+                    "file_path": str(file_path),
+                    "validation_result": validation_result,
+                    "ai_insights": ai_insights,
+                    "suggested_clips": suggested_clips
+                },
+                ttl=3600  # 1 hour
+            )
 
         # Send completion message
         await manager.send_message(upload_id, {
             "type": "upload_complete",
             "session_id": session_id,
             "message": "Upload and analysis complete!",
+            "ai_insights": ai_insights,
+            "suggested_clips": len(suggested_clips),
             "timestamp": datetime.now().isoformat()
         }, "upload")
 
         processing_time = time.time() - start_time
-        logger.info(f"Upload completed in {processing_time:.2f}s for session {session_id}")
+        logger.info(f"🎉 Upload completed in {processing_time:.2f}s for session {session_id}")
+
+        # Record metrics
+        if metrics_collector:
+            await metrics_collector.record_upload(
+                file_size=file_size,
+                processing_time=processing_time,
+                file_type=file_extension,
+                success=True
+            )
 
         return UploadResponse(
             success=True,
             message="Video uploaded and analyzed successfully",
             session_id=session_id,
-            file_info={
-                "filename": file.filename,
-                "size": file_size,
-                "type": file.content_type,
-                "path": str(file_path),
-                "thumbnail": thumbnail_path,
-                "processing_time": processing_time
-            },
-            video_info=validation_result["metadata"],
-            ai_insights=ai_insights,
-            suggested_clips=suggested_clips
+            file_info=FileInfo(
+                filename=file.filename,
+                size=file_size,
+                type=file.content_type,
+                path=str(file_path),
+                thumbnail=thumbnail_path,
+                processing_time=processing_time
+            ),
+            video_info=VideoInfo(**validation_result["metadata"]) if validation_result.get("metadata") else None,
+            ai_insights=AIInsights(**ai_insights) if ai_insights else None,
+            suggested_clips=[SuggestedClip(**clip) for clip in suggested_clips] if suggested_clips else None,
+            request_id=request_id
         )
 
     except HTTPException:
+        # Log and re-raise HTTP exceptions
+        logger.warning(f"⚠️ Upload validation failed for {upload_id}: {request.method} {request.url}")
         raise
     except Exception as e:
-        logger.error(f"Upload error: {e}")
+        # Log unexpected errors
+        logger.error(f"❌ Unexpected upload error for {upload_id}: {e}", exc_info=True)
+        
+        # Clean up any partial files
+        if 'file_path' in locals() and file_path.exists():
+            try:
+                file_path.unlink()
+            except Exception:
+                pass
+        
+        # Notify client of error
         await manager.send_message(upload_id, {
             "type": "upload_error",
-            "error": str(e),
+            "error": "An unexpected error occurred",
+            "request_id": request_id,
             "timestamp": datetime.now().isoformat()
         }, "upload")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        
+        # Record error metrics
+        if metrics_collector:
+            await metrics_collector.record_error("upload", str(e))
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Upload failed due to internal error"
+        )
 
 @app.post("/api/v2/process-video", response_model=ProcessingResponse)
 async def process_video(request: ProcessingRequest, background_tasks: BackgroundTasks):

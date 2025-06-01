@@ -1,560 +1,328 @@
 """
-ViralClip Pro - Netflix-Level Metrics Collection
-Advanced performance monitoring and analytics
+Metrics Collection and Monitoring
+Netflix-level application monitoring and analytics
 """
 
 import time
-import asyncio
-import logging
-from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
 from collections import defaultdict, deque
-import json
-import threading
-from dataclasses import dataclass, asdict
-from enum import Enum
+import asyncio
 
-logger = logging.getLogger(__name__)
+from ..config import get_settings
+from ..logging_config import get_logger
 
-class MetricType(Enum):
-    COUNTER = "counter"
-    GAUGE = "gauge"
-    HISTOGRAM = "histogram"
-    TIMER = "timer"
+settings = get_settings()
+logger = get_logger(__name__)
 
-@dataclass
-class MetricPoint:
-    name: str
-    value: float
-    timestamp: datetime
-    tags: Dict[str, str]
-    metric_type: MetricType
 
 class MetricsCollector:
-    """Netflix-level metrics collection with real-time analytics"""
+    """Comprehensive metrics collection system"""
 
-    def __init__(self, max_points: int = 10000, retention_hours: int = 24):
-        self.metrics = defaultdict(lambda: deque(maxlen=max_points))
-        self.counters = defaultdict(float)
-        self.gauges = defaultdict(float)
-        self.histograms = defaultdict(list)
-        self.timers = defaultdict(list)
+    def __init__(self):
+        self.request_metrics = defaultdict(list)
+        self.upload_metrics = defaultdict(list)
+        self.processing_metrics = defaultdict(list)
+        self.error_metrics = defaultdict(int)
+        self.performance_metrics = defaultdict(deque)
+        self.system_metrics = {}
 
-        self.retention_hours = retention_hours
-        self.max_points = max_points
-        self.start_time = datetime.utcnow()
-
-        # Request tracking
-        self.request_counts = defaultdict(int)
-        self.request_durations = defaultdict(list)
-        self.error_counts = defaultdict(int)
-        self.status_codes = defaultdict(int)
-
-        # Performance tracking
-        self.processing_times = deque(maxlen=1000)
-        self.queue_lengths = deque(maxlen=1000)
-        self.memory_usage = deque(maxlen=1000)
-        self.cpu_usage = deque(maxlen=1000)
-
-        # User activity tracking
-        self.active_sessions = set()
-        self.user_actions = defaultdict(int)
-        self.feature_usage = defaultdict(int)
-
-        # Video processing metrics
-        self.video_metrics = {
-            'uploads_total': 0,
-            'processing_total': 0,
-            'successful_clips': 0,
-            'failed_clips': 0,
-            'total_processing_time': 0,
-            'avg_file_size': 0,
-            'viral_scores': []
-        }
+        # Metric retention settings
+        self.max_metric_age = timedelta(hours=24)
+        self.max_metric_count = 10000
 
         # Start cleanup task
         self._cleanup_task = None
-        self._start_cleanup_task()
 
-    def _start_cleanup_task(self):
-        """Start background cleanup task"""
-        if self._cleanup_task is None:
-            loop = asyncio.get_event_loop()
-            self._cleanup_task = loop.create_task(self._periodic_cleanup())
+    async def initialize(self):
+        """Initialize metrics collector"""
+        logger.info("📊 Initializing metrics collector")
 
-    async def _periodic_cleanup(self):
-        """Periodically clean old metrics"""
-        while True:
+        # Start periodic cleanup
+        self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+
+    async def close(self):
+        """Close metrics collector"""
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
             try:
-                await asyncio.sleep(3600)  # Run every hour
-                await self._cleanup_old_metrics()
-            except Exception as e:
-                logger.error(f"Metrics cleanup error: {e}")
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
 
-    async def _cleanup_old_metrics(self):
-        """Remove metrics older than retention period"""
-        cutoff_time = datetime.utcnow() - timedelta(hours=self.retention_hours)
-
-        for metric_name, points in self.metrics.items():
-            # Remove old points
-            while points and points[0].timestamp < cutoff_time:
-                points.popleft()
-
-        # Clean histograms and timers
-        for timer_list in self.timers.values():
-            timer_list[:] = [t for t in timer_list if t['timestamp'] > cutoff_time]
-
-        for hist_list in self.histograms.values():
-            hist_list[:] = [h for h in hist_list if h['timestamp'] > cutoff_time]
-
-    def increment_counter(self, name: str, value: float = 1.0, tags: Dict[str, str] = None):
-        """Increment a counter metric"""
-        tags = tags or {}
-        self.counters[name] += value
-
-        metric_point = MetricPoint(
-            name=name,
-            value=value,
-            timestamp=datetime.utcnow(),
-            tags=tags,
-            metric_type=MetricType.COUNTER
-        )
-
-        self.metrics[name].append(metric_point)
-
-    def set_gauge(self, name: str, value: float, tags: Dict[str, str] = None):
-        """Set a gauge metric"""
-        tags = tags or {}
-        self.gauges[name] = value
-
-        metric_point = MetricPoint(
-            name=name,
-            value=value,
-            timestamp=datetime.utcnow(),
-            tags=tags,
-            metric_type=MetricType.GAUGE
-        )
-
-        self.metrics[name].append(metric_point)
-
-    def record_histogram(self, name: str, value: float, tags: Dict[str, str] = None):
-        """Record a histogram value"""
-        tags = tags or {}
-        timestamp = datetime.utcnow()
-
-        self.histograms[name].append({
-            'value': value,
-            'timestamp': timestamp,
-            'tags': tags
-        })
-
-        metric_point = MetricPoint(
-            name=name,
-            value=value,
-            timestamp=timestamp,
-            tags=tags,
-            metric_type=MetricType.HISTOGRAM
-        )
-
-        self.metrics[name].append(metric_point)
-
-    def start_timer(self, name: str, tags: Dict[str, str] = None) -> Callable:
-        """Start a timer and return a function to stop it"""
-        tags = tags or {}
-        start_time = time.time()
-
-        def stop_timer():
-            duration = time.time() - start_time
-            self.record_timer(name, duration, tags)
-            return duration
-
-        return stop_timer
-
-    def record_timer(self, name: str, duration: float, tags: Dict[str, str] = None):
-        """Record a timer duration"""
-        tags = tags or {}
-        timestamp = datetime.utcnow()
-
-        self.timers[name].append({
-            'duration': duration,
-            'timestamp': timestamp,
-            'tags': tags
-        })
-
-        metric_point = MetricPoint(
-            name=name,
-            value=duration,
-            timestamp=timestamp,
-            tags=tags,
-            metric_type=MetricType.TIMER
-        )
-
-        self.metrics[name].append(metric_point)
-
-    def time_function(self, name: str = None, tags: Dict[str, str] = None):
-        """Decorator to time function execution"""
-        def decorator(func):
-            metric_name = name or f"function.{func.__name__}.duration"
-
-            if asyncio.iscoroutinefunction(func):
-                async def async_wrapper(*args, **kwargs):
-                    stop_timer = self.start_timer(metric_name, tags)
-                    try:
-                        result = await func(*args, **kwargs)
-                        return result
-                    finally:
-                        stop_timer()
-                return async_wrapper
-            else:
-                def sync_wrapper(*args, **kwargs):
-                    stop_timer = self.start_timer(metric_name, tags)
-                    try:
-                        result = func(*args, **kwargs)
-                        return result
-                    finally:
-                        stop_timer()
-                return sync_wrapper
-
-        return decorator
+        logger.info("📊 Metrics collector closed")
 
     async def record_request(
-        self,
-        method: str,
-        path: str,
-        status_code: int,
-        duration: float,
-        user_id: str = None,
-        ip_address: str = None
+        self, 
+        method: str, 
+        path: str, 
+        status_code: int, 
+        duration: float
     ):
         """Record HTTP request metrics"""
-        # Basic request metrics
-        self.increment_counter("http.requests.total", tags={
+        timestamp = datetime.now()
+
+        metric = {
+            "timestamp": timestamp,
             "method": method,
             "path": path,
-            "status": str(status_code)
-        })
+            "status_code": status_code,
+            "duration": duration,
+            "success": 200 <= status_code < 400
+        }
 
-        self.record_timer("http.request.duration", duration, tags={
-            "method": method,
-            "path": path
-        })
+        self.request_metrics["all"].append(metric)
+        self.request_metrics[f"{method}:{path}"].append(metric)
 
-        # Status code tracking
-        self.status_codes[status_code] += 1
+        # Update performance metrics
+        self.performance_metrics["request_duration"].append(duration)
+        self.performance_metrics["request_count"].append(timestamp)
 
-        # Error tracking
+        # Track errors
         if status_code >= 400:
-            self.increment_counter("http.errors.total", tags={
-                "method": method,
-                "path": path,
-                "status": str(status_code)
-            })
+            self.error_metrics[f"http_{status_code}"] += 1
 
-        # Response time tracking
-        self.request_durations[path].append(duration)
-        if len(self.request_durations[path]) > 1000:
-            self.request_durations[path] = self.request_durations[path][-1000:]
+        await self._cleanup_old_metrics()
 
-        # User activity tracking
-        if user_id:
-            self.active_sessions.add(user_id)
-            self.user_actions[user_id] += 1
-
-    def record_video_upload(self, file_size: int, duration: float, success: bool):
-        """Record video upload metrics"""
-        self.video_metrics['uploads_total'] += 1
-
-        if success:
-            self.increment_counter("video.uploads.successful")
-            self.record_histogram("video.upload.file_size", file_size)
-            self.record_timer("video.upload.duration", duration)
-        else:
-            self.increment_counter("video.uploads.failed")
-
-    def record_video_processing(
+    async def record_upload(
         self,
+        file_size: int,
         processing_time: float,
-        clips_created: int,
-        viral_score: float,
+        file_type: str,
         success: bool
     ):
-        """Record video processing metrics"""
-        self.video_metrics['processing_total'] += 1
-        self.video_metrics['total_processing_time'] += processing_time
+        """Record upload metrics"""
+        timestamp = datetime.now()
 
-        if success:
-            self.video_metrics['successful_clips'] += clips_created
-            self.video_metrics['viral_scores'].append(viral_score)
-
-            self.increment_counter("video.processing.successful")
-            self.record_timer("video.processing.duration", processing_time)
-            self.record_histogram("video.clips_created", clips_created)
-            self.record_histogram("video.viral_score", viral_score)
-        else:
-            self.video_metrics['failed_clips'] += 1
-            self.increment_counter("video.processing.failed")
-
-    def record_feature_usage(self, feature: str, user_id: str = None):
-        """Record feature usage"""
-        self.feature_usage[feature] += 1
-        self.increment_counter("feature.usage", tags={"feature": feature})
-
-        if user_id:
-            self.increment_counter("user.feature_usage", tags={
-                "user_id": user_id,
-                "feature": feature
-            })
-
-    def record_performance_metrics(self, cpu_percent: float, memory_mb: float, queue_length: int):
-        """Record system performance metrics"""
-        self.set_gauge("system.cpu.percent", cpu_percent)
-        self.set_gauge("system.memory.mb", memory_mb)
-        self.set_gauge("system.queue.length", queue_length)
-
-        self.cpu_usage.append(cpu_percent)
-        self.memory_usage.append(memory_mb)
-        self.queue_lengths.append(queue_length)
-
-    def get_histogram_stats(self, name: str, tags: Dict[str, str] = None) -> Dict[str, float]:
-        """Get histogram statistics"""
-        values = []
-
-        for hist_data in self.histograms[name]:
-            if tags is None or all(hist_data['tags'].get(k) == v for k, v in tags.items()):
-                values.append(hist_data['value'])
-
-        if not values:
-            return {}
-
-        values.sort()
-        n = len(values)
-
-        return {
-            'count': n,
-            'min': values[0],
-            'max': values[-1],
-            'mean': sum(values) / n,
-            'median': values[n // 2],
-            'p95': values[int(n * 0.95)] if n > 0 else 0,
-            'p99': values[int(n * 0.99)] if n > 0 else 0
+        metric = {
+            "timestamp": timestamp,
+            "file_size": file_size,
+            "processing_time": processing_time,
+            "file_type": file_type,
+            "success": success,
+            "throughput": file_size / processing_time if processing_time > 0 else 0
         }
 
-    def get_timer_stats(self, name: str, tags: Dict[str, str] = None) -> Dict[str, float]:
-        """Get timer statistics"""
-        durations = []
+        self.upload_metrics["all"].append(metric)
+        self.upload_metrics[file_type].append(metric)
 
-        for timer_data in self.timers[name]:
-            if tags is None or all(timer_data['tags'].get(k) == v for k, v in tags.items()):
-                durations.append(timer_data['duration'])
+        # Update performance metrics
+        self.performance_metrics["upload_size"].append(file_size)
+        self.performance_metrics["upload_time"].append(processing_time)
 
-        if not durations:
-            return {}
+        if not success:
+            self.error_metrics["upload_failed"] += 1
 
-        durations.sort()
-        n = len(durations)
+    async def record_processing(
+        self,
+        task_id: str,
+        clip_count: int,
+        total_duration: float,
+        success: bool
+    ):
+        """Record processing metrics"""
+        timestamp = datetime.now()
 
-        return {
-            'count': n,
-            'total': sum(durations),
-            'min': durations[0],
-            'max': durations[-1],
-            'mean': sum(durations) / n,
-            'median': durations[n // 2],
-            'p95': durations[int(n * 0.95)] if n > 0 else 0,
-            'p99': durations[int(n * 0.99)] if n > 0 else 0
+        metric = {
+            "timestamp": timestamp,
+            "task_id": task_id,
+            "clip_count": clipcount,
+            "total_duration": total_duration,
+            "success": success,
+            "clips_per_second": clip_count / total_duration if total_duration > 0 else 0
         }
 
-    async def get_metrics(self) -> Dict[str, Any]:
-        """Get comprehensive metrics summary"""
-        now = datetime.utcnow()
-        uptime = (now - self.start_time).total_seconds()
+        self.processing_metrics["all"].append(metric)
 
-        # Calculate averages and rates
-        avg_cpu = sum(self.cpu_usage) / len(self.cpu_usage) if self.cpu_usage else 0
-        avg_memory = sum(self.memory_usage) / len(self.memory_usage) if self.memory_usage else 0
-        avg_queue = sum(self.queue_lengths) / len(self.queue_lengths) if self.queue_lengths else 0
+        # Update performance metrics
+        self.performance_metrics["processing_time"].append(total_duration)
+        self.performance_metrics["clips_processed"].append(clip_count)
 
-        # Request metrics
-        total_requests = sum(self.request_counts.values())
-        request_rate = total_requests / uptime if uptime > 0 else 0
+        if not success:
+            self.error_metrics["processing_failed"] += 1
 
-        # Error rate
-        total_errors = sum(count for status, count in self.status_codes.items() if status >= 400)
-        error_rate = (total_errors / total_requests * 100) if total_requests > 0 else 0
+    async def record_error(self, error_type: str, error_message: str):
+        """Record error metrics"""
+        self.error_metrics[f"error_{error_type}"] += 1
 
-        # Video processing metrics
-        avg_viral_score = (
-            sum(self.video_metrics['viral_scores']) / len(self.video_metrics['viral_scores'])
-            if self.video_metrics['viral_scores'] else 0
-        )
+        # Log significant errors
+        if self.error_metrics[f"error_{error_type}"] % 10 == 0:
+            logger.warning(f"⚠️ Error type '{error_type}' occurred 10 times: {error_message}")
 
-        success_rate = (
-            self.video_metrics['successful_clips'] / 
-            (self.video_metrics['successful_clips'] + self.video_metrics['failed_clips']) * 100
-            if (self.video_metrics['successful_clips'] + self.video_metrics['failed_clips']) > 0 else 0
+    def get_request_stats(self, time_window: Optional[timedelta] = None) -> Dict[str, Any]:
+        """Get request statistics"""
+        if time_window is None:
+            time_window = timedelta(hours=1)
+
+        cutoff_time = datetime.now() - time_window
+        recent_requests = [
+            req for req in self.request_metrics["all"]
+            if req["timestamp"] > cutoff_time
+        ]
+
+        if not recent_requests:
+            return {"total_requests": 0}
+
+        total_requests = len(recent_requests)
+        successful_requests = sum(1 for req in recent_requests if req["success"])
+        error_requests = total_requests - successful_requests
+
+        durations = [req["duration"] for req in recent_requests]
+
+        return {
+            "total_requests": total_requests,
+            "successful_requests": successful_requests,
+            "error_requests": error_requests,
+            "success_rate": (successful_requests / total_requests) * 100,
+            "avg_duration": sum(durations) / len(durations),
+            "min_duration": min(durations),
+            "max_duration": max(durations),
+            "requests_per_minute": total_requests / (time_window.total_seconds() / 60)
+        }
+
+    def get_upload_stats(self, time_window: Optional[timedelta] = None) -> Dict[str, Any]:
+        """Get upload statistics"""
+        if time_window is None:
+            time_window = timedelta(hours=1)
+
+        cutoff_time = datetime.now() - time_window
+        recent_uploads = [
+            upload for upload in self.upload_metrics["all"]
+            if upload["timestamp"] > cutoff_time
+        ]
+
+        if not recent_uploads:
+            return {"total_uploads": 0}
+
+        total_uploads = len(recent_uploads)
+        successful_uploads = sum(1 for upload in recent_uploads if upload["success"])
+
+        file_sizes = [upload["file_size"] for upload in recent_uploads]
+        processing_times = [upload["processing_time"] for upload in recent_uploads]
+        throughputs = [upload["throughput"] for upload in recent_uploads if upload["throughput"] > 0]
+
+        return {
+            "total_uploads": total_uploads,
+            "successful_uploads": successful_uploads,
+            "success_rate": (successful_uploads / total_uploads) * 100,
+            "avg_file_size": sum(file_sizes) / len(file_sizes),
+            "total_data_processed": sum(file_sizes),
+            "avg_processing_time": sum(processing_times) / len(processing_times),
+            "avg_throughput": sum(throughputs) / len(throughputs) if throughputs else 0,
+            "uploads_per_hour": total_uploads / (time_window.total_seconds() / 3600)
+        }
+
+    def get_processing_stats(self, time_window: Optional[timedelta] = None) -> Dict[str, Any]:
+        """Get processing statistics"""
+        if time_window is None:
+            time_window = timedelta(hours=1)
+
+        cutoff_time = datetime.now() - time_window
+        recent_processing = [
+            proc for proc in self.processing_metrics["all"]
+            if proc["timestamp"] > cutoff_time
+        ]
+
+        if not recent_processing:
+            return {"total_processing_jobs": 0}
+
+        total_jobs = len(recent_processing)
+        successful_jobs = sum(1 for proc in recent_processing if proc["success"])
+
+        durations = [proc["total_duration"] for proc in recent_processing]
+        clip_counts = [proc["clip_count"] for proc in recent_processing]
+
+        return {
+            "total_processing_jobs": total_jobs,
+            "successful_jobs": successful_jobs,
+            "success_rate": (successful_jobs / total_jobs) * 100,
+            "total_clips_created": sum(clip_counts),
+            "avg_clips_per_job": sum(clip_counts) / len(clip_counts),
+            "avg_processing_time": sum(durations) / len(durations),
+            "total_processing_time": sum(durations)
+        }
+
+    def get_error_stats(self) -> Dict[str, Any]:
+        """Get error statistics"""
+        total_errors = sum(self.error_metrics.values())
+
+        # Sort errors by frequency
+        sorted_errors = sorted(
+            self.error_metrics.items(),
+            key=lambda x: x[1],
+            reverse=True
         )
 
         return {
-            'system': {
-                'uptime_seconds': uptime,
-                'start_time': self.start_time.isoformat(),
-                'current_time': now.isoformat(),
-                'cpu_usage_percent': avg_cpu,
-                'memory_usage_mb': avg_memory,
-                'queue_length': avg_queue
-            },
-            'requests': {
-                'total': total_requests,
-                'rate_per_second': request_rate,
-                'error_rate_percent': error_rate,
-                'status_codes': dict(self.status_codes),
-                'response_times': {
-                    endpoint: {
-                        'count': len(durations),
-                        'avg': sum(durations) / len(durations) if durations else 0,
-                        'min': min(durations) if durations else 0,
-                        'max': max(durations) if durations else 0
-                    }
-                    for endpoint, durations in self.request_durations.items()
-                }
-            },
-            'users': {
-                'active_sessions': len(self.active_sessions),
-                'total_actions': sum(self.user_actions.values()),
-                'feature_usage': dict(self.feature_usage)
-            },
-            'video_processing': {
-                **self.video_metrics,
-                'average_viral_score': avg_viral_score,
-                'success_rate_percent': success_rate,
-                'average_processing_time': (
-                    self.video_metrics['total_processing_time'] / 
-                    self.video_metrics['processing_total']
-                    if self.video_metrics['processing_total'] > 0 else 0
+            "total_errors": total_errors,
+            "error_types": len(self.error_metrics),
+            "top_errors": sorted_errors[:10],
+            "error_breakdown": dict(self.error_metrics)
+        }
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get comprehensive performance summary"""
+        request_stats = self.get_request_stats()
+        upload_stats = self.get_upload_stats()
+        processing_stats = self.get_processing_stats()
+        error_stats = self.get_error_stats()
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "requests": request_stats,
+            "uploads": upload_stats,
+            "processing": processing_stats,
+            "errors": error_stats,
+            "system": {
+                "uptime": time.time() - self._start_time if hasattr(self, '_start_time') else 0,
+                "metrics_collected": (
+                    len(self.request_metrics["all"]) +
+                    len(self.upload_metrics["all"]) +
+                    len(self.processing_metrics["all"])
                 )
-            },
-            'counters': dict(self.counters),
-            'gauges': dict(self.gauges),
-            'histogram_stats': {
-                name: self.get_histogram_stats(name)
-                for name in self.histograms.keys()
-            },
-            'timer_stats': {
-                name: self.get_timer_stats(name)
-                for name in self.timers.keys()
             }
         }
 
-    def get_health_status(self) -> Dict[str, Any]:
-        """Get health status based on metrics"""
-        health = {
-            'status': 'healthy',
-            'checks': {},
-            'score': 100
-        }
+    async def _cleanup_old_metrics(self):
+        """Clean up old metrics to prevent memory issues"""
+        cutoff_time = datetime.now() - self.max_metric_age
 
-        # Check error rate
-        total_requests = sum(self.request_counts.values())
-        total_errors = sum(count for status, count in self.status_codes.items() if status >= 400)
-        error_rate = (total_errors / total_requests * 100) if total_requests > 0 else 0
+        # Clean request metrics
+        for key in list(self.request_metrics.keys()):
+            self.request_metrics[key] = [
+                metric for metric in self.request_metrics[key]
+                if metric["timestamp"] > cutoff_time
+            ][-self.max_metric_count:]
 
-        if error_rate > 10:
-            health['status'] = 'unhealthy'
-            health['score'] -= 30
-        elif error_rate > 5:
-            health['status'] = 'degraded'
-            health['score'] -= 15
+        # Clean upload metrics
+        for key in list(self.upload_metrics.keys()):
+            self.upload_metrics[key] = [
+                metric for metric in self.upload_metrics[key]
+                if metric["timestamp"] > cutoff_time
+            ][-self.max_metric_count:]
 
-        health['checks']['error_rate'] = {
-            'status': 'pass' if error_rate <= 5 else 'fail',
-            'value': error_rate,
-            'threshold': 5
-        }
+        # Clean processing metrics
+        for key in list(self.processing_metrics.keys()):
+            self.processing_metrics[key] = [
+                metric for metric in self.processing_metrics[key]
+                if metric["timestamp"] > cutoff_time
+            ][-self.max_metric_count:]
 
-        # Check response time
-        recent_durations = []
-        for durations in self.request_durations.values():
-            recent_durations.extend(durations[-10:])  # Last 10 requests per endpoint
+        # Clean performance metrics
+        for key in self.performance_metrics:
+            while len(self.performance_metrics[key]) > self.max_metric_count:
+                self.performance_metrics[key].popleft()
 
-        avg_response_time = sum(recent_durations) / len(recent_durations) if recent_durations else 0
+    async def _periodic_cleanup(self):
+        """Periodic cleanup task"""
+        self._start_time = time.time()
 
-        if avg_response_time > 5:
-            health['status'] = 'unhealthy'
-            health['score'] -= 20
-        elif avg_response_time > 2:
-            health['status'] = 'degraded'
-            health['score'] -= 10
+        while True:
+            try:
+                await asyncio.sleep(300)  # Clean up every 5 minutes
+                await self._cleanup_old_metrics()
 
-        health['checks']['response_time'] = {
-            'status': 'pass' if avg_response_time <= 2 else 'fail',
-            'value': avg_response_time,
-            'threshold': 2
-        }
-
-        # Check memory usage
-        current_memory = self.memory_usage[-1] if self.memory_usage else 0
-        if current_memory > 8000:  # 8GB
-            health['status'] = 'unhealthy'
-            health['score'] -= 25
-        elif current_memory > 4000:  # 4GB
-            health['score'] -= 10
-
-        health['checks']['memory_usage'] = {
-            'status': 'pass' if current_memory <= 4000 else 'fail',
-            'value': current_memory,
-            'threshold': 4000
-        }
-
-        return health
-
-    def export_prometheus_metrics(self) -> str:
-        """Export metrics in Prometheus format"""
-        lines = []
-
-        # Counters
-        for name, value in self.counters.items():
-            lines.append(f"# TYPE {name} counter")
-            lines.append(f"{name} {value}")
-
-        # Gauges
-        for name, value in self.gauges.items():
-            lines.append(f"# TYPE {name} gauge")
-            lines.append(f"{name} {value}")
-
-        # Histograms
-        for name, values in self.histograms.items():
-            if values:
-                stats = self.get_histogram_stats(name)
-                lines.append(f"# TYPE {name} histogram")
-                lines.append(f"{name}_count {stats.get('count', 0)}")
-                lines.append(f"{name}_sum {sum(v['value'] for v in values)}")
-                lines.append(f"{name}_bucket{{le=\"0.1\"}} {sum(1 for v in values if v['value'] <= 0.1)}")
-                lines.append(f"{name}_bucket{{le=\"0.5\"}} {sum(1 for v in values if v['value'] <= 0.5)}")
-                lines.append(f"{name}_bucket{{le=\"1.0\"}} {sum(1 for v in values if v['value'] <= 1.0)}")
-                lines.append(f"{name}_bucket{{le=\"+Inf\"}} {len(values)}")
-
-        return '\n'.join(lines)
-
-    def reset_metrics(self):
-        """Reset all metrics (for testing)"""
-        self.metrics.clear()
-        self.counters.clear()
-        self.gauges.clear()
-        self.histograms.clear()
-        self.timers.clear()
-        self.request_counts.clear()
-        self.request_durations.clear()
-        self.error_counts.clear()
-        self.status_codes.clear()
-        self.active_sessions.clear()
-        self.user_actions.clear()
-        self.feature_usage.clear()
-        self.video_metrics = {
-            'uploads_total': 0,
-            'processing_total': 0,
-            'successful_clips': 0,
-            'failed_clips': 0,
-            'total_processing_time': 0,
-            'avg_file_size': 0,
-            'viral_scores': []
-        }
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"❌ Error in metrics cleanup: {e}")

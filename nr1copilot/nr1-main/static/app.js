@@ -2,10 +2,18 @@
 /**
  * ViralClip Pro - Frontend Application
  * Netflix-level user experience with real-time updates
+ * 
+ * Features:
+ * - Advanced error handling and recovery
+ * - Performance monitoring and optimization
+ * - Comprehensive WebSocket management
+ * - Mobile-first responsive design
+ * - Real-time progress tracking
  */
 
 class ViralClipApp {
     constructor() {
+        // Core state
         this.currentStep = 'upload';
         this.uploadConnection = null;
         this.processingConnection = null;
@@ -13,23 +21,163 @@ class ViralClipApp {
         this.sessionId = null;
         this.taskId = null;
         this.selectedClips = [];
+        
+        // UI state
         this.isDragging = false;
+        this.isUploading = false;
+        this.isProcessing = false;
         this.uploadProgress = 0;
         this.processingProgress = 0;
         
+        // Performance tracking
+        this.performanceMetrics = {
+            startTime: Date.now(),
+            uploadStartTime: null,
+            processingStartTime: null,
+            lastActivity: Date.now()
+        };
+        
+        // Error tracking
+        this.errorCount = 0;
+        this.lastError = null;
+        this.retryAttempts = {};
+        
+        // Configuration
+        this.config = {
+            maxRetries: 3,
+            retryDelay: 1000,
+            heartbeatInterval: 30000,
+            maxFileSize: 2 * 1024 * 1024 * 1024, // 2GB
+            allowedFileTypes: ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'],
+            websocketReconnectDelay: 5000
+        };
+        
+        // Initialize application
         this.init();
     }
 
-    init() {
-        this.setupEventListeners();
-        this.setupDragAndDrop();
-        this.setupMobileOptimizations();
-        this.showStep('upload');
+    async init() {
+        try {
+            console.log('🚀 Initializing ViralClip Pro v2.0...');
+            
+            // Check browser compatibility
+            this.checkBrowserCompatibility();
+            
+            // Setup core features
+            this.setupEventListeners();
+            this.setupDragAndDrop();
+            this.setupMobileOptimizations();
+            this.setupErrorHandling();
+            this.setupPerformanceMonitoring();
+            
+            // Initialize offline support
+            this.setupOfflineSupport();
+            
+            // Start monitoring systems
+            this.startHeartbeat();
+            this.startActivityTracking();
+            
+            // Show initial step
+            this.showStep('upload');
+            
+            // Show loading complete
+            this.hideLoadingSplash();
+            
+            console.log('✅ ViralClip Pro initialized successfully');
+            this.trackEvent('app_initialized', { timestamp: Date.now() });
+            
+        } catch (error) {
+            console.error('❌ Failed to initialize ViralClip Pro:', error);
+            this.showCriticalError('Failed to initialize application', error);
+        }
+    }
+
+    checkBrowserCompatibility() {
+        const requiredFeatures = [
+            'WebSocket',
+            'FileReader',
+            'FormData',
+            'fetch',
+            'Promise'
+        ];
         
-        // Initialize performance monitoring
-        this.startPerformanceMonitoring();
+        const missingFeatures = requiredFeatures.filter(feature => !(feature in window));
         
-        console.log('🚀 ViralClip Pro initialized successfully');
+        if (missingFeatures.length > 0) {
+            throw new Error(`Browser missing required features: ${missingFeatures.join(', ')}`);
+        }
+        
+        // Check for recommended features
+        const recommendedFeatures = ['serviceWorker', 'localStorage', 'sessionStorage'];
+        const missingRecommended = recommendedFeatures.filter(feature => !(feature in window));
+        
+        if (missingRecommended.length > 0) {
+            console.warn('⚠️ Browser missing recommended features:', missingRecommended);
+        }
+    }
+
+    setupErrorHandling() {
+        // Global error handler
+        window.addEventListener('error', (event) => {
+            this.handleGlobalError('JavaScript Error', event.error);
+        });
+        
+        // Unhandled promise rejections
+        window.addEventListener('unhandledrejection', (event) => {
+            this.handleGlobalError('Unhandled Promise Rejection', event.reason);
+            event.preventDefault(); // Prevent console error
+        });
+        
+        // Network error detection
+        window.addEventListener('online', () => {
+            this.handleNetworkChange(true);
+        });
+        
+        window.addEventListener('offline', () => {
+            this.handleNetworkChange(false);
+        });
+    }
+
+    setupOfflineSupport() {
+        // Register service worker if available
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('📱 Service Worker registered:', registration);
+                })
+                .catch(error => {
+                    console.warn('📱 Service Worker registration failed:', error);
+                });
+        }
+        
+        // Show offline indicator if needed
+        if (!navigator.onLine) {
+            this.showOfflineIndicator();
+        }
+    }
+
+    startHeartbeat() {
+        setInterval(() => {
+            this.sendHeartbeat();
+        }, this.config.heartbeatInterval);
+    }
+
+    startActivityTracking() {
+        ['click', 'touchstart', 'keydown', 'scroll'].forEach(event => {
+            document.addEventListener(event, () => {
+                this.performanceMetrics.lastActivity = Date.now();
+            }, { passive: true });
+        });
+    }
+
+    hideLoadingSplash() {
+        const splash = document.querySelector('.loading-splash');
+        if (splash) {
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 500);
+        }
     }
 
     setupEventListeners() {
