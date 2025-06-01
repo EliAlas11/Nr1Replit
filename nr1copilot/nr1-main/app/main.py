@@ -11,7 +11,6 @@ import time
 import uuid
 import json
 import aiofiles
-import aioredis
 from contextlib import asynccontextmanager
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta
@@ -27,12 +26,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 import yt_dlp
 import shutil
 import hashlib
-import asyncpg
-from redis.asyncio import Redis
+try:
+    from redis.asyncio import Redis
+except ImportError:
+    Redis = None
 
 from .config import get_settings, is_production
 from .logging_config import setup_logging
@@ -74,7 +75,8 @@ class VideoProcessRequest(BaseModel):
     priority: str = Field(default="normal", regex="^(low|normal|high|urgent)$")
     webhook_url: Optional[str] = Field(None, description="Callback URL for completion")
     
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def validate_url(cls, v):
         if not v or len(v) < 10:
             raise ValueError('Invalid URL provided')
@@ -87,9 +89,10 @@ class ClipSettings(BaseModel):
     description: str = Field(default="", max_length=500)
     tags: List[str] = Field(default=[])
     
-    @validator('end_time')
-    def validate_end_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
+    @field_validator('end_time')
+    @classmethod
+    def validate_end_time(cls, v, info):
+        if hasattr(info, 'data') and 'start_time' in info.data and v <= info.data['start_time']:
             raise ValueError('end_time must be greater than start_time')
         return v
 
@@ -118,10 +121,18 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     
     try:
-        # Initialize Redis connection
-        redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
-        await redis_client.ping()
-        logger.info("✅ Redis connection established")
+        # Initialize Redis connection (optional)
+        if Redis:
+            redis_client = Redis.from_url(settings.redis_url, decode_responses=True)
+            try:
+                await redis_client.ping()
+                logger.info("✅ Redis connection established")
+            except Exception as e:
+                logger.warning(f"Redis not available, running without cache: {e}")
+                redis_client = None
+        else:
+            logger.warning("Redis library not available, running without cache")
+            redis_client = None
         
         # Initialize components
         metrics_collector = MetricsCollector()
