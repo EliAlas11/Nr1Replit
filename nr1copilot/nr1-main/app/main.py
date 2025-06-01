@@ -1,3 +1,4 @@
+
 """
 ViralClip Pro - Netflix-Level AI Video Processor
 The most advanced video clip generator that destroys SendShort.ai
@@ -30,7 +31,11 @@ import yt_dlp
 import shutil
 import hashlib
 
-import PyJWT as jwt
+try:
+    import PyJWT as jwt
+except ImportError:
+    jwt = None
+
 # Make Redis optional
 try:
     import redis.asyncio as redis
@@ -100,15 +105,15 @@ connection_manager = ConnectionManager()
 class VideoProcessRequest(BaseModel):
     url: str = Field(..., description="YouTube or video URL")
     clip_duration: int = Field(default=60, ge=10, le=300, description="Clip duration in seconds")
-    output_format: str = Field(default="mp4", regex="^(mp4|mov|webm)$")
-    resolution: str = Field(default="1080p", regex="^(720p|1080p|1440p|4k)$")
-    aspect_ratio: str = Field(default="9:16", regex="^(9:16|16:9|1:1|4:5)$")
+    output_format: str = Field(default="mp4", pattern="^(mp4|mov|webm)$")
+    resolution: str = Field(default="1080p", pattern="^(720p|1080p|1440p|4k)$")
+    aspect_ratio: str = Field(default="9:16", pattern="^(9:16|16:9|1:1|4:5)$")
     enable_captions: bool = Field(default=True)
     enable_transitions: bool = Field(default=True)
     ai_editing: bool = Field(default=True)
     viral_optimization: bool = Field(default=True)
-    language: str = Field(default="en", regex="^[a-z]{2}$")
-    priority: str = Field(default="normal", regex="^(low|normal|high|urgent)$")
+    language: str = Field(default="en", pattern="^[a-z]{2}$")
+    priority: str = Field(default="normal", pattern="^(low|normal|high|urgent)$")
     webhook_url: Optional[str] = Field(None, description="Callback URL for completion")
 
     @field_validator('url')
@@ -651,6 +656,41 @@ async def download_clip_v2(task_id: str, clip_index: int):
         }
     )
 
+# File upload endpoint for drag & drop
+@app.post("/api/v2/upload-video")
+async def upload_video(file: UploadFile = File(...)):
+    """Handle direct video uploads with drag & drop"""
+    try:
+        # Validate file type
+        if not file.content_type.startswith('video/'):
+            raise HTTPException(status_code=400, detail="Only video files are allowed")
+        
+        # Generate unique filename
+        file_id = str(uuid.uuid4())
+        filename = f"upload_{file_id}_{file.filename}"
+        upload_path = f"uploads/{filename}"
+        
+        # Create uploads directory
+        os.makedirs("uploads", exist_ok=True)
+        
+        # Save file
+        async with aiofiles.open(upload_path, 'wb') as f:
+            content = await file.read()
+            await f.write(content)
+        
+        return {
+            "success": True,
+            "file_id": file_id,
+            "filename": filename,
+            "upload_path": upload_path,
+            "file_size": len(content),
+            "message": "File uploaded successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
 # Background processing function - Netflix-level
 async def process_video_background_v2(task_id: str, session_data: dict, clip_settings: List[ClipSettings], priority_score: int):
     """Netflix-level background video processing"""
@@ -689,7 +729,8 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
             }
         )
 
-        download_path = f"{settings.temp_path}/{task_id}_video.%(ext)s"
+        download_path = f"temp/{task_id}_video.%(ext)s"
+        os.makedirs("temp", exist_ok=True)
 
         ydl_opts = {
             'outtmpl': download_path,
@@ -704,7 +745,7 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
 
         # Find downloaded file
         import glob
-        downloaded_files = glob.glob(f"{settings.temp_path}/{task_id}_video.*")
+        downloaded_files = glob.glob(f"temp/{task_id}_video.*")
         if not downloaded_files:
             raise Exception("Download failed - no files found")
 
@@ -742,6 +783,7 @@ async def process_video_background_v2(task_id: str, session_data: dict, clip_set
             )
 
             output_path = f"output/{task_id}_clip_{i}_{int(time.time())}.mp4"
+            os.makedirs("output", exist_ok=True)
 
             # Advanced video processing with AI
             clip_result = await cloud_processor.process_clip_advanced(
@@ -822,7 +864,7 @@ async def cleanup_old_files():
             now = datetime.now()
             cutoff = now - timedelta(hours=24)  # Clean files older than 24 hours
 
-            for directory in [settings.temp_path, "output"]:
+            for directory in ["temp", "output", "uploads"]:
                 if os.path.exists(directory):
                     for filename in os.listdir(directory):
                         filepath = os.path.join(directory, filename)

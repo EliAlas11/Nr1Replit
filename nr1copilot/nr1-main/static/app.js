@@ -1,1224 +1,1162 @@
 
 /**
- * ViralClip Pro - Netflix-Level Frontend Application
- * Advanced video processing interface with real-time features
- * 
- * Features:
- * - Real-time processing updates via WebSocket
- * - Instant drag-drop upload with preview
- * - AI-powered clip selection
- * - Mobile-first responsive design
- * - Progressive Web App capabilities
- * - Advanced error handling and user feedback
+ * ViralClip Pro - Frontend Application
+ * Netflix-level JavaScript with SendShort.ai killer features
  */
 
 class ViralClipApp {
     constructor() {
-        this.currentStep = 1;
-        this.analysisData = null;
-        this.selectedClips = [];
-        this.processingTaskId = null;
+        this.currentSession = null;
         this.websocket = null;
-        this.uploadProgress = 0;
-        this.apiBase = window.location.origin;
+        this.dragDropHandler = null;
+        this.progressInterval = null;
+        this.retryCount = 0;
+        this.maxRetries = 3;
         
         this.init();
     }
 
     async init() {
-        console.log('🎬 Initializing ViralClip Pro - SendShort.ai Killer');
+        console.log('🚀 Initializing ViralClip Pro - SendShort.ai Killer');
         
-        this.setupEventListeners();
-        this.setupDragDrop();
-        this.setupTimeline();
-        this.setupKeyboardShortcuts();
-        this.setupServiceWorker();
-        this.updateNavigationState();
+        // Hide loading screen
+        this.hideLoadingScreen();
         
-        // Show welcome message
-        this.showToast('🚀 ViralClip Pro Ready - Let\'s create viral content!', 'success');
+        // Initialize components
+        this.initializeEventListeners();
+        this.initializeDragDrop();
+        this.initializeExamples();
+        this.initializeTheme();
+        this.initializeAnalytics();
+        
+        // Check for saved session
+        this.restoreSession();
+        
+        console.log('✅ ViralClip Pro ready - Netflix-level performance activated');
     }
 
-    // ====================
-    // Event Listeners Setup
-    // ====================
-    
-    setupEventListeners() {
-        // File input
-        const fileInput = document.getElementById('fileInput');
-        if (fileInput) {
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files[0]) {
-                    this.handleFileUpload(e.target.files[0]);
-                }
-            });
+    hideLoadingScreen() {
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) {
+            setTimeout(() => {
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                }, 300);
+            }, 1000);
         }
+    }
 
-        // URL input with real-time validation
+    initializeEventListeners() {
+        // URL Analysis
+        const analyzeBtn = document.getElementById('analyzeBtn');
         const videoUrl = document.getElementById('videoUrl');
-        if (videoUrl) {
-            videoUrl.addEventListener('input', this.debounce(this.validateUrl.bind(this), 500));
+        
+        if (analyzeBtn && videoUrl) {
+            analyzeBtn.addEventListener('click', () => this.handleAnalyzeVideo());
             videoUrl.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    this.analyzeUrl();
-                }
+                if (e.key === 'Enter') this.handleAnalyzeVideo();
             });
+            
+            // Real-time URL validation
+            videoUrl.addEventListener('input', (e) => this.validateUrl(e.target.value));
         }
 
-        // Window events
-        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
-        window.addEventListener('online', () => this.showToast('✅ Connection restored', 'success'));
-        window.addEventListener('offline', () => this.showToast('⚠️ Connection lost', 'warning'));
+        // Upload method toggle
+        const toggleBtns = document.querySelectorAll('.toggle-btn');
+        toggleBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.toggleUploadMethod(btn.dataset.method));
+        });
+
+        // Custom clip addition
+        const addCustomClip = document.getElementById('addCustomClip');
+        if (addCustomClip) {
+            addCustomClip.addEventListener('click', () => this.addCustomClip());
+        }
+
+        // Example URLs
+        const exampleUrls = document.querySelectorAll('.example-url');
+        exampleUrls.forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('videoUrl').value = btn.dataset.url;
+                this.handleAnalyzeVideo();
+            });
+        });
+
+        // Mobile menu
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', () => this.toggleMobileMenu());
+        }
+
+        // File browse
+        const browseBtn = document.getElementById('browseBtn');
+        const fileInput = document.getElementById('fileInput');
+        
+        if (browseBtn && fileInput) {
+            browseBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => this.handleFileUpload(e.target.files[0]));
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
     }
 
-    setupDragDrop() {
-        const dropZone = document.getElementById('dropZone');
+    initializeDragDrop() {
+        const dropZone = document.getElementById('fileDropZone');
         if (!dropZone) return;
 
-        // Prevent default behavior for all drag events
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, this.preventDefaults, false);
-            document.body.addEventListener(eventName, this.preventDefaults, false);
-        });
-
-        // Add visual feedback
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => {
-                dropZone.classList.add('dragover');
-            }, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, () => {
-                dropZone.classList.remove('dragover');
-            }, false);
-        });
-
-        // Handle file drop
-        dropZone.addEventListener('drop', (e) => {
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                const file = files[0];
-                if (this.validateFile(file)) {
-                    this.handleFileUpload(file);
-                } else {
-                    this.showToast('❌ Invalid file type. Please upload a video file.', 'error');
-                }
-            }
-        }, false);
-    }
-
-    setupTimeline() {
-        const timeline = document.getElementById('timeline');
-        const clipSelector = document.getElementById('clipSelector');
-
-        if (!timeline || !clipSelector) return;
-
-        let isDragging = false;
-        let isResizing = false;
-        let startX = 0;
-        let startLeft = 0;
-        let startWidth = 0;
-
-        // Mouse down on clip selector
-        clipSelector.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            const rect = clipSelector.getBoundingClientRect();
-
-            if (e.clientX > rect.right - 10) {
-                // Resize mode
-                isResizing = true;
-                startWidth = rect.width;
-            } else {
-                // Drag mode
-                isDragging = true;
-                startLeft = parseFloat(clipSelector.style.left) || 0;
-            }
-
-            startX = e.clientX;
-            document.body.style.userSelect = 'none';
-        });
-
-        // Mouse move
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging && !isResizing) return;
-
-            const timelineRect = timeline.getBoundingClientRect();
-            const deltaX = e.clientX - startX;
-            const deltaPercent = (deltaX / timelineRect.width) * 100;
-
-            if (isDragging) {
-                const newLeft = Math.max(0, Math.min(85, startLeft + deltaPercent));
-                clipSelector.style.left = `${newLeft}%`;
-            } else if (isResizing) {
-                const currentLeft = parseFloat(clipSelector.style.left) || 0;
-                const maxWidth = 100 - currentLeft;
-                const newWidth = Math.max(5, Math.min(maxWidth, (startWidth / timelineRect.width * 100) + deltaPercent));
-                clipSelector.style.width = `${newWidth}%`;
-            }
-
-            this.updateClipTime();
-        });
-
-        // Mouse up
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            isResizing = false;
-            document.body.style.userSelect = '';
-        });
-
-        // Timeline click
-        timeline.addEventListener('click', (e) => {
-            if (isDragging || isResizing) return;
-
-            const rect = timeline.getBoundingClientRect();
-            const percent = ((e.clientX - rect.left) / rect.width) * 100;
-            const currentWidth = parseFloat(clipSelector.style.width) || 30;
+        this.dragDropHandler = {
+            dragCounter: 0,
             
-            clipSelector.style.left = `${Math.max(0, Math.min(100 - currentWidth, percent - currentWidth/2))}%`;
-            this.updateClipTime();
-        });
-    }
-
-    setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            // Only handle shortcuts when not typing in inputs
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-            switch (e.key) {
-                case ' ':
-                    e.preventDefault();
-                    this.toggleVideoPlayback();
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    this.previousStep();
-                    break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    this.nextStep();
-                    break;
-                case 'Escape':
-                    e.preventDefault();
-                    this.hideLoading();
-                    break;
-            }
-        });
-    }
-
-    async setupServiceWorker() {
-        if ('serviceWorker' in navigator) {
-            try {
-                await navigator.serviceWorker.register('/sw.js');
-                console.log('✅ Service Worker registered');
-            } catch (error) {
-                console.warn('Service Worker registration failed:', error);
-            }
-        }
-    }
-
-    // ====================
-    // File Handling
-    // ====================
-
-    validateFile(file) {
-        const validTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/mkv', 'video/webm'];
-        const maxSize = 500 * 1024 * 1024; // 500MB
-
-        if (!validTypes.includes(file.type)) {
-            return false;
-        }
-
-        if (file.size > maxSize) {
-            this.showToast('❌ File too large. Maximum size is 500MB.', 'error');
-            return false;
-        }
-
-        return true;
-    }
-
-    async handleFileUpload(file) {
-        try {
-            this.showLoading('Uploading and analyzing video... 🎬', 0);
-
-            // Create video preview
-            const video = document.getElementById('previewVideo');
-            const url = URL.createObjectURL(file);
-            video.src = url;
-
-            // Wait for video metadata
-            await new Promise((resolve, reject) => {
-                video.addEventListener('loadedmetadata', resolve);
-                video.addEventListener('error', reject);
-            });
-
-            // Update progress
-            this.updateLoadingProgress(30, 'Analyzing video content...');
-
-            // Simulate AI analysis (replace with actual API call)
-            await this.performAIAnalysis(video, file);
-
-            this.hideLoading();
-            this.goToStep(2);
-
-        } catch (error) {
-            console.error('File upload error:', error);
-            this.hideLoading();
-            this.showToast('❌ Upload failed. Please try again.', 'error');
-        }
-    }
-
-    async performAIAnalysis(video, file) {
-        // Simulate advanced AI analysis
-        const duration = video.duration;
-        
-        // Mock data - replace with actual API call
-        this.analysisData = {
-            session_id: 'session_' + Date.now(),
-            video_info: {
-                title: file.name.replace(/\.[^/.]+$/, ""),
-                duration: duration,
-                thumbnail: video.src,
-                file_size: file.size,
-                resolution: `${video.videoWidth}x${video.videoHeight}`,
-                fps: 30 // Mock value
+            handleDragEnter: (e) => {
+                e.preventDefault();
+                this.dragDropHandler.dragCounter++;
+                dropZone.classList.add('drag-over');
             },
-            ai_insights: {
-                viral_potential: 85 + Math.floor(Math.random() * 15),
-                engagement_prediction: 78 + Math.floor(Math.random() * 20),
-                optimal_length: 45 + Math.floor(Math.random() * 30),
-                best_clips: this.generateMockClips(duration),
-                trending_topics: ["viral", "trending", "amazing", "content"],
-                sentiment: "positive",
-                hook_moments: [5, 15, 32, 67],
-                emotional_peaks: [12, 28, 45, 89],
-                action_scenes: [20, 55, 78]
+            
+            handleDragLeave: (e) => {
+                e.preventDefault();
+                this.dragDropHandler.dragCounter--;
+                if (this.dragDropHandler.dragCounter === 0) {
+                    dropZone.classList.remove('drag-over');
+                }
+            },
+            
+            handleDragOver: (e) => {
+                e.preventDefault();
+            },
+            
+            handleDrop: (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                this.dragDropHandler.dragCounter = 0;
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.handleFileUpload(files[0]);
+                }
             }
         };
 
-        // Update progress incrementally
-        for (let i = 30; i <= 80; i += 10) {
-            await this.delay(200);
-            this.updateLoadingProgress(i, `AI analyzing frame ${i-20}/50...`);
-        }
-
-        await this.delay(500);
-        this.updateLoadingProgress(100, 'Analysis complete! 🎉');
-
-        // Update UI with analysis results
-        this.updateAnalysisDisplay();
+        // Add event listeners
+        dropZone.addEventListener('dragenter', this.dragDropHandler.handleDragEnter);
+        dropZone.addEventListener('dragleave', this.dragDropHandler.handleDragLeave);
+        dropZone.addEventListener('dragover', this.dragDropHandler.handleDragOver);
+        dropZone.addEventListener('drop', this.dragDropHandler.handleDrop);
     }
 
-    generateMockClips(duration) {
-        const clips = [];
-        const numClips = Math.min(5, Math.floor(duration / 30));
-        
-        for (let i = 0; i < numClips; i++) {
-            const start = Math.floor((duration / numClips) * i);
-            const end = Math.min(start + 30 + Math.floor(Math.random() * 30), duration);
-            
-            clips.push({
-                start: start,
-                end: end,
-                score: 85 + Math.floor(Math.random() * 15),
-                reason: this.getRandomClipReason(),
-                title: `Viral Moment ${i + 1}`
-            });
-        }
-        
-        return clips.sort((a, b) => b.score - a.score);
-    }
-
-    getRandomClipReason() {
-        const reasons = [
-            "High engagement hook",
-            "Emotional peak moment", 
-            "Action sequence",
-            "Trending topic mention",
-            "Visual appeal spike",
-            "Audio engagement boost",
-            "Humor detection",
-            "Suspense buildup"
+    initializeExamples() {
+        // Add some viral video examples for testing
+        const examples = [
+            {
+                title: "Mr. Beast Challenge",
+                url: "https://www.youtube.com/watch?v=example1",
+                viral_score: 95
+            },
+            {
+                title: "Dancing Baby Trend",
+                url: "https://www.youtube.com/watch?v=example2", 
+                viral_score: 89
+            }
         ];
-        return reasons[Math.floor(Math.random() * reasons.length)];
+
+        // Could add these to the UI dynamically
+        console.log('📺 Example videos loaded:', examples.length);
     }
 
-    // ====================
-    // URL Analysis
-    // ====================
+    initializeTheme() {
+        // Check for saved theme preference
+        const savedTheme = localStorage.getItem('viralclip-theme');
+        if (savedTheme) {
+            document.body.classList.add(`theme-${savedTheme}`);
+        }
 
-    async validateUrl() {
+        // Add theme toggle functionality
+        this.addThemeToggle();
+    }
+
+    initializeAnalytics() {
+        // Track page load
+        this.trackEvent('page_load', {
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent,
+            screen_resolution: `${screen.width}x${screen.height}`
+        });
+    }
+
+    validateUrl(url) {
+        const analyzeBtn = document.getElementById('analyzeBtn');
         const urlInput = document.getElementById('videoUrl');
-        const url = urlInput.value.trim();
         
-        if (!url) return;
-
-        const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/;
+        const isValidYouTube = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)/i.test(url);
         
-        if (youtubeRegex.test(url)) {
-            urlInput.style.borderColor = '#10b981';
-            urlInput.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.1)';
+        if (url.length > 10 && isValidYouTube) {
+            analyzeBtn.disabled = false;
+            analyzeBtn.classList.remove('disabled');
+            urlInput.classList.remove('error');
+            urlInput.classList.add('valid');
+        } else if (url.length > 0) {
+            analyzeBtn.disabled = true;
+            analyzeBtn.classList.add('disabled');
+            urlInput.classList.add('error');
+            urlInput.classList.remove('valid');
         } else {
-            urlInput.style.borderColor = '#ef4444';
-            urlInput.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.1)';
+            analyzeBtn.disabled = false;
+            analyzeBtn.classList.remove('disabled');
+            urlInput.classList.remove('error', 'valid');
         }
     }
 
-    async analyzeUrl() {
-        const urlInput = document.getElementById('videoUrl');
-        const url = urlInput.value.trim();
+    toggleUploadMethod(method) {
+        const toggleBtns = document.querySelectorAll('.toggle-btn');
+        const uploadMethods = document.querySelectorAll('.upload-method');
+        
+        // Update toggle buttons
+        toggleBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.method === method);
+        });
+        
+        // Update upload methods
+        uploadMethods.forEach(methodEl => {
+            methodEl.classList.toggle('active', methodEl.id === `${method}Method`);
+        });
 
-        if (!url) {
-            this.showToast('❌ Please enter a YouTube URL', 'error');
+        this.trackEvent('upload_method_changed', { method });
+    }
+
+    async handleAnalyzeVideo() {
+        const videoUrl = document.getElementById('videoUrl').value.trim();
+        
+        if (!videoUrl) {
+            this.showNotification('Please enter a YouTube URL', 'error');
             return;
         }
 
-        try {
-            this.showLoading('Downloading and analyzing video... 🎬', 0);
+        this.trackEvent('analyze_video_started', { url: videoUrl });
 
-            // Call the analysis API
-            const response = await this.apiCall('/api/v2/analyze-video', {
+        try {
+            this.setAnalyzeButtonLoading(true);
+            
+            const requestData = {
+                url: videoUrl,
+                language: 'en',
+                viral_optimization: true,
+                ai_editing: true
+            };
+
+            const response = await fetch('/api/v2/analyze-video', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    url: url,
-                    clip_duration: 60,
-                    output_format: "mp4",
-                    resolution: "1080p",
-                    aspect_ratio: "9:16",
-                    enable_captions: true,
-                    viral_optimization: true,
-                    language: "en"
-                })
+                body: JSON.stringify(requestData)
             });
 
-            if (response.success) {
-                this.analysisData = response;
-                this.updateAnalysisDisplay();
-                this.hideLoading();
-                this.goToStep(2);
-                this.showToast('✅ Video analyzed successfully!', 'success');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.currentSession = result.session_id;
+                this.saveSession(result);
+                this.displayAnalysisResults(result);
+                this.trackEvent('analyze_video_success', { 
+                    session_id: result.session_id,
+                    viral_score: result.ai_insights.viral_potential 
+                });
             } else {
-                throw new Error(response.error || 'Analysis failed');
+                throw new Error(result.error || 'Analysis failed');
             }
 
         } catch (error) {
-            console.error('URL analysis error:', error);
-            this.hideLoading();
-            this.showToast(`❌ Analysis failed: ${error.message}`, 'error');
+            console.error('Analysis error:', error);
+            this.showNotification(`Analysis failed: ${error.message}`, 'error');
+            this.trackEvent('analyze_video_error', { error: error.message });
+        } finally {
+            this.setAnalyzeButtonLoading(false);
         }
     }
 
-    // ====================
-    // UI Updates
-    // ====================
+    async handleFileUpload(file) {
+        if (!file) return;
 
-    updateAnalysisDisplay() {
-        if (!this.analysisData) return;
-
-        const { video_info, ai_insights } = this.analysisData;
-
-        // Update video preview
-        const video = document.getElementById('previewVideo');
-        if (video && video_info.thumbnail) {
-            video.poster = video_info.thumbnail;
+        // Validate file
+        if (!file.type.startsWith('video/')) {
+            this.showNotification('Please select a video file', 'error');
+            return;
         }
 
-        // Update scores and insights
-        this.updateElement('viralScore', ai_insights.viral_potential || '--');
-        this.updateElement('engagementScore', `${ai_insights.engagement_prediction || '--'}%`);
-        this.updateElement('optimalLength', `${ai_insights.optimal_length || '--'} sec`);
-        this.updateElement('trendingTopics', (ai_insights.trending_topics || []).slice(0, 3).join(', ') || '--');
-        this.updateElement('sentiment', ai_insights.sentiment || '--');
-
-        // Update best clips list
-        this.updateBestClipsList(ai_insights.best_clips || []);
-
-        // Set initial clip selector position
-        if (ai_insights.best_clips && ai_insights.best_clips.length > 0) {
-            this.setClipFromBestMoment(0);
+        if (file.size > 2 * 1024 * 1024 * 1024) { // 2GB limit
+            this.showNotification('File size must be less than 2GB', 'error');
+            return;
         }
-    }
 
-    updateBestClipsList(clips) {
-        const clipsList = document.getElementById('bestClipsList');
-        if (!clipsList) return;
-
-        clipsList.innerHTML = '';
-
-        clips.forEach((clip, index) => {
-            const clipItem = document.createElement('div');
-            clipItem.className = 'clip-item';
-            clipItem.innerHTML = `
-                <div class="clip-icon">${this.getClipIcon(clip.reason)}</div>
-                <div class="clip-info">
-                    <div class="clip-title">${clip.title || `Clip ${index + 1}`}</div>
-                    <div class="clip-reason">${clip.reason}</div>
-                </div>
-                <div class="clip-score">${clip.score}%</div>
-            `;
-
-            clipItem.addEventListener('click', () => {
-                this.setClipFromBestMoment(index);
-                this.toggleClipSelection(index);
-            });
-
-            clipsList.appendChild(clipItem);
+        this.trackEvent('file_upload_started', { 
+            filename: file.name, 
+            size: file.size,
+            type: file.type 
         });
-    }
 
-    getClipIcon(reason) {
-        const iconMap = {
-            'High engagement hook': '🎯',
-            'Emotional peak moment': '💫',
-            'Action sequence': '🎬',
-            'Trending topic mention': '🔥',
-            'Visual appeal spike': '✨',
-            'Audio engagement boost': '🎵',
-            'Humor detection': '😂',
-            'Suspense buildup': '⚡'
-        };
-        return iconMap[reason] || '🎭';
-    }
-
-    toggleClipSelection(index) {
-        const clipItems = document.querySelectorAll('.clip-item');
-        const clipItem = clipItems[index];
-        
-        if (!clipItem) return;
-
-        if (this.selectedClips.includes(index)) {
-            this.selectedClips = this.selectedClips.filter(i => i !== index);
-            clipItem.classList.remove('selected');
-        } else {
-            this.selectedClips.push(index);
-            clipItem.classList.add('selected');
-        }
-
-        this.updateNavigationState();
-    }
-
-    setClipFromBestMoment(index) {
-        if (!this.analysisData?.ai_insights?.best_clips?.[index]) return;
-
-        const clip = this.analysisData.ai_insights.best_clips[index];
-        const duration = this.analysisData.video_info.duration || 180;
-        
-        const startPercent = (clip.start / duration) * 100;
-        const lengthPercent = ((clip.end - clip.start) / duration) * 100;
-
-        const clipSelector = document.getElementById('clipSelector');
-        if (clipSelector) {
-            clipSelector.style.left = `${Math.max(0, startPercent)}%`;
-            clipSelector.style.width = `${Math.min(lengthPercent, 100 - startPercent)}%`;
-        }
-
-        this.updateClipTime();
-    }
-
-    updateClipTime() {
-        const clipSelector = document.getElementById('clipSelector');
-        if (!clipSelector || !this.analysisData) return;
-
-        const duration = this.analysisData.video_info.duration || 180;
-        const leftPercent = parseFloat(clipSelector.style.left) || 0;
-        const widthPercent = parseFloat(clipSelector.style.width) || 30;
-
-        const startTime = (leftPercent / 100) * duration;
-        const endTime = ((leftPercent + widthPercent) / 100) * duration;
-
-        // Update video current time if playing
-        const video = document.getElementById('previewVideo');
-        if (video && !video.paused) {
-            video.currentTime = startTime;
-        }
-    }
-
-    // ====================
-    // Video Processing
-    // ====================
-
-    async goToProcessing() {
-        if (this.selectedClips.length === 0) {
-            // Auto-select top 3 clips if none selected
-            this.selectedClips = [0, 1, 2].filter(i => 
-                this.analysisData?.ai_insights?.best_clips?.[i]
-            );
-            
-            if (this.selectedClips.length === 0) {
-                this.showToast('❌ No clips available for processing', 'error');
-                return;
-            }
-        }
-
-        this.goToStep(3);
-        await this.startProcessing();
-    }
-
-    async startProcessing() {
         try {
-            // Prepare clip data
-            const clipsData = this.selectedClips.map(clipIndex => {
-                const clipData = this.analysisData.ai_insights.best_clips[clipIndex] || {};
-                return {
-                    start_time: clipData.start || clipIndex * 30,
-                    end_time: clipData.end || (clipIndex + 1) * 30,
-                    title: clipData.title || `ViralClip Pro - Clip ${clipIndex + 1}`,
-                    description: `AI-optimized viral clip`,
-                    tags: this.analysisData.ai_insights.trending_topics || []
-                };
-            });
-
-            // Create form data
+            this.showUploadProgress(0);
+            
             const formData = new FormData();
-            formData.append('session_id', this.analysisData.session_id);
-            formData.append('clips', JSON.stringify(clipsData));
-            formData.append('priority', 'normal');
+            formData.append('file', file);
 
-            // Start processing
-            const response = await this.apiCall('/api/v2/process-video', {
+            const response = await fetch('/api/v2/upload-video', {
                 method: 'POST',
                 body: formData
             });
 
-            if (response.success) {
-                this.processingTaskId = response.task_id;
-                this.initializeProcessingDashboard(response);
-                this.startWebSocketConnection();
-                this.startProgressPolling();
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Upload failed: HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showUploadProgress(100);
+                this.showNotification('File uploaded successfully!', 'success');
+                
+                // TODO: Integrate with analysis pipeline
+                this.trackEvent('file_upload_success', { 
+                    file_id: result.file_id,
+                    filename: result.filename 
+                });
             } else {
-                throw new Error(response.error || 'Processing failed to start');
+                throw new Error(result.error || 'Upload failed');
+            }
+
+        } catch (error) {
+            console.error('Upload error:', error);
+            this.showNotification(`Upload failed: ${error.message}`, 'error');
+            this.trackEvent('file_upload_error', { error: error.message });
+        } finally {
+            this.hideUploadProgress();
+        }
+    }
+
+    displayAnalysisResults(result) {
+        // Show analysis section
+        document.getElementById('analysisSection').style.display = 'block';
+        
+        // Smooth scroll to results
+        document.getElementById('analysisSection').scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+        });
+
+        // Update video info
+        this.updateVideoInfo(result.video_info);
+        
+        // Update AI insights
+        this.updateAIInsights(result.ai_insights);
+        
+        // Generate suggested clips
+        this.generateSuggestedClips(result.ai_insights);
+        
+        // Update analysis stats
+        this.updateAnalysisStats(result);
+    }
+
+    updateVideoInfo(videoInfo) {
+        // Thumbnail
+        const thumbnail = document.getElementById('videoThumbnail');
+        if (thumbnail && videoInfo.thumbnail) {
+            thumbnail.src = videoInfo.thumbnail;
+            thumbnail.alt = videoInfo.title;
+        }
+
+        // Title
+        const title = document.getElementById('videoTitle');
+        if (title) {
+            title.textContent = videoInfo.title || 'Unknown Title';
+        }
+
+        // Duration
+        const duration = document.getElementById('videoDuration');
+        if (duration) {
+            duration.textContent = this.formatDuration(videoInfo.duration);
+        }
+
+        // Views
+        const views = document.getElementById('videoViews');
+        if (views && videoInfo.view_count) {
+            views.textContent = this.formatNumber(videoInfo.view_count) + ' views';
+        }
+
+        // Uploader
+        const uploader = document.getElementById('videoUploader');
+        if (uploader) {
+            uploader.textContent = videoInfo.uploader || 'Unknown';
+        }
+    }
+
+    updateAIInsights(aiInsights) {
+        // Viral score
+        const viralScore = aiInsights.viral_potential || 0;
+        const scoreFill = document.getElementById('viralScoreFill');
+        const scoreText = document.getElementById('viralScoreText');
+        
+        if (scoreFill && scoreText) {
+            scoreFill.style.width = `${viralScore}%`;
+            scoreFill.className = `score-fill ${this.getScoreClass(viralScore)}`;
+            scoreText.textContent = `${viralScore}%`;
+        }
+
+        // Engagement score
+        const engagementEl = document.getElementById('engagementScore');
+        if (engagementEl) {
+            engagementEl.textContent = `${aiInsights.engagement_prediction || 0}%`;
+        }
+
+        // Best platforms
+        const platformsEl = document.getElementById('bestPlatforms');
+        if (platformsEl) {
+            const platforms = aiInsights.suggested_formats || ['TikTok', 'Instagram'];
+            platformsEl.innerHTML = platforms.slice(0, 2).map(p => 
+                `<span class="platform-tag">${p}</span>`
+            ).join('');
+        }
+
+        // Optimal length
+        const lengthEl = document.getElementById('optimalLength');
+        if (lengthEl) {
+            lengthEl.textContent = `${aiInsights.optimal_length || 60}s`;
+        }
+
+        // Sentiment
+        const sentimentEl = document.getElementById('sentiment');
+        if (sentimentEl) {
+            const sentiment = aiInsights.sentiment_analysis || 'positive';
+            sentimentEl.innerHTML = `<span class="sentiment-${sentiment}">${sentiment}</span>`;
+        }
+    }
+
+    generateSuggestedClips(aiInsights) {
+        const container = document.getElementById('suggestedClips');
+        if (!container) return;
+
+        // Generate clips based on AI insights
+        const clips = this.generateClipsFromInsights(aiInsights);
+        
+        container.innerHTML = clips.map((clip, index) => `
+            <div class="clip-card" data-clip-index="${index}">
+                <div class="clip-timeline">
+                    <div class="timeline-bar">
+                        <div class="timeline-segment" style="left: ${(clip.start_time / 300) * 100}%; width: ${((clip.end_time - clip.start_time) / 300) * 100}%"></div>
+                    </div>
+                    <div class="timeline-labels">
+                        <span>${this.formatTime(clip.start_time)}</span>
+                        <span>${this.formatTime(clip.end_time)}</span>
+                    </div>
+                </div>
+                <div class="clip-info">
+                    <h5>${clip.title}</h5>
+                    <p>${clip.description}</p>
+                    <div class="clip-stats">
+                        <span class="duration">${this.formatTime(clip.end_time - clip.start_time)}</span>
+                        <span class="viral-score score-${this.getScoreClass(clip.viral_score)}">${clip.viral_score}% viral</span>
+                    </div>
+                </div>
+                <div class="clip-actions">
+                    <button class="btn btn-sm btn-outline" onclick="app.editClip(${index})">Edit</button>
+                    <button class="btn btn-sm btn-primary" onclick="app.processClip(${index})">Process</button>
+                </div>
+            </div>
+        `).join('');
+
+        // Add process all button
+        container.innerHTML += `
+            <div class="clip-actions-footer">
+                <button class="btn btn-success btn-large" onclick="app.processAllClips()">
+                    🚀 Process All Clips (${clips.length})
+                </button>
+            </div>
+        `;
+
+        this.suggestedClips = clips;
+    }
+
+    generateClipsFromInsights(aiInsights) {
+        const clips = [];
+        
+        // Generate clips from AI insights
+        const hookMoments = aiInsights.hook_moments || [];
+        const emotionalPeaks = aiInsights.emotional_peaks || [];
+        const actionScenes = aiInsights.action_scenes || [];
+        
+        // Combine all interesting moments
+        const allMoments = [
+            ...hookMoments.map(m => ({ ...m, type: 'hook' })),
+            ...emotionalPeaks.map(m => ({ ...m, type: 'emotional' })),
+            ...actionScenes.map(m => ({ ...m, type: 'action' }))
+        ].sort((a, b) => a.timestamp - b.timestamp);
+
+        // Generate clips from moments
+        allMoments.forEach((moment, index) => {
+            const duration = moment.duration || 30;
+            clips.push({
+                start_time: Math.max(0, moment.timestamp - 5),
+                end_time: moment.timestamp + duration,
+                title: this.generateClipTitle(moment.type, index + 1),
+                description: moment.description || this.generateClipDescription(moment.type),
+                viral_score: moment.score || (75 + Math.random() * 20),
+                tags: [moment.type, 'viral', 'ai-generated']
+            });
+        });
+
+        // If no AI moments, generate default clips
+        if (clips.length === 0) {
+            clips.push(
+                {
+                    start_time: 0,
+                    end_time: 30,
+                    title: "Opening Hook",
+                    description: "Engaging opening to capture attention",
+                    viral_score: 82,
+                    tags: ['hook', 'viral']
+                },
+                {
+                    start_time: 60,
+                    end_time: 90,
+                    title: "Key Moment",
+                    description: "Main content with high engagement",
+                    viral_score: 87,
+                    tags: ['highlight', 'viral']
+                }
+            );
+        }
+
+        return clips.slice(0, 5); // Limit to 5 clips
+    }
+
+    async processAllClips() {
+        if (!this.currentSession || !this.suggestedClips) {
+            this.showNotification('No clips to process', 'error');
+            return;
+        }
+
+        this.trackEvent('process_all_clips_started', {
+            session_id: this.currentSession,
+            clip_count: this.suggestedClips.length
+        });
+
+        try {
+            const formData = new FormData();
+            formData.append('session_id', this.currentSession);
+            formData.append('clips', JSON.stringify(this.suggestedClips));
+            formData.append('priority', 'normal');
+
+            const response = await fetch('/api/v2/process-video', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.currentTaskId = result.task_id;
+                this.showProcessingSection(result);
+                this.initializeWebSocket(result.task_id);
+                this.trackEvent('process_all_clips_success', { task_id: result.task_id });
+            } else {
+                throw new Error(result.error || 'Processing failed');
             }
 
         } catch (error) {
             console.error('Processing error:', error);
-            this.showToast(`❌ Processing failed: ${error.message}`, 'error');
+            this.showNotification(`Processing failed: ${error.message}`, 'error');
+            this.trackEvent('process_all_clips_error', { error: error.message });
         }
     }
 
-    initializeProcessingDashboard(response) {
-        this.updateElement('processingSpeed', '-- clips/min');
-        this.updateElement('queuePosition', `#${response.position_in_queue}`);
-        this.updateElement('estimatedTime', `${Math.ceil(response.estimated_time / 60)} min`);
-        this.updateElement('currentStep', 'Initializing processing...');
-        this.updateElement('overallProgress', '0%');
+    showProcessingSection(processingData) {
+        const section = document.getElementById('processingSectionContainer');
+        if (!section) return;
 
-        // Initialize clip progress
-        this.initializeClipProgress();
+        section.style.display = 'block';
+        section.scrollIntoView({ behavior: 'smooth' });
+
+        // Update queue info
+        document.getElementById('queuePosition').textContent = processingData.position_in_queue;
+        document.getElementById('estimatedTime').textContent = this.formatDuration(processingData.estimated_time);
+
+        // Initialize progress
+        this.updateProgress(0, 'Queued for processing...');
         
-        // Add initial update
-        this.addLiveUpdate('Processing started', 'Processing queued successfully');
+        // Initialize timeline
+        this.initializeTimeline();
     }
 
-    initializeClipProgress() {
-        const clipsProgress = document.getElementById('clipsProgress');
-        if (!clipsProgress) return;
+    initializeWebSocket(taskId) {
+        // Close existing connection
+        if (this.websocket) {
+            this.websocket.close();
+        }
 
-        clipsProgress.innerHTML = '';
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/api/v2/ws/${taskId}`;
+        
+        this.websocket = new WebSocket(wsUrl);
+        
+        this.websocket.onopen = () => {
+            console.log('🔗 WebSocket connected');
+            this.addLiveUpdate('Connected to processing server', 'success');
+        };
+        
+        this.websocket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            this.handleWebSocketMessage(message);
+        };
+        
+        this.websocket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            this.addLiveUpdate('Connection error - retrying...', 'error');
+            this.retryWebSocket(taskId);
+        };
+        
+        this.websocket.onclose = () => {
+            console.log('🔌 WebSocket disconnected');
+            this.addLiveUpdate('Connection closed', 'warning');
+        };
 
-        this.selectedClips.forEach((clipIndex, i) => {
-            const clipData = this.analysisData.ai_insights.best_clips[clipIndex];
-            const clipProgressItem = document.createElement('div');
-            clipProgressItem.className = 'clip-progress';
-            clipProgressItem.innerHTML = `
-                <div class="clip-progress-info">
-                    <div class="clip-progress-title">${clipData?.title || `Clip ${i + 1}`}</div>
-                    <div class="clip-progress-status">Queued</div>
-                </div>
-                <div class="clip-progress-bar">
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: 0%"></div>
-                    </div>
+        // Send periodic pings
+        this.pingInterval = setInterval(() => {
+            if (this.websocket?.readyState === WebSocket.OPEN) {
+                this.websocket.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 30000);
+    }
+
+    handleWebSocketMessage(message) {
+        console.log('📡 WebSocket message:', message);
+        
+        switch (message.type) {
+            case 'status_update':
+                this.updateProgress(message.data.progress, message.data.message);
+                break;
+                
+            case 'progress_update':
+                this.updateProgress(message.data.progress, message.data.message);
+                this.updateTimeline(message.data.current_step);
+                break;
+                
+            case 'processing_complete':
+                this.handleProcessingComplete(message.data);
+                break;
+                
+            case 'processing_error':
+                this.handleProcessingError(message.data);
+                break;
+                
+            case 'pong':
+                // Ping response
+                break;
+                
+            default:
+                console.log('Unknown message type:', message.type);
+        }
+        
+        this.addLiveUpdate(message.data?.message || 'Processing update received', 'info');
+    }
+
+    updateProgress(progress, message) {
+        const progressFill = document.getElementById('progressFill');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressStep = document.getElementById('progressStep');
+        
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
+            progressFill.className = `progress-fill ${this.getProgressClass(progress)}`;
+        }
+        
+        if (progressPercent) {
+            progressPercent.textContent = `${Math.round(progress)}%`;
+        }
+        
+        if (progressStep && message) {
+            progressStep.textContent = message;
+        }
+    }
+
+    updateTimeline(currentStep) {
+        const timeline = document.getElementById('statusTimeline');
+        if (!timeline) return;
+
+        const steps = [
+            { id: 'queued', name: 'Queued', icon: '⏳' },
+            { id: 'downloading', name: 'Downloading', icon: '📥' },
+            { id: 'ai_analysis', name: 'AI Analysis', icon: '🤖' },
+            { id: 'processing_clip_1', name: 'Processing Clips', icon: '🎬' },
+            { id: 'completed', name: 'Completed', icon: '✅' }
+        ];
+
+        timeline.innerHTML = steps.map(step => {
+            const isActive = currentStep === step.id;
+            const isCompleted = steps.findIndex(s => s.id === currentStep) > steps.findIndex(s => s.id === step.id);
+            
+            return `
+                <div class="timeline-step ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}">
+                    <div class="step-icon">${step.icon}</div>
+                    <div class="step-name">${step.name}</div>
                 </div>
             `;
-            clipsProgress.appendChild(clipProgressItem);
-        });
+        }).join('');
     }
 
-    async startProgressPolling() {
-        if (!this.processingTaskId) return;
+    addLiveUpdate(message, type = 'info') {
+        const feed = document.getElementById('updatesFeed');
+        if (!feed) return;
 
-        const pollInterval = setInterval(async () => {
-            try {
-                const response = await this.apiCall(`/api/v2/processing-status/${this.processingTaskId}`);
-                
-                if (response.success) {
-                    this.updateProcessingStatus(response.data);
-                    
-                    if (response.data.status === 'completed') {
-                        clearInterval(pollInterval);
-                        this.handleProcessingComplete(response.data);
-                    } else if (response.data.status === 'failed') {
-                        clearInterval(pollInterval);
-                        this.handleProcessingError(response.data.error);
-                    }
-                }
-            } catch (error) {
-                console.error('Status polling error:', error);
-            }
-        }, 2000);
+        const timestamp = new Date().toLocaleTimeString();
+        const updateEl = document.createElement('div');
+        updateEl.className = `update-item ${type}`;
+        updateEl.innerHTML = `
+            <span class="update-time">${timestamp}</span>
+            <span class="update-message">${message}</span>
+        `;
 
-        // Store interval for cleanup
-        this.pollingInterval = pollInterval;
-    }
+        feed.insertBefore(updateEl, feed.firstChild);
 
-    updateProcessingStatus(data) {
-        // Update main progress
-        this.updateElement('overallProgress', `${data.progress || 0}%`);
-        const progressFill = document.getElementById('mainProgressFill');
-        if (progressFill) {
-            progressFill.style.width = `${data.progress || 0}%`;
+        // Limit to 10 updates
+        while (feed.children.length > 10) {
+            feed.removeChild(feed.lastChild);
         }
 
-        // Update current step
-        this.updateElement('currentStep', data.current_step || 'Processing...');
-
-        // Update queue position if available
-        if (data.queue_position) {
-            this.updateElement('queuePosition', `#${data.queue_position}`);
-        }
-
-        // Add live update
-        if (data.current_step) {
-            this.addLiveUpdate('System', data.current_step);
-        }
+        // Auto-scroll
+        updateEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     handleProcessingComplete(data) {
-        this.showToast('🎉 Processing completed successfully!', 'success');
-        this.addLiveUpdate('Completed', 'All clips processed successfully');
+        console.log('🎉 Processing completed:', data);
         
-        // Update results
-        this.updateResultsDisplay(data.results);
-        this.goToStep(4);
-    }
-
-    handleProcessingError(error) {
-        this.showToast(`❌ Processing failed: ${error}`, 'error');
-        this.addLiveUpdate('Error', error);
-    }
-
-    updateResultsDisplay(results) {
-        const resultsGrid = document.getElementById('resultsGrid');
-        if (!resultsGrid || !results) return;
-
-        resultsGrid.innerHTML = '';
-
-        results.forEach((result, index) => {
-            const resultCard = document.createElement('div');
-            resultCard.className = 'result-card';
-            resultCard.innerHTML = `
-                <div class="result-video">
-                    <video controls poster="${result.thumbnail || ''}">
-                        <source src="${result.file_path}" type="video/mp4">
-                    </video>
-                    <div class="result-overlay">
-                        <div class="viral-badge">
-                            Viral Score: ${result.viral_score}%
-                        </div>
-                    </div>
-                </div>
-                <div class="result-info">
-                    <div class="result-title">${result.title}</div>
-                    <div class="result-meta">
-                        <span>⏱️ ${result.duration.toFixed(1)}s</span>
-                        <span>📁 ${this.formatFileSize(result.file_size)}</span>
-                        <span>🎯 ${result.viral_score}%</span>
-                    </div>
-                    <div class="result-actions">
-                        <button class="btn btn-secondary" onclick="app.previewClip(${index})">
-                            👁️ Preview
-                        </button>
-                        <button class="btn btn-primary" onclick="app.downloadClip(${index})">
-                            📥 Download
-                        </button>
-                    </div>
-                </div>
-            `;
-            resultsGrid.appendChild(resultCard);
+        this.trackEvent('processing_completed', {
+            task_id: this.currentTaskId,
+            total_time: data.total_time,
+            results_count: data.results?.length || 0
         });
 
-        // Store results for later use
-        this.processedResults = results;
-    }
-
-    // ====================
-    // WebSocket Connection
-    // ====================
-
-    startWebSocketConnection() {
-        if (!this.processingTaskId) return;
-
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/api/v2/ws/${this.processingTaskId}`;
-
-        try {
-            this.websocket = new WebSocket(wsUrl);
-
-            this.websocket.onopen = () => {
-                console.log('✅ WebSocket connected');
-                this.addLiveUpdate('Connection', 'Real-time updates enabled');
-            };
-
-            this.websocket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    this.handleWebSocketMessage(data);
-                } catch (error) {
-                    console.error('WebSocket message error:', error);
-                }
-            };
-
-            this.websocket.onclose = () => {
-                console.log('WebSocket disconnected');
-                this.addLiveUpdate('Connection', 'Real-time updates disconnected');
-            };
-
-            this.websocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-
-        } catch (error) {
-            console.error('WebSocket connection failed:', error);
-        }
-    }
-
-    handleWebSocketMessage(data) {
-        switch (data.type) {
-            case 'progress_update':
-                this.updateProcessingStatus(data.data);
-                break;
-            case 'clip_completed':
-                this.updateClipProgress(data.clip_index, 100, 'Completed');
-                this.addLiveUpdate('Clip Ready', `Clip ${data.clip_index + 1} completed`);
-                break;
-            case 'error':
-                this.addLiveUpdate('Error', data.message);
-                break;
-            case 'system_message':
-                this.addLiveUpdate('System', data.message);
-                break;
-        }
-    }
-
-    updateClipProgress(clipIndex, progress, status) {
-        const clipProgressItems = document.querySelectorAll('.clip-progress');
-        const clipItem = clipProgressItems[clipIndex];
-        
-        if (!clipItem) return;
-
-        const progressFill = clipItem.querySelector('.progress-fill');
-        const statusElement = clipItem.querySelector('.clip-progress-status');
-
-        if (progressFill) {
-            progressFill.style.width = `${progress}%`;
-        }
-        
-        if (statusElement) {
-            statusElement.textContent = status;
-        }
-    }
-
-    addLiveUpdate(source, message) {
-        const updatesContainer = document.getElementById('liveUpdates');
-        if (!updatesContainer) return;
-
-        const updateItem = document.createElement('div');
-        updateItem.className = 'update-item';
-        
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString('en-US', { 
-            hour12: false, 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-
-        updateItem.innerHTML = `
-            <span class="update-time">${timeStr}</span>
-            <span class="update-message"><strong>${source}:</strong> ${message}</span>
-        `;
-
-        updatesContainer.insertBefore(updateItem, updatesContainer.firstChild);
-
-        // Keep only last 10 updates
-        while (updatesContainer.children.length > 10) {
-            updatesContainer.removeChild(updatesContainer.lastChild);
-        }
-    }
-
-    // ====================
-    // Navigation & Step Management
-    // ====================
-
-    goToStep(stepNumber) {
-        if (stepNumber < 1 || stepNumber > 4) return;
-
-        // Update UI
-        document.querySelectorAll('.step-section').forEach(section => {
-            section.classList.remove('active');
-        });
-
-        const stepElement = document.getElementById(this.getStepElementId(stepNumber));
-        if (stepElement) {
-            stepElement.classList.add('active');
-        }
-
-        this.currentStep = stepNumber;
-        this.updateNavigationState();
-
-        // Smooth scroll to top
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    getStepElementId(stepNumber) {
-        const stepIds = ['', 'step-upload', 'step-analyze', 'step-processing', 'step-complete'];
-        return stepIds[stepNumber] || 'step-upload';
-    }
-
-    updateNavigationState() {
-        // Update bottom navigation
-        document.querySelectorAll('.nav-step').forEach((btn, index) => {
-            btn.classList.toggle('active', index + 1 === this.currentStep);
-        });
-
-        // Enable/disable navigation based on progress
-        const canGoToStep2 = this.analysisData !== null;
-        const canGoToStep3 = canGoToStep2 && (this.selectedClips.length > 0 || this.analysisData?.ai_insights?.best_clips?.length > 0);
-        const canGoToStep4 = this.processedResults !== null;
-
-        // Update navigation buttons state (if they exist)
-        this.updateNavigationButtons(canGoToStep2, canGoToStep3, canGoToStep4);
-    }
-
-    updateNavigationButtons(canGoToStep2, canGoToStep3, canGoToStep4) {
-        // This would update any navigation buttons in the UI
-        // Implementation depends on specific UI design
-    }
-
-    nextStep() {
-        if (this.currentStep < 4) {
-            this.goToStep(this.currentStep + 1);
-        }
-    }
-
-    previousStep() {
-        if (this.currentStep > 1) {
-            this.goToStep(this.currentStep - 1);
-        }
-    }
-
-    // ====================
-    // User Actions
-    // ====================
-
-    selectAllClips() {
-        if (!this.analysisData?.ai_insights?.best_clips) return;
-
-        this.selectedClips = [...Array(this.analysisData.ai_insights.best_clips.length).keys()];
-        
-        document.querySelectorAll('.clip-item').forEach((item, index) => {
-            item.classList.toggle('selected', this.selectedClips.includes(index));
-        });
-
-        this.updateNavigationState();
-        this.showToast(`✅ Selected ${this.selectedClips.length} clips`, 'success');
-    }
-
-    async downloadClip(clipIndex) {
-        if (!this.processingTaskId || !this.processedResults?.[clipIndex]) return;
-
-        try {
-            const response = await fetch(`/api/v2/download/${this.processingTaskId}/${clipIndex}`);
-            
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `viralclip_pro_${clipIndex + 1}_${Date.now()}.mp4`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                
-                this.showToast('✅ Download started', 'success');
-            } else {
-                throw new Error('Download failed');
-            }
-        } catch (error) {
-            console.error('Download error:', error);
-            this.showToast('❌ Download failed', 'error');
-        }
-    }
-
-    async downloadAll() {
-        if (!this.processedResults) return;
-
-        for (let i = 0; i < this.processedResults.length; i++) {
-            await this.downloadClip(i);
-            await this.delay(1000); // Prevent overwhelming the server
-        }
-    }
-
-    previewClip(clipIndex) {
-        if (!this.processedResults?.[clipIndex]) return;
-
-        const result = this.processedResults[clipIndex];
-        
-        // Create modal or fullscreen preview
-        const modal = document.createElement('div');
-        modal.className = 'preview-modal';
-        modal.innerHTML = `
-            <div class="preview-content">
-                <div class="preview-header">
-                    <h3>${result.title}</h3>
-                    <button class="close-btn" onclick="this.closest('.preview-modal').remove()">✕</button>
-                </div>
-                <video controls autoplay style="width: 100%; max-height: 70vh;">
-                    <source src="${result.file_path}" type="video/mp4">
-                </video>
-                <div class="preview-actions">
-                    <button class="btn btn-primary" onclick="app.downloadClip(${clipIndex})">
-                        📥 Download
-                    </button>
-                </div>
-            </div>
-        `;
-
-        // Add modal styles
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-            padding: 2rem;
-        `;
-
-        document.body.appendChild(modal);
-
-        // Close on background click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        });
-    }
-
-    shareToSocial() {
-        this.showToast('🚀 Social sharing integration coming soon!', 'info');
-    }
-
-    createNew() {
-        // Clean up current session
-        this.cleanup();
-
-        // Reset state
-        this.currentStep = 1;
-        this.analysisData = null;
-        this.selectedClips = [];
-        this.processingTaskId = null;
-        this.processedResults = null;
-
-        // Reset UI
-        document.getElementById('videoUrl').value = '';
-        document.getElementById('fileInput').value = '';
-        
-        // Reset video
-        const video = document.getElementById('previewVideo');
-        if (video) {
-            video.src = '';
-            video.poster = '';
-        }
-
-        this.goToStep(1);
-        this.showToast('✨ Ready for new video!', 'success');
-    }
-
-    // ====================
-    // Utility Methods
-    // ====================
-
-    async apiCall(endpoint, options = {}) {
-        const url = `${this.apiBase}${endpoint}`;
-        
-        const defaultOptions = {
-            headers: {
-                'Accept': 'application/json',
-            }
-        };
-
-        const mergedOptions = { ...defaultOptions, ...options };
-
-        try {
-            const response = await fetch(url, mergedOptions);
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${response.status}`);
-            }
-
-            return await response.json();
-        } catch (error) {
-            console.error(`API call failed: ${endpoint}`, error);
-            throw error;
-        }
-    }
-
-    showLoading(message = 'Processing...', progress = null) {
-        const overlay = document.getElementById('loadingOverlay');
-        const messageEl = document.getElementById('loadingMessage');
-        const detailEl = document.getElementById('loadingDetail');
-
-        if (overlay) overlay.classList.remove('hidden');
-        if (messageEl) messageEl.textContent = message;
-        if (detailEl) detailEl.textContent = '';
-
-        if (progress !== null) {
-            this.updateLoadingProgress(progress);
-        }
-    }
-
-    updateLoadingProgress(progress, detail = '') {
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        const detailEl = document.getElementById('loadingDetail');
-
-        if (progressFill) progressFill.style.width = `${progress}%`;
-        if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-        if (detailEl && detail) detailEl.textContent = detail;
-    }
-
-    hideLoading() {
-        const overlay = document.getElementById('loadingOverlay');
-        if (overlay) overlay.classList.add('hidden');
-    }
-
-    showToast(message, type = 'info') {
-        const container = document.getElementById('toastContainer');
-        if (!container) return;
-
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-
-        container.appendChild(toast);
-
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
-        }, 5000);
-    }
-
-    updateElement(id, content) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = content;
-        }
-    }
-
-    toggleVideoPlayback() {
-        const video = document.getElementById('previewVideo');
-        if (!video) return;
-
-        if (video.paused) {
-            video.play();
-        } else {
-            video.pause();
-        }
-    }
-
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    handleBeforeUnload(e) {
-        if (this.processingTaskId) {
-            e.preventDefault();
-            e.returnValue = 'Video processing is in progress. Are you sure you want to leave?';
-        }
-    }
-
-    cleanup() {
         // Close WebSocket
         if (this.websocket) {
             this.websocket.close();
             this.websocket = null;
         }
 
-        // Clear polling interval
-        if (this.pollingInterval) {
-            clearInterval(this.pollingInterval);
-            this.pollingInterval = null;
+        // Clear ping interval
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
         }
 
-        // Clean up any object URLs
-        const video = document.getElementById('previewVideo');
-        if (video && video.src && video.src.startsWith('blob:')) {
-            URL.revokeObjectURL(video.src);
+        // Show results
+        this.showResults(data);
+        
+        // Show success notification
+        this.showNotification('All clips processed successfully! 🎉', 'success');
+    }
+
+    handleProcessingError(data) {
+        console.error('❌ Processing error:', data);
+        
+        this.trackEvent('processing_error', {
+            task_id: this.currentTaskId,
+            error: data.error
+        });
+
+        this.showNotification(`Processing failed: ${data.error}`, 'error');
+        this.addLiveUpdate(`Error: ${data.error}`, 'error');
+    }
+
+    showResults(data) {
+        const resultsSection = document.getElementById('resultsSection');
+        if (!resultsSection) return;
+
+        resultsSection.style.display = 'block';
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+
+        // Update summary
+        document.getElementById('totalClips').textContent = data.results?.length || 0;
+        document.getElementById('totalProcessingTime').textContent = `${Math.round(data.total_time)}s`;
+        
+        const avgViralScore = data.results?.reduce((sum, clip) => sum + (clip.viral_score || 0), 0) / (data.results?.length || 1);
+        document.getElementById('avgViralScore').textContent = `${Math.round(avgViralScore)}%`;
+
+        // Display clips
+        this.displayClipResults(data.results || []);
+    }
+
+    displayClipResults(results) {
+        const grid = document.getElementById('clipsGrid');
+        if (!grid) return;
+
+        grid.innerHTML = results.map((clip, index) => `
+            <div class="clip-result-card">
+                <div class="clip-preview">
+                    <video 
+                        src="/api/v2/download/${this.currentTaskId}/${index}" 
+                        poster="${clip.thumbnail || ''}"
+                        controls
+                        preload="metadata"
+                    ></video>
+                </div>
+                <div class="clip-details">
+                    <h4>${clip.title}</h4>
+                    <div class="clip-meta">
+                        <span>Duration: ${this.formatTime(clip.duration)}</span>
+                        <span>Size: ${this.formatFileSize(clip.file_size)}</span>
+                        <span class="viral-score score-${this.getScoreClass(clip.viral_score)}">
+                            ${clip.viral_score}% viral
+                        </span>
+                    </div>
+                    <div class="clip-enhancements">
+                        ${(clip.ai_enhancements || []).map(enhancement => 
+                            `<span class="enhancement-tag">${enhancement}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+                <div class="clip-actions">
+                    <button class="btn btn-primary" onclick="app.downloadClip(${index})">
+                        Download
+                    </button>
+                    <button class="btn btn-outline" onclick="app.shareClip(${index})">
+                        Share
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async downloadClip(clipIndex) {
+        if (!this.currentTaskId) return;
+
+        try {
+            const url = `/api/v2/download/${this.currentTaskId}/${clipIndex}`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `viralclip_pro_${clipIndex + 1}.mp4`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            this.trackEvent('clip_downloaded', { 
+                task_id: this.currentTaskId, 
+                clip_index: clipIndex 
+            });
+
+        } catch (error) {
+            console.error('Download error:', error);
+            this.showNotification('Download failed', 'error');
         }
     }
 
-    // ====================
-    // Template & Analytics Methods (Placeholders)
-    // ====================
-
-    showTemplates() {
-        this.showToast('📋 Template library coming soon!', 'info');
+    // Utility functions
+    formatDuration(seconds) {
+        if (!seconds) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    showAnalytics() {
-        this.showToast('📊 Analytics dashboard coming soon!', 'info');
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    showSettings() {
-        this.showToast('⚙️ Settings panel coming soon!', 'info');
+    formatNumber(num) {
+        if (!num) return '0';
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    formatFileSize(bytes) {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    getScoreClass(score) {
+        if (score >= 80) return 'high';
+        if (score >= 60) return 'medium';
+        return 'low';
+    }
+
+    getProgressClass(progress) {
+        if (progress >= 80) return 'high';
+        if (progress >= 40) return 'medium';
+        return 'low';
+    }
+
+    generateClipTitle(type, index) {
+        const titles = {
+            hook: ['Opening Hook', 'Attention Grabber', 'Viral Opener'],
+            emotional: ['Emotional Peak', 'Heart Moment', 'Feel-Good Clip'],
+            action: ['Action Scene', 'Dynamic Moment', 'High Energy']
+        };
+        return titles[type]?.[index % titles[type].length] || `Clip ${index}`;
+    }
+
+    generateClipDescription(type) {
+        const descriptions = {
+            hook: 'Engaging opening designed to capture viewer attention',
+            emotional: 'Emotional peak moment with high engagement potential',
+            action: 'High-energy scene perfect for viral content'
+        };
+        return descriptions[type] || 'AI-generated viral clip';
+    }
+
+    setAnalyzeButtonLoading(loading) {
+        const btn = document.getElementById('analyzeBtn');
+        const text = btn?.querySelector('.btn-text');
+        const loader = btn?.querySelector('.btn-loader');
+        
+        if (btn) {
+            btn.disabled = loading;
+            btn.classList.toggle('loading', loading);
+        }
+        if (text) text.style.display = loading ? 'none' : 'inline';
+        if (loader) loader.style.display = loading ? 'inline' : 'none';
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-icon">${this.getNotificationIcon(type)}</span>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+
+        // Add to page
+        document.body.appendChild(notification);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 5000);
+    }
+
+    getNotificationIcon(type) {
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        return icons[type] || 'ℹ️';
+    }
+
+    trackEvent(eventName, data = {}) {
+        try {
+            // Send to analytics
+            if (typeof gtag !== 'undefined') {
+                gtag('event', eventName, data);
+            }
+            
+            // Log for debugging
+            console.log(`📊 Event: ${eventName}`, data);
+            
+            // Could also send to your own analytics endpoint
+            // fetch('/api/analytics/event', { ... });
+            
+        } catch (error) {
+            console.error('Analytics error:', error);
+        }
+    }
+
+    saveSession(data) {
+        try {
+            localStorage.setItem('viralclip-session', JSON.stringify({
+                session_id: data.session_id,
+                timestamp: new Date().toISOString(),
+                video_info: data.video_info
+            }));
+        } catch (error) {
+            console.error('Failed to save session:', error);
+        }
+    }
+
+    restoreSession() {
+        try {
+            const saved = localStorage.getItem('viralclip-session');
+            if (saved) {
+                const session = JSON.parse(saved);
+                // Check if session is less than 24 hours old
+                const sessionTime = new Date(session.timestamp);
+                const now = new Date();
+                if (now - sessionTime < 24 * 60 * 60 * 1000) {
+                    console.log('🔄 Restored session:', session.session_id);
+                    // Could restore the session here
+                }
+            }
+        } catch (error) {
+            console.error('Failed to restore session:', error);
+        }
+    }
+
+    retryWebSocket(taskId) {
+        if (this.retryCount < this.maxRetries) {
+            this.retryCount++;
+            setTimeout(() => {
+                console.log(`🔄 Retrying WebSocket connection (${this.retryCount}/${this.maxRetries})`);
+                this.initializeWebSocket(taskId);
+            }, 2000 * this.retryCount);
+        }
+    }
+
+    handleKeyboardShortcuts(e) {
+        // Ctrl+Enter to analyze
+        if (e.ctrlKey && e.key === 'Enter') {
+            this.handleAnalyzeVideo();
+        }
+        
+        // Esc to close modals
+        if (e.key === 'Escape') {
+            // Close any open modals
+        }
+    }
+
+    addThemeToggle() {
+        // Add theme toggle button
+        const themeToggle = document.createElement('button');
+        themeToggle.className = 'theme-toggle';
+        themeToggle.innerHTML = '🌙';
+        themeToggle.onclick = () => this.toggleTheme();
+        
+        // Add to navbar
+        const navbar = document.querySelector('.navbar .nav-menu');
+        if (navbar) {
+            navbar.appendChild(themeToggle);
+        }
+    }
+
+    toggleTheme() {
+        document.body.classList.toggle('dark-theme');
+        const isDark = document.body.classList.contains('dark-theme');
+        localStorage.setItem('viralclip-theme', isDark ? 'dark' : 'light');
+        
+        // Update toggle icon
+        const toggle = document.querySelector('.theme-toggle');
+        if (toggle) {
+            toggle.innerHTML = isDark ? '☀️' : '🌙';
+        }
+    }
+
+    toggleMobileMenu() {
+        const navbar = document.querySelector('.navbar');
+        navbar?.classList.toggle('mobile-menu-open');
+    }
+
+    showUploadProgress(progress) {
+        // Implementation for file upload progress
+        console.log(`Upload progress: ${progress}%`);
+    }
+
+    hideUploadProgress() {
+        // Implementation to hide upload progress
+        console.log('Upload progress hidden');
+    }
+
+    updateAnalysisStats(result) {
+        const statsEl = document.getElementById('analysisStats');
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <div class="stat">
+                    <span class="stat-label">Processing Time</span>
+                    <span class="stat-value">${result.processing_time.toFixed(1)}s</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Cache Hit</span>
+                    <span class="stat-value">${result.cache_hit ? 'Yes' : 'No'}</span>
+                </div>
+            `;
+        }
+    }
+
+    addCustomClip() {
+        // Implementation for adding custom clips
+        console.log('Adding custom clip...');
+        
+        // Could open a modal or inline form
+        this.showNotification('Custom clip editor coming soon!', 'info');
+    }
+
+    editClip(index) {
+        console.log(`Editing clip ${index}`);
+        this.showNotification('Clip editor coming soon!', 'info');
+    }
+
+    processClip(index) {
+        console.log(`Processing single clip ${index}`);
+        // Process just one clip
+        const clip = this.suggestedClips[index];
+        if (clip) {
+            this.suggestedClips = [clip];
+            this.processAllClips();
+        }
+    }
+
+    shareClip(index) {
+        console.log(`Sharing clip ${index}`);
+        
+        if (navigator.share) {
+            navigator.share({
+                title: 'Check out my viral clip!',
+                text: 'Created with ViralClip Pro',
+                url: window.location.href
+            });
+        } else {
+            // Fallback to copy link
+            navigator.clipboard.writeText(window.location.href);
+            this.showNotification('Link copied to clipboard!', 'success');
+        }
     }
 }
 
-// Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
     window.app = new ViralClipApp();
 });
 
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ViralClipApp;
-}
+// Handle page visibility changes
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && window.app) {
+        // Page became visible, check for updates
+        if (window.app.currentTaskId) {
+            // Reconnect WebSocket if needed
+        }
+    }
+});
+
+// Handle online/offline status
+window.addEventListener('online', () => {
+    console.log('📶 Back online');
+    if (window.app) {
+        window.app.showNotification('Connection restored', 'success');
+    }
+});
+
+window.addEventListener('offline', () => {
+    console.log('📵 Gone offline');
+    if (window.app) {
+        window.app.showNotification('Connection lost - working offline', 'warning');
+    }
+});
