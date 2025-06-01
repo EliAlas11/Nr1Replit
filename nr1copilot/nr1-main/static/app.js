@@ -230,12 +230,44 @@ class ViralClipApp {
         const uploadArea = document.getElementById('upload-area');
         const dragOverlay = document.getElementById('drag-overlay');
 
-        if (!uploadArea || !dragOverlay) return;
+        if (!uploadArea) return;
 
-        // Click to upload
-        uploadArea.addEventListener('click', () => {
-            document.getElementById('file-input').click();
+        // Create drag overlay if it doesn't exist
+        if (!dragOverlay) {
+            const overlay = document.createElement('div');
+            overlay.id = 'drag-overlay';
+            overlay.className = 'drag-overlay';
+            overlay.innerHTML = `
+                <div class="drag-content">
+                    <div class="drag-icon">📁</div>
+                    <h3>Drop your video here</h3>
+                    <p>Release to upload your video file</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
+        // Enhanced click to upload with better mobile support
+        uploadArea.addEventListener('click', (e) => {
+            if (!e.target.closest('.instant-preview')) {
+                document.getElementById('file-input').click();
+            }
         });
+
+        // Touch support for mobile devices
+        uploadArea.addEventListener('touchstart', (e) => {
+            uploadArea.classList.add('touch-active');
+        }, { passive: true });
+
+        uploadArea.addEventListener('touchend', (e) => {
+            uploadArea.classList.remove('touch-active');
+            if (e.touches.length === 0) {
+                document.getElementById('file-input').click();
+            }
+        }, { passive: true });
+
+        // Enhanced drag counter for better state management
+        this.dragCounter = 0;
 
         // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -243,23 +275,33 @@ class ViralClipApp {
             uploadArea.addEventListener(eventName, this.preventDefaults, false);
         });
 
-        // Highlight drop area when item is dragged over it
-        ['dragenter', 'dragover'].forEach(eventName => {
-            document.addEventListener(eventName, this.handleDragEnter.bind(this), false);
-            uploadArea.addEventListener(eventName, this.handleDragOver.bind(this), false);
+        // Global drag enter/leave handlers
+        document.addEventListener('dragenter', (e) => {
+            this.dragCounter++;
+            if (this.dragCounter === 1) {
+                this.handleDragEnter(e);
+            }
         });
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            document.addEventListener(eventName, this.handleDragLeave.bind(this), false);
-            uploadArea.addEventListener(eventName, this.handleDragLeave.bind(this), false);
+        document.addEventListener('dragleave', (e) => {
+            this.dragCounter--;
+            if (this.dragCounter === 0) {
+                this.handleDragLeave(e);
+            }
         });
 
-        // Handle dropped files
+        // Upload area specific handlers
+        uploadArea.addEventListener('dragover', this.handleDragOver.bind(this), false);
         uploadArea.addEventListener('drop', this.handleDrop.bind(this), false);
-        document.addEventListener('drop', this.handleDrop.bind(this), false);
 
         // Handle paste events for files
         document.addEventListener('paste', this.handlePaste.bind(this));
+
+        // Enhanced file input change handler
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) {
+            fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+        }
     }
 
     setupMobileOptimizations() {
@@ -373,45 +415,124 @@ class ViralClipApp {
 
     async showInstantPreview(file) {
         const uploadArea = document.getElementById('upload-area');
+        
+        // Remove any existing preview
+        const existingPreview = uploadArea.querySelector('.instant-preview');
+        if (existingPreview) {
+            existingPreview.remove();
+        }
+
         const preview = document.createElement('div');
         preview.className = 'instant-preview';
+        
+        // Create video element with better loading handling
+        const video = document.createElement('video');
+        video.className = 'preview-video';
+        video.autoplay = true;
+        video.muted = true;
+        video.loop = true;
+        video.controls = false;
+        video.playsInline = true; // Better mobile support
+        
+        // Better file URL handling
+        const fileURL = URL.createObjectURL(file);
+        video.src = fileURL;
+        
+        // Enhanced preview with better mobile layout
         preview.innerHTML = `
-            <video class="preview-video" autoplay muted loop>
-                <source src="${URL.createObjectURL(file)}" type="${file.type}">
-            </video>
+            <div class="preview-video-container">
+                <div class="video-overlay">
+                    <div class="play-indicator">▶</div>
+                </div>
+            </div>
             <div class="preview-overlay">
                 <div class="preview-info">
                     <div class="file-details">
-                        <h4>${file.name}</h4>
+                        <div class="file-name">${this.truncateFileName(file.name, 25)}</div>
                         <div class="file-stats">
+                            <span class="file-status" data-status="ready">Ready to upload</span>
                             <span>${this.formatBytes(file.size)}</span>
-                            <span>${file.type}</span>
-                            <span>Ready to process</span>
+                            <span>${this.getFileTypeDisplay(file.type)}</span>
                         </div>
+                    </div>
+                    <div class="preview-actions">
+                        <button class="btn-mini btn-remove" onclick="app.removePreview()" title="Remove">×</button>
                     </div>
                 </div>
                 <div class="upload-progress-mini">
                     <div class="progress-bar-mini">
                         <div class="progress-fill-mini" style="width: 0%"></div>
                     </div>
+                    <div class="progress-stats">
+                        <span class="progress-current">0%</span>
+                        <span class="progress-eta">Ready</span>
+                    </div>
                 </div>
             </div>
         `;
 
+        // Insert video into container
+        const videoContainer = preview.querySelector('.preview-video-container');
+        videoContainer.insertBefore(video, videoContainer.firstChild);
+
         uploadArea.appendChild(preview);
 
-        // Animate in
+        // Enhanced video loading with error handling
+        video.addEventListener('loadedmetadata', () => {
+            video.classList.add('loaded');
+            const overlay = preview.querySelector('.video-overlay');
+            if (overlay) overlay.style.opacity = '0';
+            
+            // Update duration info
+            const duration = video.duration;
+            if (duration && duration > 0) {
+                const durationSpan = document.createElement('span');
+                durationSpan.textContent = this.formatDuration(duration);
+                preview.querySelector('.file-stats').appendChild(durationSpan);
+            }
+        });
+
+        video.addEventListener('error', () => {
+            console.warn('Video preview failed, showing placeholder');
+            video.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'video-placeholder';
+            placeholder.innerHTML = `
+                <div class="placeholder-icon">🎬</div>
+                <div class="placeholder-text">Video Preview</div>
+            `;
+            videoContainer.appendChild(placeholder);
+        });
+
+        video.addEventListener('click', () => {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        });
+
+        // Cleanup URL when preview is removed
+        preview.addEventListener('remove', () => {
+            URL.revokeObjectURL(fileURL);
+        });
+
+        // Animate in with enhanced mobile-friendly animation
         setTimeout(() => {
             preview.classList.add('show');
+            preview.querySelector('.preview-overlay').classList.add('loaded');
         }, 100);
 
-        // Update file input to trigger upload button enable
-        const fileInput = document.getElementById('file-input');
+        // Enable upload button
         const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
         if (uploadBtn) {
             uploadBtn.disabled = false;
-            uploadBtn.textContent = 'Upload & Create Clips';
+            uploadBtn.textContent = '🚀 Upload & Create Clips';
+            uploadBtn.classList.add('has-file');
         }
+
+        // Store file reference for easy access
+        this.currentFile = file;
     }
 
     handlePaste(e) {
@@ -500,28 +621,76 @@ class ViralClipApp {
         }
     }
 
-    updateInstantPreviewProgress(progress, message) {
+    updateInstantPreviewProgress(progress, message, speed = null, eta = null) {
         const preview = document.querySelector('.instant-preview');
         if (!preview) return;
 
         const progressFill = preview.querySelector('.progress-fill-mini');
-        const fileStats = preview.querySelector('.file-stats');
+        const progressCurrent = preview.querySelector('.progress-current');
+        const progressEta = preview.querySelector('.progress-eta');
+        const fileStatus = preview.querySelector('.file-status');
 
+        // Update progress bar with smooth animation
         if (progressFill) {
-            progressFill.style.width = `${progress}%`;
-        }
-
-        if (fileStats && message) {
-            const lastSpan = fileStats.querySelector('span:last-child');
-            if (lastSpan) {
-                lastSpan.textContent = message;
+            progressFill.style.width = `${Math.min(progress, 100)}%`;
+            
+            // Add pulsing effect during upload
+            if (progress > 0 && progress < 100) {
+                preview.classList.add('uploading');
             }
         }
 
-        // Add completion glow effect
-        if (progress >= 100) {
-            preview.classList.add('upload-complete');
+        // Update progress text
+        if (progressCurrent) {
+            progressCurrent.textContent = `${Math.round(progress)}%`;
         }
+
+        // Update status message
+        if (fileStatus && message) {
+            fileStatus.textContent = message;
+            fileStatus.setAttribute('data-status', 
+                progress === 0 ? 'ready' : 
+                progress === 100 ? 'complete' : 'uploading'
+            );
+        }
+
+        // Update ETA or speed info
+        if (progressEta) {
+            if (eta && eta > 0) {
+                const etaSeconds = Math.round(eta);
+                progressEta.textContent = etaSeconds > 60 ? 
+                    `${Math.round(etaSeconds / 60)}m remaining` : 
+                    `${etaSeconds}s remaining`;
+            } else if (speed && speed > 0) {
+                progressEta.textContent = `${this.formatSpeed(speed)}`;
+            } else if (progress === 100) {
+                progressEta.textContent = 'Complete!';
+            } else {
+                progressEta.textContent = 'Uploading...';
+            }
+        }
+
+        // Enhanced completion effects
+        if (progress >= 100) {
+            preview.classList.remove('uploading');
+            preview.classList.add('upload-complete');
+            
+            // Add celebration effect
+            const celebration = document.createElement('div');
+            celebration.className = 'celebration-effect';
+            celebration.textContent = '🎉';
+            preview.appendChild(celebration);
+            
+            setTimeout(() => {
+                celebration.remove();
+            }, 2000);
+        }
+    }
+
+    formatSpeed(bytesPerSecond) {
+        if (bytesPerSecond < 1024) return `${Math.round(bytesPerSecond)} B/s`;
+        if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+        return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
     }
 
     hideInstantPreview() {
@@ -529,19 +698,107 @@ class ViralClipApp {
         if (preview) {
             preview.classList.remove('show');
             setTimeout(() => {
+                const event = new Event('remove');
+                preview.dispatchEvent(event);
                 preview.remove();
             }, 300);
         }
+        
+        // Reset upload button
+        const uploadBtn = document.querySelector('#upload-form button[type="submit"]');
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Select a video to upload';
+            uploadBtn.classList.remove('has-file');
+        }
+        
+        this.currentFile = null;
+    }
+
+    removePreview() {
+        this.hideInstantPreview();
+        
+        // Clear file input
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        this.showSuccess('Video removed. You can select another file.');
+    }
+
+    truncateFileName(filename, maxLength) {
+        if (filename.length <= maxLength) return filename;
+        
+        const extension = filename.split('.').pop();
+        const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+        const truncatedName = nameWithoutExt.substring(0, maxLength - extension.length - 4) + '...';
+        
+        return `${truncatedName}.${extension}`;
+    }
+
+    getFileTypeDisplay(mimeType) {
+        const typeMap = {
+            'video/mp4': 'MP4',
+            'video/mov': 'MOV',
+            'video/avi': 'AVI',
+            'video/mkv': 'MKV',
+            'video/webm': 'WebM',
+            'video/m4v': 'M4V'
+        };
+        return typeMap[mimeType] || 'Video';
+    }
+
+    formatDuration(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
     async uploadWithProgress(formData) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
+            let startTime = Date.now();
+            let lastLoaded = 0;
+            let lastTime = startTime;
 
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
                     const progress = Math.round((e.loaded / e.total) * 100);
+                    const currentTime = Date.now();
+                    const deltaTime = (currentTime - lastTime) / 1000; // seconds
+                    const deltaLoaded = e.loaded - lastLoaded;
+                    
+                    let speed = 0;
+                    let eta = 0;
+                    
+                    if (deltaTime > 0) {
+                        speed = deltaLoaded / deltaTime;
+                        const remaining = e.total - e.loaded;
+                        eta = speed > 0 ? remaining / speed : 0;
+                    }
+
+                    // Update instant preview
+                    this.updateInstantPreviewProgress(
+                        progress, 
+                        `Uploading... ${progress}%`,
+                        speed,
+                        eta
+                    );
+
+                    // Update any other progress indicators
                     this.updateUploadProgress(progress);
+                    
+                    lastLoaded = e.loaded;
+                    lastTime = currentTime;
                 }
             });
 
@@ -549,18 +806,35 @@ class ViralClipApp {
                 if (xhr.status === 200) {
                     try {
                         const response = JSON.parse(xhr.responseText);
+                        this.updateInstantPreviewProgress(100, 'Upload complete! Analyzing...');
                         resolve(response);
                     } catch (error) {
+                        this.updateInstantPreviewProgress(0, 'Upload failed');
                         reject(new Error('Invalid response format'));
                     }
                 } else {
+                    this.updateInstantPreviewProgress(0, 'Upload failed');
                     reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
                 }
             });
 
             xhr.addEventListener('error', () => {
+                this.updateInstantPreviewProgress(0, 'Upload failed');
                 reject(new Error('Network error during upload'));
             });
+
+            xhr.addEventListener('timeout', () => {
+                this.updateInstantPreviewProgress(0, 'Upload timeout');
+                reject(new Error('Upload timeout'));
+            });
+
+            xhr.addEventListener('abort', () => {
+                this.updateInstantPreviewProgress(0, 'Upload cancelled');
+                reject(new Error('Upload cancelled'));
+            });
+
+            // Set timeout (5 minutes for large files)
+            xhr.timeout = 5 * 60 * 1000;
 
             xhr.open('POST', '/api/v2/upload-video');
             xhr.send(formData);
@@ -1068,8 +1342,9 @@ class ViralClipApp {
                     <div class="spinner"></div>
                     <span>Analyzing...</span>
                 </div>
-            `;        }
-    }
+            `;
+        }
+    }The code is updated with new helper functions.```text
 
     hideAnalysisProgress() {
         const button = document.querySelector('#url-form button');
@@ -1407,156 +1682,6 @@ class ViralClipApp {
             </div>
         `;
         document.body.appendChild(errorModal);
-    }
-
-    // Enhanced utility methods
-    formatBytes(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        const size = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
-        return `${size} ${sizes[i]}`;
-    }
-
-    formatDuration(seconds) {
-        if (!seconds || isNaN(seconds)) return '0:00';
-
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-
-        if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        }
-        return `${minutes}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    formatTime(seconds) {
-        if (!seconds || isNaN(seconds)) return '0:00';
-
-        const minutes = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${minutes}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    formatNumber(num) {
-        if (!num || isNaN(num)) return '0';
-
-        if (num >= 1000000000) {
-            return (num / 1000000000).toFixed(1) + 'B';
-        }
-        if (num >= 1000000) {
-            return (num / 1000000).toFixed(1) + 'M';
-        }
-        if (num >= 1000) {
-            return (num / 1000).toFixed(1) + 'K';
-        }
-        return num.toString();
-    }
-
-    generateId() {
-        return 'id_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-    }
-
-    // New utility methods for enhanced functionality
-    formatUploadSpeed(bytesPerSecond) {
-        if (!bytesPerSecond || bytesPerSecond === 0) return '0 KB/s';
-
-        const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-        const k = 1024;
-        const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
-        const speed = parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(1));
-
-        return `${speed} ${units[i]}`;
-    }
-
-    formatETA(seconds) {
-        if (!seconds || isNaN(seconds) || seconds === Infinity) return 'Calculating...';
-
-        if (seconds < 60) {
-            return `${Math.ceil(seconds)}s remaining`;
-        } else if (seconds < 3600) {
-            const minutes = Math.ceil(seconds / 60);
-            return `${minutes}m remaining`;
-        } else {
-            const hours = Math.ceil(seconds / 3600);
-            return `${hours}h remaining`;
-        }
-    }
-
-    debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-    throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            const args = arguments;
-            const context = this;
-            if (!inThrottle) {
-                func.apply(context, args);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        };
-    }
-
-    isValidVideoFile(file) {
-        const allowedTypes = [
-            'video/mp4', 'video/mov', 'video/avi', 
-            'video/mkv', 'video/webm', 'video/m4v',
-            'video/quicktime', 'video/x-msvideo'
-        ];
-
-        const allowedExtensions = [
-            '.mp4', '.mov', '.avi', '.mkv', 
-            '.webm', '.m4v', '.qt'
-        ];
-
-        const hasValidType = allowedTypes.includes(file.type);
-        const hasValidExtension = allowedExtensions.some(ext => 
-            file.name.toLowerCase().endsWith(ext)
-        );
-
-        return hasValidType || hasValidExtension;
-    }
-
-    getFileExtension(filename) {
-        return filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
-    }
-
-    generateUniqueId() {
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    copyToClipboard(text) {
-        if (navigator.clipboard && window.isSecureContext) {
-            return navigator.clipboard.writeText(text);
-        } else {
-            // Fallback for older browsers
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-999999px";
-            textArea.style.top = "-999999px";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            return new Promise((resolve, reject) => {
-                document.execCommand('copy') ? resolve() : reject();
-                textArea.remove();
-            });
-        }
     }
 }
 

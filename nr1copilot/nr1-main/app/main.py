@@ -263,6 +263,12 @@ class ConnectionManager:
             return False
             
         try:
+            # Check connection state
+            if websocket.client_state.value != 1:  # WebSocketState.CONNECTED
+                logger.warning(f"WebSocket not connected for {session_id}")
+                self.disconnect(session_id, connection_type)
+                return False
+            
             # Add metadata to message
             enhanced_message = {
                 **message,
