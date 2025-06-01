@@ -1,777 +1,447 @@
-
-<old_str><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viral Clip Generator</title>
-    <link rel="stylesheet" href="/public/styles.css">
-    <link rel="manifest" href="/public/manifest.json">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
-    <meta name="theme-color" content="#1f2937">
-    <meta name="description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts">
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1 class="title">🎬 Viral Clip Generator</h1>
-            <p class="subtitle">Transform YouTube videos into viral clips</p>
-        </header>
+    <title>SendShort AI Clone - Advanced Video Processor</title>
+    <meta name="description" content="Transform any video into viral clips with AI-powered editing. Create TikTok, Instagram Reels, and YouTube Shorts automatically.">
 
-        <main class="main">
-            <div class="grid">
-                <!-- URL Input Section -->
-                <div class="card">
-                    <h2>📹 Video Input</h2>
-                    <div class="form-group">
-                        <label for="youtube-url">YouTube URL</label>
-                        <input 
-                            type="url" 
-                            id="youtube-url" 
-                            placeholder="https://www.youtube.com/watch?v=..."
-                            class="input"
-                        >
-                        <button id="validate-url" class="btn btn-secondary">Validate URL</button>
-                    </div>
-                    
-                    <div id="video-info" class="video-info hidden">
-                        <h3>Video Information</h3>
-                        <div id="video-details"></div>
-                    </div>
-                </div>
+    <!-- Performance optimizations -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-                <!-- Clip Settings Section -->
-                <div class="card">
-                    <h2>✂️ Clip Settings</h2>
-                    <div class="form-group">
-                        <label for="start-time">Start Time (seconds)</label>
-                        <input type="number" id="start-time" min="0" value="0" class="input">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="end-time">End Time (seconds)</label>
-                        <input type="number" id="end-time" min="1" value="60" class="input">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="quality">Quality</label>
-                        <select id="quality" class="input">
-                            <option value="360p">360p (Low)</option>
-                            <option value="720p" selected>720p (Medium)</option>
-                            <option value="1080p">1080p (High)</option>
-                        </select>
-                    </div>
-                    
-                    <button id="process-video" class="btn btn-primary" disabled>
-                        🚀 Create Viral Clip
-                    </button>
-                </div>
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#6366f1">
 
-                <!-- Progress Section -->
-                <div class="card">
-                    <h2>📊 Progress</h2>
-                    <div id="progress-container">
-                        <div id="progress-bar" class="progress-bar">
-                            <div id="progress-fill" class="progress-fill"></div>
-                        </div>
-                        <div id="progress-text" class="progress-text">Ready to start</div>
-                    </div>
-                    
-                    <div id="result-container" class="hidden">
-                        <h3>✅ Clip Ready!</h3>
-                        <div id="download-links"></div>
-                    </div>
-                </div>
-            </div>
+    <!-- Icons -->
+    <link rel="icon" href="/favicon.ico">
 
-            <!-- Video List Section -->
-            <div class="card mt-4">
-                <h2>📚 Your Videos</h2>
-                <div id="video-list">
-                    <p class="text-center">No videos processed yet</p>
-                </div>
-                <button id="refresh-list" class="btn btn-secondary">Refresh List</button>
-            </div>
-        </main>
+    <link rel="stylesheet" href="/static/styles.css">
 
-        <footer class="footer">
-            <p>&copy; 2024 Viral Clip Generator. Built with FastAPI & Modern Web Technologies.</p>
-        </footer>
-    </div>
-
-    <!-- Scripts -->
-    <script src="/public/app.js"></script>
-    <script>
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(registration => console.log('SW registered'))
-                .catch(error => console.log('SW registration failed'));
+    <!-- Advanced animations -->
+    <style>
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
         }
-    </script>
-</body>
-</html></old_str>
-<new_str><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viral Clip Generator - AI-Powered Video Editor</title>
-    <link rel="stylesheet" href="/public/styles.css">
-    <link rel="manifest" href="/public/manifest.json">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
-    <meta name="theme-color" content="#3b82f6">
-    <meta name="description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts using AI">
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://viralclipgenerator.com/">
-    <meta property="og:title" content="Viral Clip Generator - AI-Powered Video Editor">
-    <meta property="og:description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts using AI">
-    
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://viralclipgenerator.com/">
-    <meta property="twitter:title" content="Viral Clip Generator - AI-Powered Video Editor">
-    <meta property="twitter:description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts using AI">
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .floating { animation: float 3s ease-in-out infinite; }
+        .pulsing { animation: pulse 2s ease-in-out infinite; }
+    </style>
 </head>
 <body>
     <!-- Loading Screen -->
     <div id="loading-screen" class="loading-screen">
-        <div class="loading-spinner"></div>
-        <p>Loading Viral Clip Generator...</p>
+        <div class="loading-content">
+            <div class="logo-animation">🎬</div>
+            <h2>SendShort AI Clone</h2>
+            <div class="loading-spinner"></div>
+            <p>Initializing AI processors...</p>
+        </div>
     </div>
 
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <nav class="nav">
-                <div class="nav-brand">
-                    <h1 class="title">🎬 Viral Clip Generator</h1>
-                    <span class="version">v2.0</span>
-                </div>
-                <div class="nav-actions">
-                    <button id="theme-toggle" class="btn btn-icon" title="Toggle theme">🌙</button>
-                    <button id="help-btn" class="btn btn-secondary">Help</button>
-                </div>
-            </nav>
-            <p class="subtitle">Transform YouTube videos into viral clips with AI-powered editing</p>
-        </header>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <span class="logo">🎬</span>
+                <span class="brand-text">SendShort AI</span>
+                <span class="version-badge">v3.0</span>
+            </div>
+            <div class="nav-menu">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#templates" class="nav-link">Templates</a>
+                <a href="#pricing" class="nav-link">Pricing</a>
+                <button id="theme-toggle" class="theme-btn">🌙</button>
+                <button class="cta-btn">Get Started</button>
+            </div>
+            <div class="mobile-menu-btn">☰</div>
+        </div>
+    </nav>
 
-        <!-- Main Content -->
-        <main class="main">
-            <!-- Hero Section -->
-            <section class="hero">
-                <div class="hero-content">
-                    <h2>Create Viral Content in Minutes</h2>
-                    <p>Upload any YouTube video and let our AI extract the most engaging moments for TikTok, Instagram Reels, and YouTube Shorts.</p>
-                </div>
-            </section>
-
-            <!-- Video Processing Workflow -->
-            <div class="workflow">
-                <!-- Step 1: URL Input -->
-                <div class="card step-card active" data-step="1">
-                    <div class="step-header">
-                        <span class="step-number">1</span>
-                        <h3>📹 Add YouTube Video</h3>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-background">
+            <div class="animated-bg"></div>
+        </div>
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="hero-title">
+                    Transform Videos into
+                    <span class="gradient-text">Viral Clips</span>
+                    with AI
+                </h1>
+                <p class="hero-subtitle">
+                    Upload any video and let our advanced AI create engaging short clips optimized for TikTok, Instagram Reels, and YouTube Shorts. Boost your reach by 10x with intelligent editing.
+                </p>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">1M+</span>
+                        <span class="stat-label">Videos Processed</span>
                     </div>
-                    
-                    <div class="form-group">
-                        <label for="youtube-url">YouTube Video URL</label>
-                        <div class="input-group">
-                            <input 
-                                type="url" 
-                                id="youtube-url" 
-                                placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                                class="input"
-                                autocomplete="off"
-                            >
-                            <button id="validate-url" class="btn btn-primary">
-                                <span class="btn-text">Validate</span>
-                                <span class="btn-loading hidden">⏳</span>
-                            </button>
-                        </div>
-                        <div class="input-help">Paste any YouTube video URL to get started</div>
+                    <div class="stat">
+                        <span class="stat-number">95%</span>
+                        <span class="stat-label">Viral Success Rate</span>
                     </div>
-                    
-                    <div id="video-info" class="video-preview hidden">
-                        <div class="video-thumbnail">
-                            <img id="video-thumb" src="" alt="Video thumbnail">
-                            <div class="video-duration" id="video-duration"></div>
-                        </div>
-                        <div class="video-details">
-                            <h4 id="video-title"></h4>
-                            <p id="video-meta"></p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Step 2: Clip Settings -->
-                <div class="card step-card" data-step="2">
-                    <div class="step-header">
-                        <span class="step-number">2</span>
-                        <h3>✂️ Configure Clip</h3>
-                    </div>
-                    
-                    <div class="time-controls">
-                        <div class="form-group">
-                            <label for="start-time">Start Time</label>
-                            <div class="time-input">
-                                <input type="number" id="start-time" min="0" value="0" step="0.1" class="input time">
-                                <span class="time-unit">seconds</span>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="end-time">End Time</label>
-                            <div class="time-input">
-                                <input type="number" id="end-time" min="1" value="60" step="0.1" class="input time">
-                                <span class="time-unit">seconds</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="clip-duration">
-                        Duration: <span id="clip-duration">60.0s</span>
-                        <span class="duration-warning hidden">⚠️ Max 5 minutes</span>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="quality">Output Quality</label>
-                        <select id="quality" class="input">
-                            <option value="360p">360p - Fast processing</option>
-                            <option value="720p" selected>720p - Recommended</option>
-                            <option value="1080p">1080p - Best quality</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="audio-effect">Audio Enhancement</label>
-                        <select id="audio-effect" class="input">
-                            <option value="">None</option>
-                            <option value="normalize">Normalize Volume</option>
-                            <option value="enhance">Enhance Voice</option>
-                            <option value="music">Add Background Music</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Step 3: Processing -->
-                <div class="card step-card" data-step="3">
-                    <div class="step-header">
-                        <span class="step-number">3</span>
-                        <h3>🚀 Generate Clip</h3>
-                    </div>
-                    
-                    <button id="process-video" class="btn btn-primary btn-large" disabled>
-                        <span class="btn-icon">🎬</span>
-                        Create Viral Clip
-                    </button>
-                    
-                    <div id="progress-container" class="progress-container hidden">
-                        <div class="progress-bar">
-                            <div id="progress-fill" class="progress-fill"></div>
-                        </div>
-                        <div id="progress-text" class="progress-text">Initializing...</div>
-                        <div id="progress-details" class="progress-details"></div>
-                    </div>
-                    
-                    <div id="result-container" class="result-container hidden">
-                        <div class="result-success">
-                            <h4>✅ Your Viral Clip is Ready!</h4>
-                            <div class="result-actions">
-                                <button id="download-btn" class="btn btn-primary">
-                                    📥 Download Clip
-                                </button>
-                                <button id="share-btn" class="btn btn-secondary">
-                                    📤 Share
-                                </button>
-                                <button id="create-another" class="btn btn-outline">
-                                    ➕ Create Another
-                                </button>
-                            </div>
-                        </div>
+                    <div class="stat">
+                        <span class="stat-number">30s</span>
+                        <span class="stat-label">Average Processing</span>
                     </div>
                 </div>
             </div>
-
-            <!-- Video History -->
-            <section class="card">
-                <div class="section-header">
-                    <h3>📚 Recent Clips</h3>
-                    <button id="refresh-list" class="btn btn-secondary btn-sm">Refresh</button>
-                </div>
-                
-                <div id="video-list" class="video-grid">
-                    <div class="empty-state">
-                        <div class="empty-icon">📽️</div>
-                        <h4>No clips created yet</h4>
-                        <p>Start by adding a YouTube video above</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Features Section -->
-            <section class="features">
-                <h3>Why Choose Viral Clip Generator?</h3>
-                <div class="feature-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">🤖</div>
-                        <h4>AI-Powered</h4>
-                        <p>Advanced algorithms identify the most engaging moments</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
-                        <h4>Lightning Fast</h4>
-                        <p>Process videos in seconds, not minutes</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">📱</div>
-                        <h4>Platform Ready</h4>
-                        <p>Optimized for TikTok, Instagram, and YouTube Shorts</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🎨</div>
-                        <h4>Professional Quality</h4>
-                        <p>High-quality output with multiple format options</p>
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>Viral Clip Generator</h4>
-                    <p>Transform your content into viral sensations</p>
-                </div>
-                <div class="footer-section">
-                    <h5>Features</h5>
-                    <ul>
-                        <li>AI Video Processing</li>
-                        <li>Multiple Formats</li>
-                        <li>Cloud Storage</li>
-                        <li>Batch Processing</li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h5>Support</h5>
-                    <ul>
-                        <li><a href="#" id="feedback-link">Send Feedback</a></li>
-                        <li><a href="#" id="docs-link">Documentation</a></li>
-                        <li><a href="#" id="contact-link">Contact Us</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2024 Viral Clip Generator. Built with FastAPI & Modern Web Technologies.</p>
-            </div>
-        </footer>
-    </div>
-
-    <!-- Modals -->
-    <div id="help-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>How to Use Viral Clip Generator</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="help-steps">
-                    <div class="help-step">
-                        <span class="help-number">1</span>
-                        <div>
-                            <h4>Add YouTube URL</h4>
-                            <p>Copy and paste any YouTube video URL into the input field</p>
-                        </div>
-                    </div>
-                    <div class="help-step">
-                        <span class="help-number">2</span>
-                        <div>
-                            <h4>Set Time Range</h4>
-                            <p>Choose the start and end times for your clip (max 5 minutes)</p>
-                        </div>
-                    </div>
-                    <div class="help-step">
-                        <span class="help-number">3</span>
-                        <div>
-                            <h4>Configure Options</h4>
-                            <p>Select quality and audio enhancement options</p>
-                        </div>
-                    </div>
-                    <div class="help-step">
-                        <span class="help-number">4</span>
-                        <div>
-                            <h4>Generate & Download</h4>
-                            <p>Click process and download your viral-ready clip</p>
-                        </div>
+            <div class="hero-demo floating">
+                <div class="demo-video">
+                    <div class="video-placeholder">
+                        <div class="play-icon">▶️</div>
+                        <p>See AI in Action</p>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
+
+    <!-- Main Application -->
+    <main class="main-app">
+        <div class="app-container">
+
+            <!-- Step 1: Video Input -->
+            <section class="step-section active" id="step-input">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <h2>Add Your Video</h2>
+                    <p>Paste a YouTube URL or upload your video file</p>
+                </div>
+
+                <div class="input-methods">
+                    <div class="input-method active" data-method="url">
+                        <div class="method-header">
+                            <span class="method-icon">🔗</span>
+                            <span>YouTube URL</span>
+                        </div>
+                        <div class="url-input-container">
+                            <input 
+                                type="url" 
+                                id="video-url" 
+                                placeholder="https://www.youtube.com/watch?v=..."
+                                class="url-input"
+                            >
+                            <button id="analyze-btn" class="analyze-btn">
+                                <span class="btn-text">Analyze Video</span>
+                                <div class="btn-loader hidden">
+                                    <div class="spinner"></div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="input-method" data-method="upload">
+                        <div class="method-header">
+                            <span class="method-icon">📤</span>
+                            <span>Upload File</span>
+                        </div>
+                        <div class="upload-zone" id="upload-zone">
+                            <input type="file" id="video-file" accept="video/*" hidden>
+                            <div class="upload-content">
+                                <div class="upload-icon">📁</div>
+                                <p>Drop your video here or click to browse</p>
+                                <span class="upload-hint">Supports MP4, MOV, AVI, MKV up to 2GB</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: AI Analysis Results -->
+            <section class="step-section" id="step-analysis">
+                <div class="step-header">
+                    <div class="step-number">2</div>
+                    <h2>AI Analysis Complete</h2>
+                    <p>Our AI has identified the best moments for viral clips</p>
+                </div>
+
+                <div class="analysis-results">
+                    <div class="video-preview">
+                        <div class="video-info">
+                            <img id="video-thumbnail" src="" alt="Video thumbnail" class="thumbnail">
+                            <div class="video-details">
+                                <h3 id="video-title">Video Title</h3>
+                                <div class="video-meta">
+                                    <span id="video-duration">0:00</span>
+                                    <span id="video-uploader">Channel Name</span>
+                                    <span id="video-views">0 views</span>
+                                </div>
+                                <div class="viral-score">
+                                    <span class="score-label">Viral Potential:</span>
+                                    <div class="score-bar">
+                                        <div class="score-fill" id="viral-score-fill"></div>
+                                        <span class="score-text" id="viral-score-text">85%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="suggested-clips">
+                        <h4>🎯 AI-Suggested Clips</h4>
+                        <div class="clips-grid" id="suggested-clips">
+                            <!-- Clips will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analysis-actions">
+                    <button class="btn-secondary" id="back-to-input">← Change Video</button>
+                    <button class="btn-primary" id="proceed-to-editing">Continue to Editing →</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Advanced Editing -->
+            <section class="step-section" id="step-editing">
+                <div class="step-header">
+                    <div class="step-number">3</div>
+                    <h2>Customize Your Clips</h2>
+                    <p>Fine-tune AI suggestions or create custom clips</p>
+                </div>
+
+                <div class="editing-interface">
+                    <div class="timeline-container">
+                        <div class="timeline-header">
+                            <h4>📽️ Video Timeline</h4>
+                            <div class="timeline-controls">
+                                <button class="timeline-btn" id="add-clip">+ Add Clip</button>
+                                <button class="timeline-btn" id="auto-detect">🤖 Auto-Detect</button>
+                            </div>
+                        </div>
+                        <div class="timeline" id="video-timeline">
+                            <div class="timeline-track"></div>
+                            <div class="timeline-clips" id="timeline-clips"></div>
+                            <div class="timeline-cursor" id="timeline-cursor"></div>
+                        </div>
+                    </div>
+
+                    <div class="editing-panels">
+                        <div class="panel">
+                            <h5>🎨 Style & Templates</h5>
+                            <div class="template-grid" id="template-grid">
+                                <!-- Templates populated by JavaScript -->
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <h5>⚙️ Advanced Settings</h5>
+                            <div class="settings-grid">
+                                <div class="setting-group">
+                                    <label>Output Format</label>
+                                    <select id="output-format">
+                                        <option value="mp4">MP4 (Universal)</option>
+                                        <option value="mov">MOV (High Quality)</option>
+                                        <option value="webm">WebM (Web Optimized)</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-group">
+                                    <label>Resolution</label>
+                                    <select id="resolution">
+                                        <option value="1080p">1080p (Full HD)</option>
+                                        <option value="720p">720p (HD)</option>
+                                        <option value="480p">480p (SD)</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-group">
+                                    <label>Aspect Ratio</label>
+                                    <select id="aspect-ratio">
+                                        <option value="9:16">9:16 (TikTok/Reels)</option>
+                                        <option value="1:1">1:1 (Instagram Square)</option>
+                                        <option value="16:9">16:9 (YouTube)</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="enable-captions" checked>
+                                        <span class="checkmark"></span>
+                                        Auto-Generate Captions
+                                    </label>
+                                </div>
+
+                                <div class="setting-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="viral-optimization" checked>
+                                        <span class="checkmark"></span>
+                                        Viral Optimization
+                                    </label>
+                                </div>
+
+                                <div class="setting-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="smart-transitions" checked>
+                                        <span class="checkmark"></span>
+                                        Smart Transitions
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="clip-editor" id="clip-editor">
+                        <h5>✂️ Clip Editor</h5>
+                        <div class="selected-clip-info" id="selected-clip-info">
+                            <p>Select a clip to edit</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="editing-actions">
+                    <button class="btn-secondary" id="back-to-analysis">← Back to Analysis</button>
+                    <button class="btn-primary" id="start-processing">🚀 Process Videos</button>
+                </div>
+            </section>
+
+            <!-- Step 4: Processing -->
+            <section class="step-section" id="step-processing">
+                <div class="step-header">
+                    <div class="step-number">4</div>
+                    <h2>AI Processing in Progress</h2>
+                    <p>Creating your viral clips with advanced AI enhancement</p>
+                </div>
+
+                <div class="processing-container">
+                    <div class="processing-visual">
+                        <div class="ai-brain pulsing">🧠</div>
+                        <div class="processing-effects">
+                            <div class="effect-ring"></div>
+                            <div class="effect-ring"></div>
+                            <div class="effect-ring"></div>
+                        </div>
+                    </div>
+
+                    <div class="processing-info">
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="processing-progress"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progress-percentage">0%</span>
+                                <span id="progress-status">Initializing...</span>
+                            </div>
+                        </div>
+
+                        <div class="processing-steps">
+                            <div class="process-step active" id="step-download">
+                                <span class="step-icon">📥</span>
+                                <span>Downloading Video</span>
+                            </div>
+                            <div class="process-step" id="step-analyze">
+                                <span class="step-icon">🔍</span>
+                                <span>AI Analysis</span>
+                            </div>
+                            <div class="process-step" id="step-extract">
+                                <span class="step-icon">✂️</span>
+                                <span>Extracting Clips</span>
+                            </div>
+                            <div class="process-step" id="step-enhance">
+                                <span class="step-icon">✨</span>
+                                <span>AI Enhancement</span>
+                            </div>
+                            <div class="process-step" id="step-render">
+                                <span class="step-icon">🎬</span>
+                                <span>Final Rendering</span>
+                            </div>
+                        </div>
+
+                        <div class="estimated-time">
+                            <span>Estimated time remaining: </span>
+                            <span id="time-remaining">2m 30s</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 5: Results -->
+            <section class="step-section" id="step-results">
+                <div class="step-header">
+                    <div class="step-number">5</div>
+                    <h2>🎉 Your Viral Clips Are Ready!</h2>
+                    <p>Download, share, or edit your AI-generated clips</p>
+                </div>
+
+                <div class="results-container">
+                    <div class="results-grid" id="results-grid">
+                        <!-- Results populated by JavaScript -->
+                    </div>
+
+                    <div class="results-actions">
+                        <button class="btn-secondary" id="create-more">Create More Clips</button>
+                        <button class="btn-primary" id="download-all">📦 Download All</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2 class="section-title">🚀 Advanced AI Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Smart Scene Detection</h3>
+                    <p>AI automatically identifies the most engaging moments in your videos for maximum viral potential.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">✨</div>
+                    <h3>Auto-Enhancement</h3>
+                    <p>Intelligent color correction, stabilization, and audio optimization for professional-quality output.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Multi-Platform Export</h3>
+                    <p>Optimized outputs for TikTok, Instagram Reels, YouTube Shorts, and more platforms.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Lightning Fast</h3>
+                    <p>Process videos 10x faster than traditional editing software with cloud-powered AI.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Viral Optimization</h3>
+                    <p>AI analyzes viral patterns to optimize your clips for maximum engagement and reach.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Batch Processing</h3>
+                    <p>Process multiple videos simultaneously with advanced queue management.</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- JavaScript -->
-    <script>
-        // Application state
-        let currentVideo = null;
-        let processingJob = null;
-        let isDarkMode = localStorage.getItem('darkMode') === 'true';
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal Title</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                Modal content
+            </div>
+        </div>
+    </div>
 
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-            setupEventListeners();
-            hideLoadingScreen();
-        });
-
-        function initializeApp() {
-            // Apply saved theme
-            if (isDarkMode) {
-                document.body.classList.add('dark-mode');
-                document.getElementById('theme-toggle').textContent = '☀️';
-            }
-
-            // Update clip duration display
-            updateClipDuration();
-        }
-
-        function setupEventListeners() {
-            // URL validation
-            document.getElementById('validate-url').addEventListener('click', validateUrl);
-            document.getElementById('youtube-url').addEventListener('input', resetVideoInfo);
-
-            // Time controls
-            document.getElementById('start-time').addEventListener('input', updateClipDuration);
-            document.getElementById('end-time').addEventListener('input', updateClipDuration);
-
-            // Video processing
-            document.getElementById('process-video').addEventListener('click', processVideo);
-
-            // Theme toggle
-            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
-
-            // Help modal
-            document.getElementById('help-btn').addEventListener('click', showHelpModal);
-            document.querySelector('.modal-close').addEventListener('click', hideHelpModal);
-
-            // Video list
-            document.getElementById('refresh-list').addEventListener('click', loadVideoList);
-
-            // Modal close on outside click
-            document.getElementById('help-modal').addEventListener('click', function(e) {
-                if (e.target.id === 'help-modal') {
-                    hideHelpModal();
-                }
-            });
-
-            // Keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.key === 'Enter') {
-                    processVideo();
-                }
-                if (e.key === 'Escape') {
-                    hideHelpModal();
-                }
-            });
-        }
-
-        async function validateUrl() {
-            const urlInput = document.getElementById('youtube-url');
-            const url = urlInput.value.trim();
-            const btn = document.getElementById('validate-url');
-
-            if (!url) {
-                showToast('Please enter a YouTube URL', 'error');
-                return;
-            }
-
-            btn.classList.add('loading');
-            btn.querySelector('.btn-text').classList.add('hidden');
-            btn.querySelector('.btn-loading').classList.remove('hidden');
-
-            try {
-                const response = await fetch('/api/v1/video/validate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-
-                const data = await response.json();
-
-                if (data.success && data.data.valid) {
-                    await loadVideoInfo(url);
-                    activateStep(2);
-                    showToast('URL validated successfully!', 'success');
-                } else {
-                    showToast('Invalid YouTube URL', 'error');
-                    resetVideoInfo();
-                }
-            } catch (error) {
-                console.error('Validation error:', error);
-                showToast('Failed to validate URL', 'error');
-                resetVideoInfo();
-            } finally {
-                btn.classList.remove('loading');
-                btn.querySelector('.btn-text').classList.remove('hidden');
-                btn.querySelector('.btn-loading').classList.add('hidden');
-            }
-        }
-
-        async function loadVideoInfo(url) {
-            try {
-                // Mock video info for demo
-                const videoInfo = {
-                    title: 'Sample YouTube Video',
-                    duration: 300,
-                    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-                    uploader: 'Sample Channel'
-                };
-
-                currentVideo = videoInfo;
-                displayVideoInfo(videoInfo);
-                document.getElementById('process-video').disabled = false;
-            } catch (error) {
-                console.error('Error loading video info:', error);
-                showToast('Failed to load video information', 'error');
-            }
-        }
-
-        function displayVideoInfo(info) {
-            const container = document.getElementById('video-info');
-            const thumb = document.getElementById('video-thumb');
-            const title = document.getElementById('video-title');
-            const duration = document.getElementById('video-duration');
-            const meta = document.getElementById('video-meta');
-
-            thumb.src = info.thumbnail;
-            title.textContent = info.title;
-            duration.textContent = formatTime(info.duration);
-            meta.textContent = `By ${info.uploader} • ${formatTime(info.duration)}`;
-
-            container.classList.remove('hidden');
-        }
-
-        function resetVideoInfo() {
-            document.getElementById('video-info').classList.add('hidden');
-            document.getElementById('process-video').disabled = true;
-            currentVideo = null;
-            activateStep(1);
-        }
-
-        function updateClipDuration() {
-            const startTime = parseFloat(document.getElementById('start-time').value) || 0;
-            const endTime = parseFloat(document.getElementById('end-time').value) || 0;
-            const duration = Math.max(0, endTime - startTime);
-
-            document.getElementById('clip-duration').textContent = `${duration.toFixed(1)}s`;
-
-            const warning = document.querySelector('.duration-warning');
-            if (duration > 300) {
-                warning.classList.remove('hidden');
-            } else {
-                warning.classList.add('hidden');
-            }
-        }
-
-        async function processVideo() {
-            if (!currentVideo) {
-                showToast('Please validate a video URL first', 'error');
-                return;
-            }
-
-            const startTime = parseFloat(document.getElementById('start-time').value) || 0;
-            const endTime = parseFloat(document.getElementById('end-time').value) || 0;
-            const quality = document.getElementById('quality').value;
-            const audioEffect = document.getElementById('audio-effect').value;
-
-            if (endTime <= startTime) {
-                showToast('End time must be greater than start time', 'error');
-                return;
-            }
-
-            if (endTime - startTime > 300) {
-                showToast('Maximum clip duration is 5 minutes', 'error');
-                return;
-            }
-
-            activateStep(3);
-            showProgress();
-
-            try {
-                const response = await fetch('/api/v1/video/process', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        youtube_url: document.getElementById('youtube-url').value,
-                        start_time: startTime,
-                        end_time: endTime,
-                        quality: quality,
-                        audio_effect: audioEffect
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    // Simulate processing progress
-                    await simulateProgress();
-                    showResult(data.data);
-                    showToast('Clip generated successfully!', 'success');
-                } else {
-                    throw new Error(data.message || 'Processing failed');
-                }
-            } catch (error) {
-                console.error('Processing error:', error);
-                showToast('Failed to process video', 'error');
-                hideProgress();
-            }
-        }
-
-        async function simulateProgress() {
-            const progressFill = document.getElementById('progress-fill');
-            const progressText = document.getElementById('progress-text');
-            const progressDetails = document.getElementById('progress-details');
-
-            const steps = [
-                { progress: 20, text: 'Downloading video...', detail: 'Fetching from YouTube' },
-                { progress: 40, text: 'Analyzing content...', detail: 'AI processing video' },
-                { progress: 60, text: 'Extracting clip...', detail: 'Creating segment' },
-                { progress: 80, text: 'Optimizing quality...', detail: 'Enhancing video' },
-                { progress: 100, text: 'Finalizing...', detail: 'Preparing download' }
-            ];
-
-            for (const step of steps) {
-                progressFill.style.width = `${step.progress}%`;
-                progressText.textContent = step.text;
-                progressDetails.textContent = step.detail;
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-        }
-
-        function showProgress() {
-            document.getElementById('progress-container').classList.remove('hidden');
-            document.getElementById('result-container').classList.add('hidden');
-            document.getElementById('process-video').disabled = true;
-        }
-
-        function hideProgress() {
-            document.getElementById('progress-container').classList.add('hidden');
-            document.getElementById('process-video').disabled = false;
-        }
-
-        function showResult(data) {
-            hideProgress();
-            document.getElementById('result-container').classList.remove('hidden');
-            
-            // Setup download button
-            document.getElementById('download-btn').onclick = () => {
-                showToast('Download started!', 'success');
-            };
-
-            // Setup create another button
-            document.getElementById('create-another').onclick = () => {
-                resetVideoInfo();
-                document.getElementById('youtube-url').value = '';
-                document.getElementById('result-container').classList.add('hidden');
-            };
-        }
-
-        function activateStep(stepNumber) {
-            document.querySelectorAll('.step-card').forEach(card => {
-                card.classList.remove('active');
-            });
-            document.querySelector(`[data-step="${stepNumber}"]`).classList.add('active');
-        }
-
-        function toggleTheme() {
-            isDarkMode = !isDarkMode;
-            document.body.classList.toggle('dark-mode');
-            document.getElementById('theme-toggle').textContent = isDarkMode ? '☀️' : '🌙';
-            localStorage.setItem('darkMode', isDarkMode);
-        }
-
-        function showHelpModal() {
-            document.getElementById('help-modal').classList.remove('hidden');
-        }
-
-        function hideHelpModal() {
-            document.getElementById('help-modal').classList.add('hidden');
-        }
-
-        function loadVideoList() {
-            // Mock video list
-            const videoGrid = document.getElementById('video-list');
-            videoGrid.innerHTML = `
-                <div class="video-item">
-                    <div class="video-thumbnail">
-                        <img src="https://img.youtube.com/vi/dQw4w9WgXcQ/default.jpg" alt="Video thumbnail">
-                    </div>
-                    <div class="video-info">
-                        <h4>Sample Clip 1</h4>
-                        <p>Duration: 1:30 • Created 2 hours ago</p>
-                    </div>
-                    <div class="video-actions">
-                        <button class="btn btn-sm">Download</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            
-            const icons = {
-                success: '✅',
-                error: '❌',
-                warning: '⚠️',
-                info: 'ℹ️'
-            };
-
-            toast.innerHTML = `
-                <span class="toast-icon">${icons[type] || icons.info}</span>
-                <span class="toast-message">${message}</span>
-                <button class="toast-close">&times;</button>
-            `;
-
-            container.appendChild(toast);
-
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.remove();
-                }
-            }, 5000);
-
-            // Manual close
-            toast.querySelector('.toast-close').onclick = () => toast.remove();
-        }
-
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        function hideLoadingScreen() {
-            setTimeout(() => {
-                document.getElementById('loading-screen').style.display = 'none';
-            }, 1000);
-        }
-
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(registration => console.log('SW registered'))
-                .catch(error => console.log('SW registration failed'));
-        }
-    </script>
+    <script src="/static/app.js"></script>
 </body>
-</html></new_str>
+</html>

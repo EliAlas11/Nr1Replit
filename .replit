@@ -5,7 +5,7 @@ channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 
 [deployment]
-run = ["sh", "-c", "cd nr1copilot/nr1-main && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000"]
+run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"]
 
 [workflows]
 runButton = "FastAPI Server"
@@ -17,7 +17,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python -m pip install -r requirements.txt && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload"
 
 [[workflows.workflow]]
 name = "Code Quality Check"
