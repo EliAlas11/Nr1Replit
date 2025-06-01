@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "npm run dev"]
 
 [workflows]
-runButton = "Development Server"
+runButton = "ViralClip Pro Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -44,11 +44,11 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel"
+args = "cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip setuptools wheel --break-system-packages"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir"
+args = "cd nr1copilot/nr1-main && python3 -m pip install -r requirements.txt --no-cache-dir --break-system-packages"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"

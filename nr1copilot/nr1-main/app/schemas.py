@@ -1,283 +1,125 @@
-
 """
-Pydantic schemas for ViralClip Pro
-Netflix-level data validation and serialization
-"""
-
-from typing import List, Optional, Dict, Any, Union
-from datetime import datetime
-from pydantic import BaseModel, Field, validator
-from enum import Enum
-
-class QualityEnum(str, Enum):
-    """Video quality options"""
-    LOW = "480p"
-    MEDIUM = "720p"
-    HIGH = "1080p"
-    ULTRA = "1440p"
-    HIGHEST = "4k"
-
-class AspectRatioEnum(str, Enum):
-    """Aspect ratio options"""
-    VERTICAL = "9:16"
-    HORIZONTAL = "16:9"
-    SQUARE = "1:1"
-    STORY = "4:5"
-
-class PriorityEnum(str, Enum):
-    """Processing priority levels"""
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    URGENT = "urgent"
-
-# Request schemas
-class VideoProcessRequest(BaseModel):
-    """Video processing request model"""
-    youtube_url: str = Field(..., description="YouTube or video URL")
-    start_time: float = Field(default=0, ge=0, description="Start time in seconds")
-    end_time: float = Field(..., gt=0, description="End time in seconds")
-    quality: QualityEnum = Field(default=QualityEnum.HIGH)
-    aspect_ratio: AspectRatioEnum = Field(default=AspectRatioEnum.VERTICAL)
-    enable_captions: bool = Field(default=True)
-    enable_transitions: bool = Field(default=True)
-    ai_editing: bool = Field(default=True)
-    viral_optimization: bool = Field(default=True)
-    language: str = Field(default="en", regex="^[a-z]{2}$")
-    priority: PriorityEnum = Field(default=PriorityEnum.NORMAL)
-    webhook_url: Optional[str] = Field(None, description="Callback URL")
-    
-    @validator('end_time')
-    def validate_end_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
-            raise ValueError('end_time must be greater than start_time')
-        return v
-    
-    @validator('youtube_url')
-    def validate_url(cls, v):
-        if not v or len(v) < 10:
-            raise ValueError('Invalid URL provided')
-        return v
-
-class ClipSettings(BaseModel):
-    """Individual clip settings"""
-    start_time: float = Field(..., ge=0)
-    end_time: float = Field(..., gt=0)
-    title: str = Field(default="", max_length=100)
-    description: str = Field(default="", max_length=500)
-    tags: List[str] = Field(default=[])
-    quality: QualityEnum = Field(default=QualityEnum.HIGH)
-    aspect_ratio: AspectRatioEnum = Field(default=AspectRatioEnum.VERTICAL)
-
-class AnalyzeRequest(BaseModel):
-    """Video analysis request"""
-    url: str = Field(..., description="Video URL to analyze")
-    language: str = Field(default="en")
-    viral_optimization: bool = Field(default=True)
-
-# Response schemas
-class SuccessResponse(BaseModel):
-    """Standard success response"""
-    success: bool = Field(default=True)
-    message: str
-    data: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-class ErrorResponse(BaseModel):
-    """Standard error response"""
-    success: bool = Field(default=False)
-    error: str
-    details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-class VideoInfo(BaseModel):
-    """Video information model"""
-    title: str
-    duration: int
-    thumbnail: Optional[str] = None
-    uploader: Optional[str] = None
-    view_count: Optional[int] = None
-    like_count: Optional[int] = None
-    description: Optional[str] = None
-    upload_date: Optional[str] = None
-    categories: List[str] = Field(default=[])
-    tags: List[str] = Field(default=[])
-
-class AIInsights(BaseModel):
-    """AI analysis insights"""
-    viral_potential: int = Field(..., ge=0, le=100)
-    engagement_prediction: int = Field(..., ge=0, le=100)
-    best_clips: List[Dict[str, Any]] = Field(default=[])
-    suggested_formats: List[str] = Field(default=[])
-    recommended_captions: bool = Field(default=True)
-    optimal_length: int = Field(..., gt=0)
-    trending_topics: List[str] = Field(default=[])
-    sentiment_analysis: str = Field(default="neutral")
-    hook_moments: List[Dict[str, Any]] = Field(default=[])
-    emotional_peaks: List[Dict[str, Any]] = Field(default=[])
-
-class AnalysisResponse(BaseModel):
-    """Video analysis response"""
-    success: bool = Field(default=True)
-    session_id: str
-    video_info: VideoInfo
-    ai_insights: AIInsights
-    processing_time: float
-    cache_hit: bool = Field(default=False)
-
-class ProcessingResponse(BaseModel):
-    """Processing initiation response"""
-    success: bool = Field(default=True)
-    task_id: str
-    message: str
-    estimated_time: int
-    priority: str
-    position_in_queue: int
-
-class ClipResult(BaseModel):
-    """Individual clip processing result"""
-    clip_index: int
-    file_path: str
-    title: str
-    duration: float
-    viral_score: int = Field(..., ge=0, le=100)
-    file_size: int
-    thumbnail: Optional[str] = None
-    ai_enhancements: List[str] = Field(default=[])
-    optimization_applied: List[str] = Field(default=[])
-
-class ProcessingStatus(BaseModel):
-    """Processing status response"""
-    success: bool = Field(default=True)
-    data: Dict[str, Any]
-
-class HealthCheck(BaseModel):
-    """Health check response"""
-    status: str = Field(default="healthy")
-    timestamp: datetime = Field(default_factory=datetime.now)
-    version: str = Field(default="3.0.0")
-    uptime: Optional[float] = None
-
-class MetricsResponse(BaseModel):
-    """Metrics response"""
-    requests_total: int = Field(default=0)
-    requests_per_minute: float = Field(default=0.0)
-    average_response_time: float = Field(default=0.0)
-    active_connections: int = Field(default=0)
-    queue_size: int = Field(default=0)
-    cache_hit_rate: float = Field(default=0.0)
-
-# WebSocket message schemas
-class WebSocketMessage(BaseModel):
-    """WebSocket message format"""
-    type: str
-    timestamp: datetime = Field(default_factory=datetime.now)
-    data: Dict[str, Any]
-
-class ProgressUpdate(BaseModel):
-    """Progress update message"""
-    progress: int = Field(..., ge=0, le=100)
-    current_step: str
-    message: str
-    estimated_remaining: Optional[int] = None
-
-# Database models (for future MongoDB integration)
-class UserModel(BaseModel):
-    """User model for database"""
-    id: Optional[str] = None
-    username: str
-    email: str
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
-    is_active: bool = Field(default=True)
-    subscription_tier: str = Field(default="free")
-
-class VideoModel(BaseModel):
-    """Video model for database"""
-    id: Optional[str] = None
-    user_id: str
-    original_url: str
-    title: str
-    duration: int
-    status: str = Field(default="processing")
-    created_at: datetime = Field(default_factory=datetime.now)
-    completed_at: Optional[datetime] = None
-    file_path: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default={})
-
-# Export commonly used models
-VideoOut = VideoInfo
-"""
-Pydantic Schemas for ViralClip Pro
-Netflix-level data validation and serialization
+ViralClip Pro - API Schemas and Data Models
+Comprehensive Pydantic models for request/response validation
 """
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import Dict, List, Optional, Any, Union
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
+# Enums
 class VideoQuality(str, Enum):
-    """Video quality options"""
-    BEST = "best"
-    ULTRA_HD = "1080p"
-    HD = "720p"
-    SD = "480p"
-    LOW = "360p"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    ULTRA = "ultra"
 
 class AspectRatio(str, Enum):
-    """Aspect ratio options"""
-    VERTICAL = "9:16"  # TikTok, Instagram Stories
-    HORIZONTAL = "16:9"  # YouTube, landscape
-    SQUARE = "1:1"  # Instagram posts
-    PORTRAIT = "4:5"  # Instagram posts
-
-class Platform(str, Enum):
-    """Social media platforms"""
-    TIKTOK = "tiktok"
-    INSTAGRAM = "instagram"
-    YOUTUBE_SHORTS = "youtube_shorts"
-    TWITTER = "twitter"
-    LINKEDIN = "linkedin"
+    LANDSCAPE = "16:9"
+    PORTRAIT = "9:16"
+    SQUARE = "1:1"
+    CINEMA = "21:9"
 
 class ProcessingStatus(str, Enum):
-    """Processing status options"""
     QUEUED = "queued"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
-# Request Models
-class VideoProcessRequest(BaseModel):
-    """Video processing request"""
-    url: str = Field(..., description="YouTube or video URL")
-    clip_duration: int = Field(default=60, ge=5, le=300, description="Clip duration in seconds")
-    output_format: str = Field(default="mp4", pattern="^(mp4|mov|webm|avi)$")
-    quality: VideoQuality = Field(default=VideoQuality.HD)
-    aspect_ratio: AspectRatio = Field(default=AspectRatio.VERTICAL)
-    enable_captions: bool = Field(default=True)
-    enable_transitions: bool = Field(default=True)
-    ai_editing: bool = Field(default=True)
-    viral_optimization: bool = Field(default=True)
-    language: str = Field(default="en", pattern="^[a-z]{2}$")
-    priority: str = Field(default="normal", pattern="^(low|normal|high|urgent)$")
-    webhook_url: Optional[str] = Field(None, description="Callback URL for completion")
+class ClipType(str, Enum):
+    HOOK = "hook"
+    MAIN = "main"
+    CLIMAX = "climax"
+    RESOLUTION = "resolution"
+    COMPLETE = "complete"
+    HIGHLIGHT = "highlight"
+
+# Base Models
+class BaseResponse(BaseModel):
+    """Base response model"""
+    success: bool = True
+    timestamp: datetime = Field(default_factory=datetime.now)
+    message: Optional[str] = None
+
+class SuccessResponse(BaseResponse):
+    """Generic success response"""
+    data: Optional[Dict[str, Any]] = None
+
+class ErrorResponse(BaseResponse):
+    """Error response model"""
+    success: bool = False
+    error: str
+    error_code: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+# Video Analysis Models
+class VideoAnalysisRequest(BaseModel):
+    """Request model for video analysis"""
+    url: str = Field(..., description="Video URL to analyze")
+    clip_duration: int = Field(default=60, ge=10, le=300, description="Target clip duration in seconds")
+    output_format: str = Field(default="mp4", description="Output video format")
+    resolution: str = Field(default="1080p", description="Output resolution")
+    aspect_ratio: AspectRatio = Field(default=AspectRatio.PORTRAIT, description="Output aspect ratio")
+    enable_captions: bool = Field(default=True, description="Generate captions")
+    enable_transitions: bool = Field(default=True, description="Add transitions")
+    ai_editing: bool = Field(default=True, description="Enable AI-powered editing")
+    viral_optimization: bool = Field(default=True, description="Optimize for viral potential")
+    language: str = Field(default="en", description="Content language")
+    priority: str = Field(default="normal", description="Processing priority")
+    suggested_formats: List[str] = Field(default=["tiktok", "instagram"], description="Target platforms")
 
     @validator('url')
     def validate_url(cls, v):
-        if not v or len(v) < 10:
-            raise ValueError('Invalid URL provided')
+        if not v or not v.startswith(('http://', 'https://')):
+            raise ValueError('Must be a valid HTTP(S) URL')
         return v
 
-class ClipSettings(BaseModel):
-    """Individual clip settings"""
-    start_time: float = Field(..., ge=0, description="Start time in seconds")
-    end_time: float = Field(..., gt=0, description="End time in seconds")
-    title: str = Field(default="", max_length=100, description="Clip title")
-    description: str = Field(default="", max_length=500, description="Clip description")
-    tags: List[str] = Field(default=[], max_items=20, description="Clip tags")
-    platform: Optional[Platform] = Field(None, description="Target platform")
+class VideoInfo(BaseModel):
+    """Video information model"""
+    id: str
+    title: str
+    description: Optional[str] = None
+    duration: float
+    view_count: int = 0
+    like_count: int = 0
+    comment_count: int = 0
+    upload_date: Optional[str] = None
+    uploader: Optional[str] = None
+    thumbnail: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    categories: List[str] = Field(default_factory=list)
+    webpage_url: str
+    platform: str
+    resolution: Optional[str] = None
+    fps: Optional[int] = None
+    format: Optional[str] = None
+
+class AIInsights(BaseModel):
+    """AI analysis insights model"""
+    viral_potential: int = Field(ge=0, le=100, description="Viral potential score (0-100)")
+    engagement_prediction: int = Field(ge=0, le=100, description="Predicted engagement score")
+    content_type: str = Field(description="Detected content type")
+    content_confidence: int = Field(ge=0, le=100, description="Content type confidence")
+    optimal_length: int = Field(description="Optimal clip length in seconds")
+    suggested_formats: List[str] = Field(description="Recommended platforms")
+    best_moments: List[Dict[str, Any]] = Field(default_factory=list, description="Highlight moments")
+    improvement_suggestions: List[str] = Field(default_factory=list, description="AI suggestions")
+    trending_score: int = Field(ge=0, le=100, description="Trending potential score")
+    audience_retention: int = Field(ge=0, le=100, description="Predicted retention rate")
+    hook_quality: int = Field(ge=0, le=100, description="Opening hook quality score")
+    emotional_arc: List[str] = Field(default_factory=list, description="Emotional progression")
+
+class ClipDefinition(BaseModel):
+    """Individual clip definition"""
+    start_time: float = Field(ge=0, description="Clip start time in seconds")
+    end_time: float = Field(gt=0, description="Clip end time in seconds")
+    title: str = Field(..., max_length=200, description="Clip title")
+    description: Optional[str] = Field(None, max_length=500, description="Clip description")
+    viral_score: Optional[int] = Field(None, ge=0, le=100, description="Predicted viral score")
+    recommended_platforms: List[str] = Field(default_factory=list, description="Recommended platforms")
+    clip_type: Optional[ClipType] = Field(None, description="Type of clip")
 
     @validator('end_time')
     def validate_end_time(cls, v, values):
@@ -285,186 +127,206 @@ class ClipSettings(BaseModel):
             raise ValueError('end_time must be greater than start_time')
         return v
 
-class BatchProcessRequest(BaseModel):
-    """Batch processing request"""
-    session_id: str = Field(..., description="Analysis session ID")
-    clips: List[ClipSettings] = Field(..., min_items=1, max_items=10, description="Clips to process")
-    priority: str = Field(default="normal", pattern="^(low|normal|high|urgent)$")
-    output_settings: Dict[str, Any] = Field(default={}, description="Global output settings")
-
-# Response Models
-class VideoInfo(BaseModel):
-    """Video information"""
-    title: str
-    duration: int
-    view_count: Optional[int] = None
-    like_count: Optional[int] = None
-    thumbnail: Optional[str] = None
-    uploader: Optional[str] = None
-    description: Optional[str] = None
-    upload_date: Optional[str] = None
-    categories: List[str] = Field(default=[])
-    tags: List[str] = Field(default=[])
-    language: Optional[str] = None
-    subtitles_available: bool = False
-
-class AIInsights(BaseModel):
-    """AI analysis insights"""
-    viral_potential: int = Field(..., ge=0, le=100, description="Viral potential score")
-    engagement_prediction: int = Field(..., ge=0, le=100, description="Engagement prediction")
-    best_clips: List[Dict[str, Any]] = Field(default=[], description="Recommended clips")
-    suggested_formats: List[str] = Field(default=[], description="Suggested output formats")
-    recommended_captions: bool = Field(default=True)
-    optimal_length: int = Field(..., description="Optimal clip length in seconds")
-    trending_topics: List[Dict[str, Any]] = Field(default=[], description="Trending topics found")
-    sentiment_analysis: str = Field(..., description="Content sentiment")
-    hook_moments: List[Dict[str, Any]] = Field(default=[], description="Hook moments")
-    emotional_peaks: List[Dict[str, Any]] = Field(default=[], description="Emotional peaks")
-    action_scenes: List[Dict[str, Any]] = Field(default=[], description="Action scenes")
-
-class ProcessingResult(BaseModel):
-    """Processing result for individual clip"""
-    clip_index: int
-    file_path: str
-    title: str
-    duration: float
-    viral_score: int = Field(..., ge=0, le=100)
-    file_size: int
-    thumbnail: Optional[str] = None
-    ai_enhancements: List[str] = Field(default=[])
-    optimization_applied: List[str] = Field(default=[])
-    platform_optimized: Optional[Platform] = None
-
-class TaskStatus(BaseModel):
-    """Task processing status"""
-    task_id: str
-    status: ProcessingStatus
-    progress: int = Field(..., ge=0, le=100)
-    current_step: Optional[str] = None
-    message: Optional[str] = None
-    created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    total_processing_time: Optional[float] = None
-    results: List[ProcessingResult] = Field(default=[])
-    error: Optional[str] = None
-    queue_position: Optional[int] = None
-
-# API Response Models
-class SuccessResponse(BaseModel):
-    """Standard success response"""
-    success: bool = True
-    message: str
-    data: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-class ErrorResponse(BaseModel):
-    """Standard error response"""
-    success: bool = False
-    error: str
-    details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=datetime.now)
-    request_id: Optional[str] = None
-
-class AnalysisResponse(BaseModel):
-    """Video analysis response"""
-    success: bool
-    session_id: str
+class VideoAnalysisResponse(BaseResponse):
+    """Response model for video analysis"""
+    session_id: str = Field(description="Analysis session ID")
     video_info: VideoInfo
     ai_insights: AIInsights
-    processing_time: float
-    cache_hit: bool = False
-    timestamp: datetime = Field(default_factory=datetime.now)
+    suggested_clips: List[ClipDefinition] = Field(default_factory=list)
+    processing_time: float = Field(description="Analysis time in seconds")
 
-class ProcessingResponse(BaseModel):
-    """Processing initiation response"""
-    success: bool
-    task_id: str
-    message: str
-    estimated_time: int
-    priority: str
-    position_in_queue: int
-    webhook_url: Optional[str] = None
+# Video Processing Models
+class VideoProcessRequest(BaseModel):
+    """Request model for video processing"""
+    session_id: str = Field(..., description="Analysis session ID")
+    clips: List[ClipDefinition] = Field(..., min_items=1, description="Clips to process")
+    priority: str = Field(default="normal", description="Processing priority")
+    quality: VideoQuality = Field(default=VideoQuality.HIGH, description="Output quality")
+    enable_stabilization: bool = Field(default=True, description="Enable video stabilization")
+    enable_noise_reduction: bool = Field(default=True, description="Enable noise reduction")
+    enable_color_enhancement: bool = Field(default=True, description="Enable color enhancement")
+    custom_settings: Optional[Dict[str, Any]] = Field(None, description="Custom processing settings")
 
-class HealthResponse(BaseModel):
-    """Health check response"""
-    status: str
-    timestamp: float
-    version: str
-    uptime: float
-    system: Optional[Dict[str, Any]] = None
-    services: Optional[Dict[str, str]] = None
+class ClipResult(BaseModel):
+    """Individual clip processing result"""
+    clip_index: int = Field(description="Index of the processed clip")
+    success: bool = Field(description="Whether processing succeeded")
+    output_path: Optional[str] = Field(None, description="Path to output file")
+    thumbnail_path: Optional[str] = Field(None, description="Path to thumbnail")
+    file_size: Optional[int] = Field(None, description="Output file size in bytes")
+    duration: Optional[float] = Field(None, description="Actual clip duration")
+    viral_score: Optional[int] = Field(None, description="AI-calculated viral score")
+    ai_enhancements: List[str] = Field(default_factory=list, description="Applied AI enhancements")
+    processing_time: Optional[float] = Field(None, description="Processing time in seconds")
+    error: Optional[str] = Field(None, description="Error message if failed")
 
-class MetricsResponse(BaseModel):
-    """Metrics response"""
-    uptime: float
-    timestamp: float
-    requests: Dict[str, Any]
-    response_times: Dict[str, float]
-    processing: Dict[str, Any]
-    errors: Dict[str, Any]
+class ProcessingProgressUpdate(BaseModel):
+    """Processing progress update"""
+    current: int = Field(description="Current clip being processed")
+    total: int = Field(description="Total clips to process")
+    percentage: float = Field(ge=0, le=100, description="Overall progress percentage")
+    current_clip: Optional[ClipDefinition] = Field(None, description="Currently processing clip")
+    stage: str = Field(description="Current processing stage")
+    message: Optional[str] = Field(None, description="Progress message")
+    estimated_time_remaining: Optional[int] = Field(None, description="ETA in seconds")
+
+class ProcessingStatusResponse(BaseResponse):
+    """Processing status response"""
+    task_id: str = Field(description="Processing task ID")
+    status: ProcessingStatus = Field(description="Current processing status")
+    progress: Optional[ProcessingProgressUpdate] = Field(None, description="Progress information")
+    results: List[ClipResult] = Field(default_factory=list, description="Completed results")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    created_at: datetime = Field(description="Task creation time")
+    updated_at: datetime = Field(description="Last update time")
+
+# File Upload Models
+class FileUploadResponse(BaseResponse):
+    """File upload response"""
+    session_id: str = Field(description="Upload session ID")
+    filename: str = Field(description="Original filename")
+    file_size: int = Field(description="File size in bytes")
+    file_path: str = Field(description="Server file path")
+    thumbnail: Optional[str] = Field(None, description="Generated thumbnail path")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Video metadata")
+    validation_results: Dict[str, Any] = Field(default_factory=dict, description="File validation results")
+
+class UploadProgressUpdate(BaseModel):
+    """Upload progress update"""
+    upload_id: str = Field(description="Upload identifier")
+    stage: str = Field(description="Upload stage")
+    progress: float = Field(ge=0, le=100, description="Upload progress percentage")
+    loaded: int = Field(description="Bytes uploaded")
+    total: int = Field(description="Total bytes")
+    speed: Optional[float] = Field(None, description="Upload speed in bytes/sec")
+    message: Optional[str] = Field(None, description="Progress message")
 
 # WebSocket Message Models
 class WebSocketMessage(BaseModel):
-    """WebSocket message base"""
-    type: str
+    """Base WebSocket message"""
+    type: str = Field(description="Message type")
     timestamp: datetime = Field(default_factory=datetime.now)
-    data: Dict[str, Any]
+    data: Optional[Dict[str, Any]] = Field(None, description="Message data")
 
-class StatusUpdate(WebSocketMessage):
-    """Status update message"""
-    type: str = "status_update"
+class ProcessingWebSocketMessage(WebSocketMessage):
+    """Processing WebSocket message"""
+    task_id: str = Field(description="Processing task ID")
 
-class ProgressUpdate(WebSocketMessage):
-    """Progress update message"""
-    type: str = "progress_update"
+class UploadWebSocketMessage(WebSocketMessage):
+    """Upload WebSocket message"""
+    upload_id: str = Field(description="Upload identifier")
 
-class ProcessingComplete(WebSocketMessage):
-    """Processing complete message"""
-    type: str = "processing_complete"
+# Health and Status Models
+class HealthStatus(BaseModel):
+    """Health check response"""
+    status: str = Field(description="Overall health status")
+    timestamp: datetime = Field(default_factory=datetime.now)
+    version: str = Field(description="Application version")
+    uptime: float = Field(description="Uptime in seconds")
+    dependencies: Dict[str, bool] = Field(default_factory=dict, description="Dependency status")
+    metrics: Dict[str, Any] = Field(default_factory=dict, description="Performance metrics")
 
-class ProcessingError(WebSocketMessage):
-    """Processing error message"""
-    type: str = "processing_error"
+class SystemMetrics(BaseModel):
+    """System metrics model"""
+    cpu_usage: float = Field(ge=0, le=100, description="CPU usage percentage")
+    memory_usage: float = Field(ge=0, le=100, description="Memory usage percentage")
+    disk_usage: float = Field(ge=0, le=100, description="Disk usage percentage")
+    active_connections: int = Field(ge=0, description="Active WebSocket connections")
+    processing_tasks: int = Field(ge=0, description="Active processing tasks")
+    queue_size: int = Field(ge=0, description="Processing queue size")
+    cache_hit_ratio: float = Field(ge=0, le=1, description="Cache hit ratio")
 
 # Configuration Models
-class ProcessingConfig(BaseModel):
+class ProcessingSettings(BaseModel):
     """Processing configuration"""
-    max_duration: int = Field(default=300, description="Maximum clip duration")
-    min_duration: int = Field(default=5, description="Minimum clip duration")
-    default_quality: VideoQuality = Field(default=VideoQuality.HD)
-    default_aspect_ratio: AspectRatio = Field(default=AspectRatio.VERTICAL)
-    enable_ai_enhancement: bool = Field(default=True)
-    enable_viral_optimization: bool = Field(default=True)
-    concurrent_processing: int = Field(default=4, description="Concurrent processing limit")
+    max_concurrent_tasks: int = Field(default=3, ge=1, le=10)
+    default_quality: VideoQuality = Field(default=VideoQuality.HIGH)
+    enable_gpu_acceleration: bool = Field(default=True)
+    temp_dir: str = Field(default="temp")
+    output_dir: str = Field(default="output")
+    cleanup_after_hours: int = Field(default=24, ge=1)
 
-class PlatformConfig(BaseModel):
-    """Platform-specific configuration"""
-    platform: Platform
-    max_duration: int
-    min_duration: int
-    aspect_ratio: AspectRatio
-    recommended_quality: VideoQuality
-    hashtags: List[str] = Field(default=[])
-    optimal_posting_times: List[str] = Field(default=[])
+class SecuritySettings(BaseModel):
+    """Security configuration"""
+    rate_limit_per_minute: int = Field(default=60, ge=1)
+    rate_limit_per_hour: int = Field(default=1000, ge=1)
+    max_file_size: int = Field(default=2147483648)  # 2GB
+    allowed_file_types: List[str] = Field(default=["mp4", "mov", "avi", "mkv", "webm"])
+    enable_csrf_protection: bool = Field(default=True)
+    session_timeout: int = Field(default=3600, ge=300)  # 1 hour
 
-# Utility Models
-class FileUpload(BaseModel):
-    """File upload information"""
-    file_id: str
-    filename: str
-    upload_path: str
-    file_size: int
-    content_type: str
-    uploaded_at: datetime = Field(default_factory=datetime.now)
+# Validation Models
+class ValidationResult(BaseModel):
+    """File/content validation result"""
+    valid: bool = Field(description="Whether validation passed")
+    errors: List[str] = Field(default_factory=list, description="Validation errors")
+    warnings: List[str] = Field(default_factory=list, description="Validation warnings")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Extracted metadata")
+    recommendations: List[str] = Field(default_factory=list, description="Optimization recommendations")
 
+# Analytics Models
+class AnalyticsEvent(BaseModel):
+    """Analytics event model"""
+    event_type: str = Field(description="Event type")
+    user_id: Optional[str] = Field(None, description="User identifier")
+    session_id: str = Field(description="Session identifier")
+    timestamp: datetime = Field(default_factory=datetime.now)
+    properties: Dict[str, Any] = Field(default_factory=dict, description="Event properties")
+    context: Dict[str, Any] = Field(default_factory=dict, description="Event context")
+
+class UsageStatistics(BaseModel):
+    """Usage statistics model"""
+    total_videos_processed: int = Field(ge=0)
+    total_clips_created: int = Field(ge=0)
+    average_processing_time: float = Field(ge=0)
+    top_platforms: List[Dict[str, Any]] = Field(default_factory=list)
+    success_rate: float = Field(ge=0, le=1)
+    popular_content_types: List[Dict[str, Any]] = Field(default_factory=list)
+    user_engagement_metrics: Dict[str, Any] = Field(default_factory=dict)
+
+# Export Models (for external integrations)
+class ExportRequest(BaseModel):
+    """Export request model"""
+    task_id: str = Field(description="Processing task ID")
+    format: str = Field(default="mp4", description="Export format")
+    quality: VideoQuality = Field(default=VideoQuality.HIGH)
+    include_metadata: bool = Field(default=True)
+    watermark: bool = Field(default=False)
+    destination: Optional[str] = Field(None, description="Export destination")
+
+class ExportResponse(BaseResponse):
+    """Export response model"""
+    export_id: str = Field(description="Export identifier")
+    download_url: str = Field(description="Download URL")
+    expires_at: datetime = Field(description="Download link expiration")
+    file_size: int = Field(description="Exported file size")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+# Pagination Models
+class PaginationParams(BaseModel):
+    """Pagination parameters"""
+    page: int = Field(default=1, ge=1, description="Page number")
+    limit: int = Field(default=20, ge=1, le=100, description="Items per page")
+    sort_by: Optional[str] = Field(None, description="Sort field")
+    sort_order: str = Field(default="desc", regex="^(asc|desc)$", description="Sort order")
+
+class PaginatedResponse(BaseModel):
+    """Paginated response model"""
+    items: List[Any] = Field(description="Page items")
+    total: int = Field(ge=0, description="Total items")
+    page: int = Field(ge=1, description="Current page")
+    limit: int = Field(ge=1, description="Items per page")
+    pages: int = Field(ge=0, description="Total pages")
+    has_next: bool = Field(description="Has next page")
+    has_prev: bool = Field(description="Has previous page")
+
+# Legacy compatibility (for gradual migration)
 class VideoOut(BaseModel):
-    """Video output model for API responses"""
+    """Legacy video output model"""
     id: str
     title: str
-    duration: int
-    status: ProcessingStatus
+    duration: float
+    status: str
     created_at: datetime
-    file_path: Optional[str] = None
     thumbnail: Optional[str] = None
-    viral_score: Optional[int] = None
+    file_size: Optional[int] = None
