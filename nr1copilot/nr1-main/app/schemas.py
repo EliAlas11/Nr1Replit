@@ -1,107 +1,76 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, List
+from datetime import datetime
 
-# User schemas
-class UserBase(BaseModel):
-    email: EmailStr
-    full_name: Optional[str] = None
-
-class UserCreate(UserBase):
-    password: str = Field(..., min_length=8)
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-class UserOut(UserBase):
-    id: str
-
-# Auth schemas
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-class TokenPayload(BaseModel):
-    sub: str
-    exp: int
-
-# Generic response
-class Message(BaseModel):
-    message: str
-
-# Feedback schemas
-class FeedbackIn(BaseModel):
-    message: str = Field(..., min_length=1, max_length=1000)
-    email: Optional[EmailStr] = None
-
-class FeedbackOut(BaseModel):
-    id: str
-    message: str
-    email: Optional[EmailStr] = None
-    created_at: Optional[str] = None
-
-class FeedbackList(BaseModel):
-    feedback: list[FeedbackOut]
+# Base schemas
+class BaseResponse(BaseModel):
+    success: bool = True
+    message: Optional[str] = None
 
 # Video schemas
-class VideoValidateIn(BaseModel):
-    url: str = Field(..., min_length=10)
+class VideoProcessRequest(BaseModel):
+    url: str = Field(..., description="YouTube video URL")
+    start_time: Optional[float] = Field(None, description="Start time in seconds")
+    end_time: Optional[float] = Field(None, description="End time in seconds")
+    quality: Optional[str] = Field("720p", description="Video quality")
 
-class VideoValidateOut(BaseModel):
-    valid: bool
-    video_id: Optional[str] = None
-    message: Optional[str] = None
-
-class VideoInfoOut(BaseModel):
-    video_id: str
-    title: str
-    duration: int
-    thumbnail_url: Optional[str] = None
-
-class VideoProcessIn(BaseModel):
-    video_id: str
-    start_time: int
-    end_time: int
-    aspect_ratio: Optional[str] = None
-    captions: Optional[str] = None
-
-class VideoProcessOut(BaseModel):
+class VideoProcessResponse(BaseResponse):
     job_id: str
     status: str
-    message: Optional[str] = None
-
-class VideoJobStatusOut(BaseModel):
-    job_id: str
-    status: str
-    progress: Optional[int] = None
-    result_url: Optional[str] = None
-
-class VideoServeOut(BaseModel):
-    video_url: str
-    message: Optional[str] = None
+    video_url: Optional[str] = None
 
 # Analytics schemas
-class AnalyticsIn(BaseModel):
-    event: str = Field(..., min_length=1, max_length=100)
+class AnalyticsRequest(BaseModel):
+    event_type: str
+    video_id: Optional[str] = None
     user_id: Optional[str] = None
-    metadata: Optional[dict] = None
+    metadata: Optional[Dict[str, Any]] = {}
 
-class AnalyticsOut(BaseModel):
-    id: str
-    event: str
-    user_id: Optional[str] = None
-    metadata: Optional[dict] = None
-    timestamp: Optional[str] = None
+class AnalyticsResponse(BaseResponse):
+    event_id: str
 
-class AnalyticsList(BaseModel):
-    analytics: list[AnalyticsOut]
+# Feedback schemas
+class FeedbackRequest(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = None
+    video_id: Optional[str] = None
 
-# I18N schemas
+class FeedbackResponse(BaseResponse):
+    feedback_id: str
+
+# I18n schemas
 class SetLanguageIn(BaseModel):
-    language: str = Field(..., min_length=2, max_length=10)
+    language: str = Field(..., description="Language code (e.g., 'en', 'es')")
 
-class SetLanguageOut(BaseModel):
-    message: str
+class SetLanguageOut(BaseResponse):
+    language: str
 
-class TranslationsOut(BaseModel):
-    translations: dict[str, str]
+class TranslationsOut(BaseResponse):
+    translations: Dict[str, str]
+    language: str
+
+# Auth schemas
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+class AuthResponse(BaseResponse):
+    token: str
+    user_id: str
+    email: str
+
+# User schemas
+class UserOut(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    created_at: datetime
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None

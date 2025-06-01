@@ -26,6 +26,33 @@ def login(user: UserLogin) -> UserOut:
     except UserError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+from fastapi import HTTPException
+from app.schemas import UserOut, LoginRequest, SignupRequest, AuthResponse
+from ..services.user_service import (
+    get_user_service,
+    signup_service, 
+    login_service,
+    UserError,
+)
+
+def signup(data: SignupRequest) -> AuthResponse:
+    """
+    Create new user account. Raises HTTPException on error.
+    """
+    try:
+        return signup_service(data)
+    except UserError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+def login(data: LoginRequest) -> AuthResponse:
+    """
+    Login user. Raises HTTPException on error.
+    """
+    try:
+        return login_service(data)
+    except UserError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
 def get_user(user_id: str) -> UserOut:
     """
     Retrieve a user by user ID. Raises HTTPException on error.

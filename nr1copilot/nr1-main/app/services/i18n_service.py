@@ -1,55 +1,52 @@
-"""
-I18n Service Layer
-
-- Handles internationalization (i18n) logic: language setting, translation retrieval, etc.
-- All business logic, validation, and error handling for i18n is centralized here.
-- Designed for auditability, security, and testability (Stripe/Netflix standards).
-- All functions are stateless and side-effect free except for language/translation updates.
-- TODO: Replace in-memory store with persistent database for production.
-"""
 
 from typing import Dict
-
-from app.schemas import SetLanguageIn, SetLanguageOut, TranslationsOut
+from ..schemas import SetLanguageIn, SetLanguageOut, TranslationsOut
 
 class I18nError(Exception):
-    """Custom exception for i18n service errors."""
     pass
 
-# In-memory language/translation store for demo
-_fake_language = "en"
-_fake_translations = {"en": {"hello": "Hello", "bye": "Goodbye"}, "es": {"hello": "Hola", "bye": "Adiós"}}
+# Sample translations (you can expand this)
+TRANSLATIONS = {
+    "en": {
+        "welcome": "Welcome",
+        "process_video": "Process Video",
+        "download": "Download",
+        "upload": "Upload",
+        "error": "Error",
+        "success": "Success"
+    },
+    "es": {
+        "welcome": "Bienvenido",
+        "process_video": "Procesar Video",
+        "download": "Descargar",
+        "upload": "Subir",
+        "error": "Error",
+        "success": "Éxito"
+    }
+}
+
+# Global language state (in production, use Redis or database)
+current_language = "en"
 
 def get_translations_service() -> TranslationsOut:
-    """
-    Retrieve current translations for the active language.
-
-    Returns:
-        TranslationsOut: The translations for the current language.
-
-    Raises:
-        I18nError: If translations are not found.
-    """
-    translations = _fake_translations.get(_fake_language)
-    if not translations:
-        raise I18nError("No translations found for current language.")
-    return TranslationsOut(translations=translations)
+    """Get translations for current language"""
+    global current_language
+    
+    if current_language not in TRANSLATIONS:
+        raise I18nError(f"Language {current_language} not supported")
+    
+    return TranslationsOut(
+        translations=TRANSLATIONS[current_language],
+        language=current_language
+    )
 
 def set_language_service(data: SetLanguageIn) -> SetLanguageOut:
-    """
-    Set the active language for translations.
-
-    Args:
-        data (SetLanguageIn): The language to set.
-
-    Returns:
-        SetLanguageOut: Confirmation message.
-
-    Raises:
-        I18nError: If language is not supported.
-    """
-    global _fake_language
-    if data.language not in _fake_translations:
-        raise I18nError(f"Language '{data.language}' not supported.")
-    _fake_language = data.language
-    return SetLanguageOut(message=f"Language set to {data.language}")
+    """Set the active language"""
+    global current_language
+    
+    if data.language not in TRANSLATIONS:
+        raise I18nError(f"Language {data.language} not supported")
+    
+    current_language = data.language
+    
+    return SetLanguageOut(language=current_language)
