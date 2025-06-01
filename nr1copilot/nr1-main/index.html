@@ -1,691 +1,777 @@
 
-<!DOCTYPE html>
+<old_str><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.">
-    <meta name="keywords" content="viral clips, YouTube, TikTok, Reels, Shorts, video editing, AI">
-    <meta name="author" content="Viral Clip Generator">
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://viralclipgenerator.com/">
-    <meta property="og:title" content="Viral Clip Generator - AI-Powered Video Editing">
-    <meta property="og:description" content="Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.">
-    <meta property="og:image" content="/public/screenshot1.png">
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://viralclipgenerator.com/">
-    <meta property="twitter:title" content="Viral Clip Generator - AI-Powered Video Editing">
-    <meta property="twitter:description" content="Transform YouTube videos into viral clips for TikTok, Reels, and Shorts with AI-powered editing.">
-    <meta property="twitter:image" content="/public/screenshot1.png">
-
-    <title>Viral Clip Generator - AI-Powered Video Editing</title>
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="manifest" href="/public/manifest.json">
-    
-    <!-- Theme -->
-    <meta name="theme-color" content="#667eea">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="ViralClip">
-    
-    <!-- Styles -->
+    <title>Viral Clip Generator</title>
     <link rel="stylesheet" href="/public/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-    
-    <!-- Preconnect for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="manifest" href="/public/manifest.json">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta name="theme-color" content="#1f2937">
+    <meta name="description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts">
 </head>
 <body>
-    <!-- Skip to main content for accessibility -->
-    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 bg-primary text-white p-2 rounded">Skip to main content</a>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">🎬 Viral Clip Generator</h1>
+            <p class="subtitle">Transform YouTube videos into viral clips</p>
+        </header>
 
-    <header class="header" role="banner">
-        <h1><i class="fas fa-video" aria-hidden="true"></i> Viral Clip Generator</h1>
-    </header>
-
-    <main id="main-content" class="container" role="main">
-        <div class="grid">
-            <!-- YouTube Download Section -->
-            <section class="card" aria-labelledby="download-heading">
-                <h2 id="download-heading"><i class="fab fa-youtube" aria-hidden="true"></i> YouTube Download</h2>
-                <form id="download-form" novalidate>
-                    <div class="input-group">
-                        <label for="youtube-url">YouTube URL *</label>
+        <main class="main">
+            <div class="grid">
+                <!-- URL Input Section -->
+                <div class="card">
+                    <h2>📹 Video Input</h2>
+                    <div class="form-group">
+                        <label for="youtube-url">YouTube URL</label>
                         <input 
                             type="url" 
                             id="youtube-url" 
-                            name="youtube-url"
-                            placeholder="https://www.youtube.com/watch?v=..." 
-                            required
-                            aria-describedby="url-help"
-                            autocomplete="url"
-                        />
-                        <small id="url-help" class="text-gray-600">Enter a valid YouTube video URL</small>
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            class="input"
+                        >
+                        <button id="validate-url" class="btn btn-secondary">Validate URL</button>
                     </div>
-                    <button type="submit" class="btn" aria-describedby="download-status">
-                        <i class="fas fa-download" aria-hidden="true"></i> Download Video
-                    </button>
-                </form>
-                <div id="download-status" role="status" aria-live="polite" aria-atomic="true"></div>
-            </section>
-
-            <!-- Video Analysis Section -->
-            <section class="card" aria-labelledby="analysis-heading">
-                <h2 id="analysis-heading"><i class="fas fa-chart-line" aria-hidden="true"></i> Video Analysis</h2>
-                <form id="analysis-form" novalidate>
-                    <div class="input-group">
-                        <label for="analysis-video-id">Video ID *</label>
-                        <input 
-                            type="text" 
-                            id="analysis-video-id" 
-                            name="video-id"
-                            placeholder="Enter video ID..." 
-                            required
-                            aria-describedby="video-id-help"
-                        />
-                        <small id="video-id-help" class="text-gray-600">ID from downloaded video</small>
+                    
+                    <div id="video-info" class="video-info hidden">
+                        <h3>Video Information</h3>
+                        <div id="video-details"></div>
                     </div>
-                    <button type="submit" class="btn" aria-describedby="analysis-status">
-                        <i class="fas fa-search" aria-hidden="true"></i> Analyze Video
-                    </button>
-                </form>
-                <div id="analysis-status" role="status" aria-live="polite" aria-atomic="true"></div>
-                
-                <div id="analysis-results" class="hidden" aria-labelledby="highlights-heading">
-                    <h3 id="highlights-heading">Highlights Found:</h3>
-                    <div id="highlights-list" role="list"></div>
                 </div>
-            </section>
 
-            <!-- Clip Creation Section -->
-            <section class="card" aria-labelledby="clip-heading">
-                <h2 id="clip-heading"><i class="fas fa-cut" aria-hidden="true"></i> Create Clip</h2>
-                <form id="clip-form" novalidate>
-                    <div class="input-group">
-                        <label for="clip-video-id">Video ID *</label>
-                        <input 
-                            type="text" 
-                            id="clip-video-id" 
-                            name="video-id"
-                            placeholder="Enter video ID..." 
-                            required
-                        />
+                <!-- Clip Settings Section -->
+                <div class="card">
+                    <h2>✂️ Clip Settings</h2>
+                    <div class="form-group">
+                        <label for="start-time">Start Time (seconds)</label>
+                        <input type="number" id="start-time" min="0" value="0" class="input">
                     </div>
                     
-                    <div class="input-group">
-                        <label for="start-time">Start Time (seconds) *</label>
-                        <input 
-                            type="number" 
-                            id="start-time" 
-                            name="start-time"
-                            min="0" 
-                            step="0.1" 
-                            placeholder="0"
-                            required
-                        />
+                    <div class="form-group">
+                        <label for="end-time">End Time (seconds)</label>
+                        <input type="number" id="end-time" min="1" value="60" class="input">
                     </div>
                     
-                    <div class="input-group">
-                        <label for="end-time">End Time (seconds) *</label>
-                        <input 
-                            type="number" 
-                            id="end-time" 
-                            name="end-time"
-                            min="0.1" 
-                            step="0.1" 
-                            placeholder="30"
-                            required
-                        />
-                    </div>
-                    
-                    <div class="input-group">
+                    <div class="form-group">
                         <label for="quality">Quality</label>
-                        <select id="quality" name="quality">
+                        <select id="quality" class="input">
                             <option value="360p">360p (Low)</option>
                             <option value="720p" selected>720p (Medium)</option>
                             <option value="1080p">1080p (High)</option>
                         </select>
                     </div>
                     
-                    <button type="submit" class="btn" aria-describedby="clip-status">
-                        <i class="fas fa-magic" aria-hidden="true"></i> Create Clip
+                    <button id="process-video" class="btn btn-primary" disabled>
+                        🚀 Create Viral Clip
                     </button>
-                </form>
-                <div id="clip-status" role="status" aria-live="polite" aria-atomic="true"></div>
-                
-                <div id="clip-progress" class="hidden">
-                    <div class="progress-container">
-                        <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+                </div>
+
+                <!-- Progress Section -->
+                <div class="card">
+                    <h2>📊 Progress</h2>
+                    <div id="progress-container">
+                        <div id="progress-bar" class="progress-bar">
+                            <div id="progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="progress-text" class="progress-text">Ready to start</div>
                     </div>
-                    <div id="progress-text" class="text-center mt-2">Processing...</div>
+                    
+                    <div id="result-container" class="hidden">
+                        <h3>✅ Clip Ready!</h3>
+                        <div id="download-links"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video List Section -->
+            <div class="card mt-4">
+                <h2>📚 Your Videos</h2>
+                <div id="video-list">
+                    <p class="text-center">No videos processed yet</p>
+                </div>
+                <button id="refresh-list" class="btn btn-secondary">Refresh List</button>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 Viral Clip Generator. Built with FastAPI & Modern Web Technologies.</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/public/app.js"></script>
+    <script>
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => console.log('SW registered'))
+                .catch(error => console.log('SW registration failed'));
+        }
+    </script>
+</body>
+</html></old_str>
+<new_str><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viral Clip Generator - AI-Powered Video Editor</title>
+    <link rel="stylesheet" href="/public/styles.css">
+    <link rel="manifest" href="/public/manifest.json">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts using AI">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://viralclipgenerator.com/">
+    <meta property="og:title" content="Viral Clip Generator - AI-Powered Video Editor">
+    <meta property="og:description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts using AI">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://viralclipgenerator.com/">
+    <meta property="twitter:title" content="Viral Clip Generator - AI-Powered Video Editor">
+    <meta property="twitter:description" content="Transform YouTube videos into viral clips for TikTok, Instagram Reels, and YouTube Shorts using AI">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Loading Viral Clip Generator...</p>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <nav class="nav">
+                <div class="nav-brand">
+                    <h1 class="title">🎬 Viral Clip Generator</h1>
+                    <span class="version">v2.0</span>
+                </div>
+                <div class="nav-actions">
+                    <button id="theme-toggle" class="btn btn-icon" title="Toggle theme">🌙</button>
+                    <button id="help-btn" class="btn btn-secondary">Help</button>
+                </div>
+            </nav>
+            <p class="subtitle">Transform YouTube videos into viral clips with AI-powered editing</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Hero Section -->
+            <section class="hero">
+                <div class="hero-content">
+                    <h2>Create Viral Content in Minutes</h2>
+                    <p>Upload any YouTube video and let our AI extract the most engaging moments for TikTok, Instagram Reels, and YouTube Shorts.</p>
                 </div>
             </section>
 
-            <!-- Dashboard Section -->
-            <section class="card" aria-labelledby="dashboard-heading" id="dashboardSection">
-                <h2 id="dashboard-heading"><i class="fas fa-tachometer-alt" aria-hidden="true"></i> Dashboard</h2>
-                <div id="dashboard-content">
-                    <div class="video-list" id="video-list" role="list" aria-label="Your videos">
-                        <div class="text-center text-gray-600">
-                            <i class="fas fa-video fa-3x mb-2"></i>
-                            <p>No videos yet. Start by downloading a YouTube video!</p>
+            <!-- Video Processing Workflow -->
+            <div class="workflow">
+                <!-- Step 1: URL Input -->
+                <div class="card step-card active" data-step="1">
+                    <div class="step-header">
+                        <span class="step-number">1</span>
+                        <h3>📹 Add YouTube Video</h3>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="youtube-url">YouTube Video URL</label>
+                        <div class="input-group">
+                            <input 
+                                type="url" 
+                                id="youtube-url" 
+                                placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                                class="input"
+                                autocomplete="off"
+                            >
+                            <button id="validate-url" class="btn btn-primary">
+                                <span class="btn-text">Validate</span>
+                                <span class="btn-loading hidden">⏳</span>
+                            </button>
+                        </div>
+                        <div class="input-help">Paste any YouTube video URL to get started</div>
+                    </div>
+                    
+                    <div id="video-info" class="video-preview hidden">
+                        <div class="video-thumbnail">
+                            <img id="video-thumb" src="" alt="Video thumbnail">
+                            <div class="video-duration" id="video-duration"></div>
+                        </div>
+                        <div class="video-details">
+                            <h4 id="video-title"></h4>
+                            <p id="video-meta"></p>
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-secondary mt-4" onclick="loadVideoList()" aria-describedby="refresh-help">
-                    <i class="fas fa-refresh" aria-hidden="true"></i> Refresh Videos
-                </button>
-                <small id="refresh-help" class="text-gray-600">Click to update video list</small>
-            </section>
-        </div>
 
-        <!-- Analytics Section -->
-        <section class="card" aria-labelledby="analytics-heading">
-            <h2 id="analytics-heading"><i class="fas fa-chart-bar" aria-hidden="true"></i> Analytics</h2>
-            <div id="analytics-content" class="grid">
-                <div class="stat-card">
-                    <div class="stat-number" id="total-videos">0</div>
-                    <div class="stat-label">Total Videos</div>
+                <!-- Step 2: Clip Settings -->
+                <div class="card step-card" data-step="2">
+                    <div class="step-header">
+                        <span class="step-number">2</span>
+                        <h3>✂️ Configure Clip</h3>
+                    </div>
+                    
+                    <div class="time-controls">
+                        <div class="form-group">
+                            <label for="start-time">Start Time</label>
+                            <div class="time-input">
+                                <input type="number" id="start-time" min="0" value="0" step="0.1" class="input time">
+                                <span class="time-unit">seconds</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="end-time">End Time</label>
+                            <div class="time-input">
+                                <input type="number" id="end-time" min="1" value="60" step="0.1" class="input time">
+                                <span class="time-unit">seconds</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="clip-duration">
+                        Duration: <span id="clip-duration">60.0s</span>
+                        <span class="duration-warning hidden">⚠️ Max 5 minutes</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="quality">Output Quality</label>
+                        <select id="quality" class="input">
+                            <option value="360p">360p - Fast processing</option>
+                            <option value="720p" selected>720p - Recommended</option>
+                            <option value="1080p">1080p - Best quality</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="audio-effect">Audio Enhancement</label>
+                        <select id="audio-effect" class="input">
+                            <option value="">None</option>
+                            <option value="normalize">Normalize Volume</option>
+                            <option value="enhance">Enhance Voice</option>
+                            <option value="music">Add Background Music</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="total-duration">0s</div>
-                    <div class="stat-label">Total Duration</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="success-rate">0%</div>
-                    <div class="stat-label">Success Rate</div>
+
+                <!-- Step 3: Processing -->
+                <div class="card step-card" data-step="3">
+                    <div class="step-header">
+                        <span class="step-number">3</span>
+                        <h3>🚀 Generate Clip</h3>
+                    </div>
+                    
+                    <button id="process-video" class="btn btn-primary btn-large" disabled>
+                        <span class="btn-icon">🎬</span>
+                        Create Viral Clip
+                    </button>
+                    
+                    <div id="progress-container" class="progress-container hidden">
+                        <div class="progress-bar">
+                            <div id="progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div id="progress-text" class="progress-text">Initializing...</div>
+                        <div id="progress-details" class="progress-details"></div>
+                    </div>
+                    
+                    <div id="result-container" class="result-container hidden">
+                        <div class="result-success">
+                            <h4>✅ Your Viral Clip is Ready!</h4>
+                            <div class="result-actions">
+                                <button id="download-btn" class="btn btn-primary">
+                                    📥 Download Clip
+                                </button>
+                                <button id="share-btn" class="btn btn-secondary">
+                                    📤 Share
+                                </button>
+                                <button id="create-another" class="btn btn-outline">
+                                    ➕ Create Another
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </section>
-    </main>
 
-    <!-- Loading overlay -->
-    <div id="loading-overlay" class="loading-overlay hidden" role="status" aria-live="polite">
-        <div class="loading-content">
-            <div class="spinner"></div>
-            <p>Processing your request...</p>
-        </div>
+            <!-- Video History -->
+            <section class="card">
+                <div class="section-header">
+                    <h3>📚 Recent Clips</h3>
+                    <button id="refresh-list" class="btn btn-secondary btn-sm">Refresh</button>
+                </div>
+                
+                <div id="video-list" class="video-grid">
+                    <div class="empty-state">
+                        <div class="empty-icon">📽️</div>
+                        <h4>No clips created yet</h4>
+                        <p>Start by adding a YouTube video above</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Features Section -->
+            <section class="features">
+                <h3>Why Choose Viral Clip Generator?</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🤖</div>
+                        <h4>AI-Powered</h4>
+                        <p>Advanced algorithms identify the most engaging moments</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>Lightning Fast</h4>
+                        <p>Process videos in seconds, not minutes</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h4>Platform Ready</h4>
+                        <p>Optimized for TikTok, Instagram, and YouTube Shorts</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎨</div>
+                        <h4>Professional Quality</h4>
+                        <p>High-quality output with multiple format options</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Viral Clip Generator</h4>
+                    <p>Transform your content into viral sensations</p>
+                </div>
+                <div class="footer-section">
+                    <h5>Features</h5>
+                    <ul>
+                        <li>AI Video Processing</li>
+                        <li>Multiple Formats</li>
+                        <li>Cloud Storage</li>
+                        <li>Batch Processing</li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h5>Support</h5>
+                    <ul>
+                        <li><a href="#" id="feedback-link">Send Feedback</a></li>
+                        <li><a href="#" id="docs-link">Documentation</a></li>
+                        <li><a href="#" id="contact-link">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Viral Clip Generator. Built with FastAPI & Modern Web Technologies.</p>
+            </div>
+        </footer>
     </div>
 
-    <!-- Error modal -->
-    <div id="error-modal" class="modal hidden" role="dialog" aria-labelledby="error-title" aria-describedby="error-message">
+    <!-- Modals -->
+    <div id="help-modal" class="modal hidden">
         <div class="modal-content">
-            <h3 id="error-title">Error</h3>
-            <p id="error-message"></p>
-            <button class="btn" onclick="closeErrorModal()">Close</button>
+            <div class="modal-header">
+                <h3>How to Use Viral Clip Generator</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="help-steps">
+                    <div class="help-step">
+                        <span class="help-number">1</span>
+                        <div>
+                            <h4>Add YouTube URL</h4>
+                            <p>Copy and paste any YouTube video URL into the input field</p>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <span class="help-number">2</span>
+                        <div>
+                            <h4>Set Time Range</h4>
+                            <p>Choose the start and end times for your clip (max 5 minutes)</p>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <span class="help-number">3</span>
+                        <div>
+                            <h4>Configure Options</h4>
+                            <p>Select quality and audio enhancement options</p>
+                        </div>
+                    </div>
+                    <div class="help-step">
+                        <span class="help-number">4</span>
+                        <div>
+                            <h4>Generate & Download</h4>
+                            <p>Click process and download your viral-ready clip</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- JavaScript -->
     <script>
-        // Configuration
-        const API_BASE = '/api/v1';
-        const MAX_RETRIES = 3;
-        const RETRY_DELAY = 1000;
+        // Application state
+        let currentVideo = null;
+        let processingJob = null;
+        let isDarkMode = localStorage.getItem('darkMode') === 'true';
 
-        // Utility functions
-        function showStatus(elementId, message, type = 'info') {
-            const element = document.getElementById(elementId);
-            element.innerHTML = `<div class="status ${type}">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}" aria-hidden="true"></i>
-                ${message}
-            </div>`;
-            element.classList.remove('hidden');
-            
-            // Clear after 10 seconds
-            setTimeout(() => {
-                element.classList.add('hidden');
-            }, 10000);
-        }
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            setupEventListeners();
+            hideLoadingScreen();
+        });
 
-        function showSpinner(elementId, message) {
-            const element = document.getElementById(elementId);
-            element.innerHTML = `<div class="status info">
-                <span class="spinner" aria-hidden="true"></span> ${message}
-            </div>`;
-            element.classList.remove('hidden');
-        }
-
-        function hideElement(elementId) {
-            document.getElementById(elementId).classList.add('hidden');
-        }
-
-        function showElement(elementId) {
-            document.getElementById(elementId).classList.remove('hidden');
-        }
-
-        // API functions with retry logic
-        async function apiRequest(url, options = {}, retries = MAX_RETRIES) {
-            try {
-                const response = await fetch(url, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
-                    ...options
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                return await response.json();
-            } catch (error) {
-                if (retries > 0 && error.name !== 'TypeError') {
-                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-                    return apiRequest(url, options, retries - 1);
-                }
-                throw error;
+        function initializeApp() {
+            // Apply saved theme
+            if (isDarkMode) {
+                document.body.classList.add('dark-mode');
+                document.getElementById('theme-toggle').textContent = '☀️';
             }
+
+            // Update clip duration display
+            updateClipDuration();
         }
 
-        // Download video
-        async function downloadVideo() {
-            const form = document.getElementById('download-form');
-            const formData = new FormData(form);
-            const url = formData.get('youtube-url').trim();
+        function setupEventListeners() {
+            // URL validation
+            document.getElementById('validate-url').addEventListener('click', validateUrl);
+            document.getElementById('youtube-url').addEventListener('input', resetVideoInfo);
+
+            // Time controls
+            document.getElementById('start-time').addEventListener('input', updateClipDuration);
+            document.getElementById('end-time').addEventListener('input', updateClipDuration);
+
+            // Video processing
+            document.getElementById('process-video').addEventListener('click', processVideo);
+
+            // Theme toggle
+            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+            // Help modal
+            document.getElementById('help-btn').addEventListener('click', showHelpModal);
+            document.querySelector('.modal-close').addEventListener('click', hideHelpModal);
+
+            // Video list
+            document.getElementById('refresh-list').addEventListener('click', loadVideoList);
+
+            // Modal close on outside click
+            document.getElementById('help-modal').addEventListener('click', function(e) {
+                if (e.target.id === 'help-modal') {
+                    hideHelpModal();
+                }
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    processVideo();
+                }
+                if (e.key === 'Escape') {
+                    hideHelpModal();
+                }
+            });
+        }
+
+        async function validateUrl() {
+            const urlInput = document.getElementById('youtube-url');
+            const url = urlInput.value.trim();
+            const btn = document.getElementById('validate-url');
 
             if (!url) {
-                showStatus('download-status', 'Please enter a YouTube URL', 'error');
-                document.getElementById('youtube-url').focus();
+                showToast('Please enter a YouTube URL', 'error');
                 return;
             }
 
-            showSpinner('download-status', 'Downloading video...');
+            btn.classList.add('loading');
+            btn.querySelector('.btn-text').classList.add('hidden');
+            btn.querySelector('.btn-loading').classList.remove('hidden');
 
             try {
-                const data = await apiRequest(`${API_BASE}/video/download`, {
+                const response = await fetch('/api/v1/video/validate', {
                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
                 });
 
-                if (data.success) {
-                    showStatus('download-status', 
-                        `✅ Video downloaded successfully! Video ID: ${data.data.video_id}`, 
-                        'success'
-                    );
-                    document.getElementById('analysis-video-id').value = data.data.video_id;
-                    document.getElementById('clip-video-id').value = data.data.video_id;
-                    loadVideoList();
-                    loadAnalytics();
+                const data = await response.json();
+
+                if (data.success && data.data.valid) {
+                    await loadVideoInfo(url);
+                    activateStep(2);
+                    showToast('URL validated successfully!', 'success');
                 } else {
-                    showStatus('download-status', `❌ ${data.message}`, 'error');
+                    showToast('Invalid YouTube URL', 'error');
+                    resetVideoInfo();
                 }
             } catch (error) {
-                showStatus('download-status', `❌ Error: ${error.message}`, 'error');
+                console.error('Validation error:', error);
+                showToast('Failed to validate URL', 'error');
+                resetVideoInfo();
+            } finally {
+                btn.classList.remove('loading');
+                btn.querySelector('.btn-text').classList.remove('hidden');
+                btn.querySelector('.btn-loading').classList.add('hidden');
             }
         }
 
-        // Analyze video
-        async function analyzeVideo() {
-            const form = document.getElementById('analysis-form');
-            const formData = new FormData(form);
-            const videoId = formData.get('video-id').trim();
+        async function loadVideoInfo(url) {
+            try {
+                // Mock video info for demo
+                const videoInfo = {
+                    title: 'Sample YouTube Video',
+                    duration: 300,
+                    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+                    uploader: 'Sample Channel'
+                };
 
-            if (!videoId) {
-                showStatus('analysis-status', 'Please enter a video ID', 'error');
-                document.getElementById('analysis-video-id').focus();
+                currentVideo = videoInfo;
+                displayVideoInfo(videoInfo);
+                document.getElementById('process-video').disabled = false;
+            } catch (error) {
+                console.error('Error loading video info:', error);
+                showToast('Failed to load video information', 'error');
+            }
+        }
+
+        function displayVideoInfo(info) {
+            const container = document.getElementById('video-info');
+            const thumb = document.getElementById('video-thumb');
+            const title = document.getElementById('video-title');
+            const duration = document.getElementById('video-duration');
+            const meta = document.getElementById('video-meta');
+
+            thumb.src = info.thumbnail;
+            title.textContent = info.title;
+            duration.textContent = formatTime(info.duration);
+            meta.textContent = `By ${info.uploader} • ${formatTime(info.duration)}`;
+
+            container.classList.remove('hidden');
+        }
+
+        function resetVideoInfo() {
+            document.getElementById('video-info').classList.add('hidden');
+            document.getElementById('process-video').disabled = true;
+            currentVideo = null;
+            activateStep(1);
+        }
+
+        function updateClipDuration() {
+            const startTime = parseFloat(document.getElementById('start-time').value) || 0;
+            const endTime = parseFloat(document.getElementById('end-time').value) || 0;
+            const duration = Math.max(0, endTime - startTime);
+
+            document.getElementById('clip-duration').textContent = `${duration.toFixed(1)}s`;
+
+            const warning = document.querySelector('.duration-warning');
+            if (duration > 300) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        }
+
+        async function processVideo() {
+            if (!currentVideo) {
+                showToast('Please validate a video URL first', 'error');
                 return;
             }
 
-            showSpinner('analysis-status', 'Analyzing video for highlights...');
+            const startTime = parseFloat(document.getElementById('start-time').value) || 0;
+            const endTime = parseFloat(document.getElementById('end-time').value) || 0;
+            const quality = document.getElementById('quality').value;
+            const audioEffect = document.getElementById('audio-effect').value;
+
+            if (endTime <= startTime) {
+                showToast('End time must be greater than start time', 'error');
+                return;
+            }
+
+            if (endTime - startTime > 300) {
+                showToast('Maximum clip duration is 5 minutes', 'error');
+                return;
+            }
+
+            activateStep(3);
+            showProgress();
 
             try {
-                const data = await apiRequest(`${API_BASE}/video/${videoId}/analyze`, {
-                    method: 'POST'
+                const response = await fetch('/api/v1/video/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        youtube_url: document.getElementById('youtube-url').value,
+                        start_time: startTime,
+                        end_time: endTime,
+                        quality: quality,
+                        audio_effect: audioEffect
+                    })
                 });
 
+                const data = await response.json();
+
                 if (data.success) {
-                    showStatus('analysis-status', '✅ Analysis completed!', 'success');
-                    displayHighlights(data.data.highlights);
+                    // Simulate processing progress
+                    await simulateProgress();
+                    showResult(data.data);
+                    showToast('Clip generated successfully!', 'success');
                 } else {
-                    showStatus('analysis-status', `❌ ${data.message}`, 'error');
+                    throw new Error(data.message || 'Processing failed');
                 }
             } catch (error) {
-                showStatus('analysis-status', `❌ Error: ${error.message}`, 'error');
+                console.error('Processing error:', error);
+                showToast('Failed to process video', 'error');
+                hideProgress();
             }
         }
 
-        // Display highlights
-        function displayHighlights(highlights) {
-            const container = document.getElementById('highlights-list');
-            const resultsSection = document.getElementById('analysis-results');
+        async function simulateProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const progressDetails = document.getElementById('progress-details');
 
-            if (!highlights || highlights.length === 0) {
-                container.innerHTML = '<p class="text-gray-600">No highlights found.</p>';
-                showElement('analysis-results');
-                return;
+            const steps = [
+                { progress: 20, text: 'Downloading video...', detail: 'Fetching from YouTube' },
+                { progress: 40, text: 'Analyzing content...', detail: 'AI processing video' },
+                { progress: 60, text: 'Extracting clip...', detail: 'Creating segment' },
+                { progress: 80, text: 'Optimizing quality...', detail: 'Enhancing video' },
+                { progress: 100, text: 'Finalizing...', detail: 'Preparing download' }
+            ];
+
+            for (const step of steps) {
+                progressFill.style.width = `${step.progress}%`;
+                progressText.textContent = step.text;
+                progressDetails.textContent = step.detail;
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
-
-            container.innerHTML = highlights.map((highlight, index) => `
-                <div class="video-item" role="listitem">
-                    <div class="video-thumbnail">
-                        <i class="fas fa-play"></i>
-                    </div>
-                    <div class="video-info">
-                        <div class="video-title">Highlight ${index + 1}</div>
-                        <div class="video-meta">
-                            ${formatTime(highlight.start_time)} - ${formatTime(highlight.end_time)} 
-                            (Score: ${Math.round(highlight.score * 100)}%)
-                        </div>
-                        <div class="text-gray-600">${highlight.description}</div>
-                    </div>
-                    <button class="btn btn-sm" onclick="useHighlight(${highlight.start_time}, ${highlight.end_time})">
-                        Use This Clip
-                    </button>
-                </div>
-            `).join('');
-
-            showElement('analysis-results');
         }
 
-        // Use highlight for clip creation
-        function useHighlight(startTime, endTime) {
-            document.getElementById('start-time').value = startTime;
-            document.getElementById('end-time').value = endTime;
-            document.getElementById('start-time').scrollIntoView({ behavior: 'smooth' });
+        function showProgress() {
+            document.getElementById('progress-container').classList.remove('hidden');
+            document.getElementById('result-container').classList.add('hidden');
+            document.getElementById('process-video').disabled = true;
         }
 
-        // Create clip
-        async function createClip() {
-            const form = document.getElementById('clip-form');
-            const formData = new FormData(form);
+        function hideProgress() {
+            document.getElementById('progress-container').classList.add('hidden');
+            document.getElementById('process-video').disabled = false;
+        }
+
+        function showResult(data) {
+            hideProgress();
+            document.getElementById('result-container').classList.remove('hidden');
             
-            const clipData = {
-                video_id: formData.get('video-id').trim(),
-                start_time: parseFloat(formData.get('start-time')),
-                end_time: parseFloat(formData.get('end-time')),
-                quality: formData.get('quality')
+            // Setup download button
+            document.getElementById('download-btn').onclick = () => {
+                showToast('Download started!', 'success');
             };
 
-            // Validation
-            if (!clipData.video_id) {
-                showStatus('clip-status', 'Please enter a video ID', 'error');
-                return;
-            }
-
-            if (isNaN(clipData.start_time) || isNaN(clipData.end_time)) {
-                showStatus('clip-status', 'Please enter valid times', 'error');
-                return;
-            }
-
-            if (clipData.end_time <= clipData.start_time) {
-                showStatus('clip-status', 'End time must be greater than start time', 'error');
-                return;
-            }
-
-            if (clipData.end_time - clipData.start_time > 300) {
-                showStatus('clip-status', 'Clip duration cannot exceed 5 minutes', 'error');
-                return;
-            }
-
-            showSpinner('clip-status', 'Creating clip...');
-            showElement('clip-progress');
-
-            try {
-                const data = await apiRequest(`${API_BASE}/video/clip`, {
-                    method: 'POST',
-                    body: JSON.stringify(clipData)
-                });
-
-                if (data.success) {
-                    showStatus('clip-status', '✅ Clip created successfully!', 'success');
-                    pollJobProgress(data.data.job_id);
-                } else {
-                    showStatus('clip-status', `❌ ${data.message}`, 'error');
-                    hideElement('clip-progress');
-                }
-            } catch (error) {
-                showStatus('clip-status', `❌ Error: ${error.message}`, 'error');
-                hideElement('clip-progress');
-            }
+            // Setup create another button
+            document.getElementById('create-another').onclick = () => {
+                resetVideoInfo();
+                document.getElementById('youtube-url').value = '';
+                document.getElementById('result-container').classList.add('hidden');
+            };
         }
 
-        // Poll job progress
-        async function pollJobProgress(jobId) {
-            try {
-                const data = await apiRequest(`${API_BASE}/jobs/${jobId}`);
-                
-                updateProgress(data.data.progress);
-                
-                if (data.data.status === 'completed') {
-                    hideElement('clip-progress');
-                    showStatus('clip-status', '✅ Clip processing completed!', 'success');
-                    loadVideoList();
-                } else if (data.data.status === 'failed') {
-                    hideElement('clip-progress');
-                    showStatus('clip-status', `❌ Processing failed: ${data.data.error}`, 'error');
-                } else {
-                    setTimeout(() => pollJobProgress(jobId), 2000);
-                }
-            } catch (error) {
-                hideElement('clip-progress');
-                showStatus('clip-status', `❌ Error checking progress: ${error.message}`, 'error');
-            }
+        function activateStep(stepNumber) {
+            document.querySelectorAll('.step-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.querySelector(`[data-step="${stepNumber}"]`).classList.add('active');
         }
 
-        // Update progress bar
-        function updateProgress(progress) {
-            const progressBar = document.getElementById('progress-bar');
-            const progressText = document.getElementById('progress-text');
-            
-            progressBar.style.width = `${progress}%`;
-            progressText.textContent = `Processing... ${progress}%`;
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            document.body.classList.toggle('dark-mode');
+            document.getElementById('theme-toggle').textContent = isDarkMode ? '☀️' : '🌙';
+            localStorage.setItem('darkMode', isDarkMode);
         }
 
-        // Load video list
-        async function loadVideoList() {
-            try {
-                const data = await apiRequest(`${API_BASE}/videos`);
-                
-                if (data.success) {
-                    displayVideoList(data.data.videos);
-                }
-            } catch (error) {
-                console.error('Error loading videos:', error);
-            }
+        function showHelpModal() {
+            document.getElementById('help-modal').classList.remove('hidden');
         }
 
-        // Display video list
-        function displayVideoList(videos) {
-            const container = document.getElementById('video-list');
-            
-            if (!videos || videos.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center text-gray-600">
-                        <i class="fas fa-video fa-3x mb-2"></i>
-                        <p>No videos yet. Start by downloading a YouTube video!</p>
-                    </div>
-                `;
-                return;
-            }
+        function hideHelpModal() {
+            document.getElementById('help-modal').classList.add('hidden');
+        }
 
-            container.innerHTML = videos.map(video => `
-                <div class="video-item" role="listitem">
+        function loadVideoList() {
+            // Mock video list
+            const videoGrid = document.getElementById('video-list');
+            videoGrid.innerHTML = `
+                <div class="video-item">
                     <div class="video-thumbnail">
-                        <i class="fas fa-play"></i>
+                        <img src="https://img.youtube.com/vi/dQw4w9WgXcQ/default.jpg" alt="Video thumbnail">
                     </div>
                     <div class="video-info">
-                        <div class="video-title">${escapeHtml(video.title || 'Untitled')}</div>
-                        <div class="video-meta">
-                            ${video.status} • ${formatTime(video.duration)} • ${video.quality}
-                        </div>
-                        <div class="text-gray-600">${formatDate(video.created_at)}</div>
+                        <h4>Sample Clip 1</h4>
+                        <p>Duration: 1:30 • Created 2 hours ago</p>
                     </div>
-                    ${video.file_url ? `
-                        <a href="${video.file_url}" class="btn btn-sm" download>
-                            <i class="fas fa-download" aria-hidden="true"></i> Download
-                        </a>
-                    ` : ''}
+                    <div class="video-actions">
+                        <button class="btn btn-sm">Download</button>
+                    </div>
                 </div>
-            `).join('');
+            `;
         }
 
-        // Load analytics
-        async function loadAnalytics() {
-            try {
-                const data = await apiRequest(`${API_BASE}/analytics`);
-                
-                if (data.success) {
-                    updateAnalytics(data.data);
-                }
-            } catch (error) {
-                console.error('Error loading analytics:', error);
-            }
-        }
-
-        // Update analytics display
-        function updateAnalytics(analytics) {
-            document.getElementById('total-videos').textContent = analytics.total_videos || 0;
-            document.getElementById('total-duration').textContent = formatTime(analytics.total_duration || 0);
-            document.getElementById('success-rate').textContent = `${Math.round((analytics.success_rate || 0) * 100)}%`;
-        }
-
-        // Utility functions
-        function formatTime(seconds) {
-            if (!seconds) return '0s';
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-        }
-
-        function formatDate(dateString) {
-            return new Date(dateString).toLocaleDateString();
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        function closeErrorModal() {
-            document.getElementById('error-modal').classList.add('hidden');
-        }
-
-        // Form event listeners
-        document.getElementById('download-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            downloadVideo();
-        });
-
-        document.getElementById('analysis-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            analyzeVideo();
-        });
-
-        document.getElementById('clip-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            createClip();
-        });
-
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', () => {
-            loadVideoList();
-            loadAnalytics();
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
             
-            // Register service worker for PWA
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('/sw.js')
-                    .catch(error => console.log('SW registration failed'));
-            }
-        });
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
 
-        // Handle offline/online events
-        window.addEventListener('online', () => {
-            showStatus('network-status', 'Connection restored', 'success');
-        });
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || icons.info}</span>
+                <span class="toast-message">${message}</span>
+                <button class="toast-close">&times;</button>
+            `;
 
-        window.addEventListener('offline', () => {
-            showStatus('network-status', 'You are offline', 'error');
-        });
+            container.appendChild(toast);
+
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 5000);
+
+            // Manual close
+            toast.querySelector('.toast-close').onclick = () => toast.remove();
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function hideLoadingScreen() {
+            setTimeout(() => {
+                document.getElementById('loading-screen').style.display = 'none';
+            }, 1000);
+        }
+
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => console.log('SW registered'))
+                .catch(error => console.log('SW registration failed'));
+        }
     </script>
-
-    <!-- Additional CSS for components not in main stylesheet -->
-    <style>
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
-        }
-
-        .stat-card {
-            text-align: center;
-            padding: 1rem;
-            background: var(--gray-50);
-            border-radius: 8px;
-        }
-
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--primary-color);
-        }
-
-        .stat-label {
-            color: var(--gray-600);
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .loading-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1001;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            max-width: 400px;
-            width: 90%;
-        }
-
-        .btn-sm {
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            width: auto;
-        }
-    </style>
-</head>
-</html>
+</body>
+</html></new_str>

@@ -1,13 +1,34 @@
-from fastapi import APIRouter
-from app.schemas import SetLanguageIn, SetLanguageOut, TranslationsOut
-from ..controllers.i18n_controller import get_translations, set_language
 
-router = APIRouter(prefix="/api/v1/i18n", tags=["I18N"])
+<old_str></old_str>
+<new_str>"""
+Internationalization Routes
+"""
 
-@router.get("/translations", response_model=TranslationsOut)
-def translations():
-    return get_translations()
+from fastapi import APIRouter, HTTPException
+import logging
+from ..schemas import TranslationOut, LanguageOut, SuccessResponse
 
-@router.post("/set-language", response_model=SetLanguageOut)
-def set_lang(data: SetLanguageIn):
-    return set_language(data)
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+@router.get("/i18n/languages", response_model=SuccessResponse)
+async def get_languages():
+    """Get available languages"""
+    languages = [
+        LanguageOut(code="en", name="English", native_name="English", is_active=True),
+        LanguageOut(code="es", name="Spanish", native_name="Español", is_active=True),
+        LanguageOut(code="fr", name="French", native_name="Français", is_active=True)
+    ]
+    return SuccessResponse(message="Languages retrieved", data=languages)
+
+@router.get("/i18n/translations/{language}", response_model=SuccessResponse)
+async def get_translations(language: str):
+    """Get translations for a language"""
+    translations = {
+        "welcome": "Welcome",
+        "login": "Login",
+        "signup": "Sign Up",
+        "process_video": "Process Video"
+    }
+    return SuccessResponse(message="Translations retrieved", data=translations)</new_str>

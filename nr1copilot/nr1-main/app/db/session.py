@@ -1,4 +1,3 @@
-
 """
 Production-grade database session management
 Handles MongoDB connections with proper error handling and connection pooling
@@ -57,56 +56,34 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Unexpected database error: {e}")
             raise
-    
+
     async def disconnect(self) -> None:
         """Close database connection"""
-        if self._client:
-            logger.info("Disconnecting from MongoDB...")
+        if self._client is not None:
             self._client.close()
             self._client = None
             self._database = None
-            logger.info("✅ Disconnected from MongoDB")
-    
-    @property
-    def database(self) -> AsyncIOMotorDatabase:
+            logger.info("📡 Disconnected from MongoDB")
+
+    def get_database(self) -> AsyncIOMotorDatabase:
         """Get database instance"""
         if self._database is None:
             raise RuntimeError("Database not connected. Call connect() first.")
         return self._database
-    
-    @property
-    def client(self) -> AsyncIOMotorClient:
-        """Get client instance"""
-        if self._client is None:
-            raise RuntimeError("Database not connected. Call connect() first.")
-        return self._client
-    
-    async def health_check(self) -> dict:
-        """Check database health"""
-        try:
-            if self._client is None:
-                return {"status": "disconnected", "error": "No client connection"}
-            
-            start_time = time.time()
-            await self._client.admin.command('ping')
-            response_time = time.time() - start_time
-            
-            return {
-                "status": "healthy",
-                "response_time_ms": round(response_time * 1000, 2),
-                "database": self._database.name if self._database else None
-            }
-        except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}
 
-# Global database manager instance
+    def get_collection(self, name: str):
+        """Get collection from database"""
+        return self.get_database()[name]
+
+# Global instance
 db_manager = DatabaseManager()
 
 async def get_database() -> AsyncIOMotorDatabase:
-    """Get database instance (dependency injection)"""
-    if db_manager._database is None:
-        await db_manager.connect()
-    return db_manager.database
+    """Dependency to get database instance"""
+    await db_manager.connect()
+    return db_manager.get_database()
+
+# Global database manager instance
 
 async def get_client() -> AsyncIOMotorClient:
     """Get client instance"""
@@ -116,3 +93,21 @@ async def get_client() -> AsyncIOMotorClient:
 
 # Import time for health check
 import time
+async def health_check(self) -> dict:
+    """Check database health"""
+    try:
+        if self._client is None:
+            return {"status": "disconnected", "error": "No client connection"}
+        
+        start_time = time.time()
+        await self._client.admin.command('ping')
+        response_time = time.time() - start_time
+        
+        return {
+            "status": "healthy",
+            "response_time_ms": round(response_time * 1000, 2),
+            "database": self._database.name if self._database else None
+        }
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
+DatabaseManager.health_check = health_check

@@ -1,91 +1,81 @@
-"""
-Production-grade configuration management with comprehensive settings
+
+<old_str></old_str>
+<new_str>"""
+Application Configuration
+Handles all environment variables and settings with proper validation
 """
 
 import os
-from functools import lru_cache
-from typing import List, Optional
-from pydantic import Field
+from typing import List
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 class Settings(BaseSettings):
-    """Application settings with validation and environment variable support"""
-
+    """Application settings with environment variable support"""
+    
     # Application
     app_name: str = "Viral Clip Generator API"
     version: str = "2.0.0"
-    environment: str = Field(default="production", env="ENVIRONMENT")
-    debug: bool = Field(default=False, env="DEBUG")
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-
+    debug: bool = Field(default=False, alias="DEBUG")
+    environment: str = Field(default="development", alias="ENVIRONMENT")
+    
     # Server
-    host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=5000, env="PORT")
-    workers: int = Field(default=1, env="WORKERS")
-
+    host: str = Field(default="0.0.0.0", alias="HOST")
+    port: int = Field(default=5000, alias="PORT")
+    
     # Security
-    secret_key: str = Field(env="SECRET_KEY", default="your-secret-key-change-in-production")
-    jwt_secret: str = Field(env="JWT_SECRET", default="your-jwt-secret-change-in-production")
-    jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
-
+    secret_key: str = Field(default="dev-secret-key-change-in-production", alias="SECRET_KEY")
+    jwt_secret: str = Field(default="jwt-secret-key-change-in-production", alias="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    
     # Database
-    mongodb_uri: str = Field(env="MONGODB_URI", default="mongodb://localhost:27017/viral_clips")
-    database_name: str = Field(env="DATABASE_NAME", default="viral_clips")
-
+    mongodb_uri: str = Field(default="mongodb://localhost:27017", alias="MONGODB_URI")
+    database_name: str = Field(default="viral_clips", alias="DATABASE_NAME")
+    
     # Redis
-    redis_url: str = Field(env="REDIS_URL", default="redis://localhost:6379/0")
-
-    # File Storage
-    upload_path: str = "uploads"
-    video_path: str = "videos"
-    max_file_size: int = 500 * 1024 * 1024  # 500MB
-    allowed_video_types: List[str] = ["mp4", "avi", "mov", "mkv", "webm"]
-
-    # AWS S3 (Optional)
-    aws_access_key_id: Optional[str] = Field(env="AWS_ACCESS_KEY_ID", default=None)
-    aws_secret_access_key: Optional[str] = Field(env="AWS_SECRET_ACCESS_KEY", default=None)
-    aws_region: str = Field(env="AWS_REGION", default="us-east-1")
-    s3_bucket: Optional[str] = Field(env="S3_BUCKET", default=None)
-
-    # Video Processing
-    max_video_duration: int = 3600  # 1 hour
-    output_formats: List[str] = ["mp4", "webm"]
-    video_quality: str = "720p"
-
-    # Rate Limiting
-    rate_limit_per_minute: int = 60
-    rate_limit_burst: int = 100
-
+    redis_url: str = Field(default="redis://localhost:6379", alias="REDIS_URL")
+    
+    # Storage
+    video_storage_path: str = Field(default="./videos", alias="VIDEO_STORAGE_PATH")
+    upload_path: str = Field(default="./uploads", alias="UPLOAD_PATH")
+    
+    # External APIs
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    aws_access_key_id: str = Field(default="", alias="AWS_ACCESS_KEY_ID")
+    aws_secret_access_key: str = Field(default="", alias="AWS_SECRET_ACCESS_KEY")
+    aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
+    s3_bucket: str = Field(default="", alias="S3_BUCKET")
+    
     # CORS
     cors_origins: List[str] = Field(
-        default=["*"],
-        env="CORS_ORIGINS"
+        default=["*"], 
+        alias="CORS_ORIGINS"
     )
-
-    # Trusted Hosts
+    
+    # Security
     allowed_hosts: List[str] = Field(
-        default=["*"],
-        env="ALLOWED_HOSTS"
+        default=["*"], 
+        alias="ALLOWED_HOSTS"
     )
-
-    # API Keys
-    youtube_api_key: Optional[str] = Field(env="YOUTUBE_API_KEY", default=None)
-    openai_api_key: Optional[str] = Field(env="OPENAI_API_KEY", default=None)
-
-    # Monitoring
-    sentry_dsn: Optional[str] = Field(env="SENTRY_DSN", default=None)
-    enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
-
+    
+    # Rate limiting
+    rate_limit_per_minute: int = Field(default=60, alias="RATE_LIMIT_PER_MINUTE")
+    
+    # Video processing
+    max_video_duration: int = Field(default=300, alias="MAX_VIDEO_DURATION")  # 5 minutes
+    max_file_size: int = Field(default=100 * 1024 * 1024, alias="MAX_FILE_SIZE")  # 100MB
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
-        extra = "ignore"
-
-@lru_cache()
-def get_settings() -> Settings:
-    """Get cached application settings"""
-    return Settings()
 
 # Global settings instance
-settings = get_settings()
+_settings = None
+
+def get_settings() -> Settings:
+    """Get application settings (singleton pattern)"""
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings</new_str>

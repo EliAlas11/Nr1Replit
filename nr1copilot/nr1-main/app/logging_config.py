@@ -78,4 +78,4 @@ def setup_logging():
     logging.getLogger("app.performance").setLevel(logging.INFO)
     
     # Setup security logging
-    logging.getLogger("app.security").setLevel(logging.WARNING)d")
+    logging.getLogger("app.security").setLevel(logging.WARNING)
