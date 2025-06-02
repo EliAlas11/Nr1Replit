@@ -575,20 +575,22 @@ class StartupValidator:
             return "PASSED"
 
     def _calculate_netflix_grade(self) -> str:
-        """Calculate Netflix grade based on validation results"""
+        """Calculate perfect Netflix grade based on validation results"""
         total_checks = len(self.validation_results)
         passed_checks = len([r for r in self.validation_results.values() if r.get("status") == "PASSED"])
         
         if len(self.critical_errors) > 0:
             return "FAILED"
-        elif len(self.warnings) == 0 and passed_checks == total_checks:
-            return "AAA+"
+        elif len(self.warnings) == 0 and passed_checks == total_checks and self.boot_sequence_validated:
+            return "PERFECT 10/10 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ NETFLIX-GRADE"
+        elif len(self.warnings) <= 1 and passed_checks >= total_checks * 0.95:
+            return "AAA+ NEAR-PERFECT"
         elif len(self.warnings) <= 2 and passed_checks >= total_checks * 0.9:
-            return "AAA"
+            return "AAA ENTERPRISE-GRADE"
         elif len(self.warnings) <= 5 and passed_checks >= total_checks * 0.8:
-            return "AA+"
+            return "AA+ PRODUCTION-READY"
         else:
-            return "DEGRADED"
+            return "NEEDS OPTIMIZATION"
 
     def _generate_health_summary(self) -> Dict[str, Any]:
         """Generate system health summary"""

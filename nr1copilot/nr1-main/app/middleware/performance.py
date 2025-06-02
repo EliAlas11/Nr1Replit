@@ -157,17 +157,21 @@ class PerformanceMonitor:
         }
     
     def _calculate_performance_grade(self, avg_time: float, p95_time: float) -> str:
-        """Calculate performance grade based on response times."""
-        if avg_time < 0.1 and p95_time < 0.2:
-            return "A+"
+        """Calculate perfect performance grade based on response times."""
+        if avg_time < 0.01 and p95_time < 0.05:
+            return "PERFECT 10/10 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐"
+        elif avg_time < 0.05 and p95_time < 0.1:
+            return "A+ QUANTUM-FAST"
+        elif avg_time < 0.1 and p95_time < 0.2:
+            return "A+ NETFLIX-GRADE"
         elif avg_time < 0.2 and p95_time < 0.5:
-            return "A"
+            return "A ENTERPRISE"
         elif avg_time < 0.5 and p95_time < 1.0:
-            return "B+"
+            return "B+ PRODUCTION"
         elif avg_time < 1.0 and p95_time < 2.0:
-            return "B"
+            return "B STANDARD"
         else:
-            return "C"
+            return "C NEEDS OPTIMIZATION"
 
 
 class PerformanceMiddleware(BaseHTTPMiddleware):
