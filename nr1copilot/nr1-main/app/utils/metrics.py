@@ -662,3 +662,9 @@ metrics_collector = NetflixLevelMetricsCollector(
     retention_hours=24,
     max_points_per_metric=50000
 )
+
+# Backward compatibility alias
+MetricsCollector = NetflixLevelMetricsCollector
+
+# Make instance accessible via multiple names
+default_metrics_collector = metrics_collector

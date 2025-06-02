@@ -1,4 +1,3 @@
-
 """
 Netflix-Grade Utility Package
 Core utilities for performance, monitoring, and optimization
@@ -29,11 +28,15 @@ except Exception as e:
     health_available = False
 
 try:
-    from .metrics import MetricsCollector
+    from .metrics import metrics_collector, NetflixLevelMetricsCollector
+    # Create proper alias for backward compatibility
+    MetricsCollector = NetflixLevelMetricsCollector
     metrics_available = True
-except Exception as e:
+    logger.info("✅ Netflix-Level MetricsCollector imported successfully")
+except ImportError as e:
     logger.warning(f"Metrics collector import failed: {e}")
     MetricsCollector = None
+    metrics_collector = None
     metrics_available = False
 
 try:
@@ -92,10 +95,10 @@ async def initialize_async_components():
         if cache and hasattr(cache, 'initialize'):
             await cache.initialize()
             logger.info("✅ Cache async components initialized")
-        
+
         # Initialize other async components as needed
         logger.info("✅ All utility async components initialized")
-        
+
     except Exception as e:
         logger.error(f"Async component initialization failed: {e}")
         raise

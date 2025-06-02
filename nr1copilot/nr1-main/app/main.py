@@ -49,23 +49,23 @@ class ApplicationState:
         self.total_requests = 0
         self.error_count = 0
         self._initialized = False
-        
+
         # Initialize components as None - will be properly initialized in async context
         self.metrics = None
         self.performance = None
         self.health_monitor = None
-        
+
         logger.info("🚀 ApplicationState created (async initialization pending)")
 
     async def initialize(self):
         """Initialize async components when event loop is available"""
         if self._initialized:
             return
-            
+
         try:
             # Initialize components safely in async context
             logger.info("🔄 Initializing ApplicationState components...")
-            
+
             # Initialize MetricsCollector
             try:
                 self.metrics = MetricsCollector()
@@ -75,7 +75,7 @@ class ApplicationState:
             except Exception as e:
                 logger.error(f"MetricsCollector initialization failed: {e}")
                 self.metrics = None
-            
+
             # Initialize PerformanceMonitor
             try:
                 self.performance = PerformanceMonitor()
@@ -85,7 +85,7 @@ class ApplicationState:
             except Exception as e:
                 logger.error(f"PerformanceMonitor initialization failed: {e}")
                 self.performance = None
-            
+
             # Initialize HealthMonitor
             try:
                 self.health_monitor = HealthMonitor()
@@ -95,10 +95,10 @@ class ApplicationState:
             except Exception as e:
                 logger.error(f"HealthMonitor initialization failed: {e}")
                 self.health_monitor = None
-            
+
             self._initialized = True
             logger.info("🚀 ApplicationState async initialization completed")
-            
+
         except Exception as e:
             logger.error(f"ApplicationState async initialization failed: {e}")
             # Continue with degraded functionality instead of raising
@@ -133,6 +133,22 @@ class NetflixGradeServiceManager:
         self._startup_time: Optional[float] = None
         self.service_health: Dict[str, str] = {}
 
+    def _safe_metrics_timing(self, name: str, value: float):
+        """Safely record timing metric"""
+        try:
+            if app_state.metrics and hasattr(app_state.metrics, 'timing'):
+                app_state.metrics.timing(name, value)
+        except Exception as e:
+            logger.debug(f"Metrics timing failed for {name}: {e}")
+
+    def _safe_metrics_increment(self, name: str, value: float = 1.0):
+        """Safely increment metric"""
+        try:
+            if app_state.metrics and hasattr(app_state.metrics, 'increment'):
+                app_state.metrics.increment(name, value)
+        except Exception as e:
+            logger.debug(f"Metrics increment failed for {name}: {e}")
+
     async def initialize_core_services(self):
         """Initialize Netflix-grade services with monitoring"""
         if self.initialized:
@@ -144,21 +160,21 @@ class NetflixGradeServiceManager:
         try:
             # Core services - components should already be initialized in app_state
             self.services = {}
-            
+
             if app_state.health_monitor:
                 self.services['health_monitor'] = {
                     'instance': app_state.health_monitor,
                     'status': 'healthy',
                     'initialized_at': time.time()
                 }
-            
+
             if app_state.metrics:
                 self.services['metrics_collector'] = {
                     'instance': app_state.metrics,
                     'status': 'healthy',
                     'initialized_at': time.time()
                 }
-            
+
             if app_state.performance:
                 self.services['performance_monitor'] = {
                     'instance': app_state.performance,
@@ -174,14 +190,14 @@ class NetflixGradeServiceManager:
             self._startup_time = time.time() - start_time
 
             # Record startup metrics
-            app_state.metrics.timing('startup.duration', self._startup_time)
-            app_state.metrics.increment('startup.success')
+            self._safe_metrics_timing('startup.duration', self._startup_time)
+            self._safe_metrics_increment('startup.success')
 
             logger.info(f"✅ Netflix-grade services initialized in {self._startup_time:.3f}s")
 
         except Exception as e:
             logger.error(f"Service initialization error: {e}")
-            app_state.metrics.increment('startup.error')
+            self._safe_metrics_increment('startup.error')
 
             # Graceful degradation
             self.services = {
@@ -282,7 +298,7 @@ async def lifespan(app: FastAPI):
             from .startup_validator import StartupValidator
             validator = StartupValidator()
             validation_result = await validator.perform_complete_validation()
-            
+
             if validation_result["validation_status"] != "PASSED":
                 logger.warning(f"Startup validation: {validation_result['validation_status']}")
                 if validation_result.get("critical_errors"):
@@ -294,11 +310,35 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error(f"Startup failed: {e}")
-        app_state.update_health("degraded")
-        app_state.metrics.increment('application.startup_error')
 
-        # Continue with degraded functionality
-        yield
+        # Record startup failure (safely)
+        try:
+            if app_state.metrics and hasattr(app_state.metrics, 'increment'):
+                app_state.metrics.increment('application.startup_error')
+        except Exception:
+            pass  # Ignore metrics errors during startup failure
+
+        # Ensure proper cleanup on startup failure
+        try:
+            logger.info("🔄 Initiating Netflix-grade graceful shutdown")
+
+            # Stop performance monitoring if it was started
+            if app_state.performance_monitor:
+                app_state.performance_monitor.stop_monitoring()
+
+            # Shutdown cache if it was started
+            if app_state.cache:
+                await app_state.cache.shutdown()
+
+            # Shutdown services
+            await service_manager.shutdown_services()
+
+            logger.info("✅ Netflix-grade shutdown completed")
+
+        except Exception as shutdown_error:
+            logger.error(f"Shutdown error during startup failure: {shutdown_error}")
+
+        raise
 
     finally:
         logger.info("🔄 Initiating Netflix-grade graceful shutdown")
@@ -380,7 +420,7 @@ async def request_monitoring_middleware(request: Request, call_next):
             app_state.performance.record_request_start()
         except Exception as e:
             logger.debug(f"Performance request start recording failed: {e}")
-            
+
     if app_state.metrics and hasattr(app_state.metrics, 'increment'):
         try:
             app_state.metrics.increment('requests.total', 1.0, {
@@ -397,7 +437,7 @@ async def request_monitoring_middleware(request: Request, call_next):
 
         # Record success metrics safely
         duration = time.time() - start_time
-        
+
         if app_state.metrics:
             try:
                 app_state.metrics.timing('requests.duration', duration, {
@@ -447,7 +487,7 @@ async def root():
                 uptime = timedelta(seconds=time.time() - (app_state.startup_time.timestamp() if app_state.startup_time else time.time()))
         else:
             uptime = timedelta(seconds=60)  # Default uptime
-            
+
         # Check if critical components are missing
         missing_components = []
         if not app_state.metrics:
@@ -456,7 +496,7 @@ async def root():
             missing_components.append("performance")
         if not app_state.health_monitor:
             missing_components.append("health_monitor")
-            
+
         if missing_components:
             health_status = "degraded"
         else:
@@ -588,7 +628,7 @@ async def get_performance():
                 "message": "Performance monitor not initialized",
                 "timestamp": datetime.utcnow().isoformat()
             }, status_code=503)
-            
+
         performance_data = app_state.performance.get_performance_summary()
         historical_data = app_state.performance.get_historical_data(hours=1)
 
@@ -615,13 +655,13 @@ async def get_cache_stats():
     try:
         cache_stats = cache.get_stats()
         app_state.metrics.increment('cache.stats_query')
-        
+
         return JSONResponse({
             "cache_statistics": cache_stats,
             "timestamp": datetime.utcnow().isoformat(),
             "netflix_tier": "Enterprise AAA+"
         })
-        
+
     except Exception as e:
         logger.error(f"Cache stats query failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -632,13 +672,13 @@ async def clear_cache():
     try:
         await cache.clear()
         app_state.metrics.increment('cache.cleared')
-        
+
         return JSONResponse({
             "success": True,
             "message": "Cache cleared successfully",
             "timestamp": datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Cache clear failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -648,13 +688,13 @@ async def get_system_diagnostics():
     """Netflix-grade system diagnostics endpoint"""
     try:
         diagnostics = await health_monitor.get_detailed_diagnostics()
-        
+
         return JSONResponse({
             "diagnostics": diagnostics,
             "netflix_tier": "Enterprise AAA+",
             "timestamp": datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"System diagnostics failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
