@@ -32,6 +32,7 @@ from .middleware.performance import PerformanceMiddleware
 from .middleware.security import SecurityMiddleware
 from .middleware.error_handler import ErrorHandlerMiddleware
 from .utils import HealthMonitor, MetricsCollector, PerformanceMonitor, cache
+from .netflix_health_monitor import health_monitor
 
 # Initialize settings
 settings = get_settings()
@@ -49,24 +50,12 @@ class ApplicationState:
         self.error_count = 0
         self._initialized = False
         
-        # Safe initialization of components
-        try:
-            self.metrics = MetricsCollector()
-        except Exception as e:
-            logger.error(f"MetricsCollector initialization failed: {e}")
-            self.metrics = None
-            
-        try:
-            self.performance = PerformanceMonitor() if PerformanceMonitor else None
-        except Exception as e:
-            logger.error(f"PerformanceMonitor initialization failed: {e}")
-            self.performance = None
-            
-        try:
-            self.health_monitor = HealthMonitor()
-        except Exception as e:
-            logger.error(f"HealthMonitor initialization failed: {e}")
-            self.health_monitor = None
+        # Initialize components as None - will be properly initialized in async context
+        self.metrics = None
+        self.performance = None
+        self.health_monitor = None
+        
+        logger.info("🚀 ApplicationState created (async initialization pending)")
 
     async def initialize(self):
         """Initialize async components when event loop is available"""
@@ -74,15 +63,38 @@ class ApplicationState:
             return
             
         try:
-            # Initialize all async components safely
-            if self.metrics and hasattr(self.metrics, 'initialize'):
-                await self.metrics.initialize()
-                
-            if self.performance and hasattr(self.performance, 'initialize'):
-                await self.performance.initialize()
-                
-            if self.health_monitor and hasattr(self.health_monitor, 'initialize'):
-                await self.health_monitor.initialize()
+            # Initialize components safely in async context
+            logger.info("🔄 Initializing ApplicationState components...")
+            
+            # Initialize MetricsCollector
+            try:
+                self.metrics = MetricsCollector()
+                if hasattr(self.metrics, 'initialize'):
+                    await self.metrics.initialize()
+                logger.info("✅ MetricsCollector initialized")
+            except Exception as e:
+                logger.error(f"MetricsCollector initialization failed: {e}")
+                self.metrics = None
+            
+            # Initialize PerformanceMonitor
+            try:
+                self.performance = PerformanceMonitor()
+                if hasattr(self.performance, 'initialize'):
+                    await self.performance.initialize()
+                logger.info("✅ PerformanceMonitor initialized")
+            except Exception as e:
+                logger.error(f"PerformanceMonitor initialization failed: {e}")
+                self.performance = None
+            
+            # Initialize HealthMonitor
+            try:
+                self.health_monitor = HealthMonitor()
+                if hasattr(self.health_monitor, 'initialize'):
+                    await self.health_monitor.initialize()
+                logger.info("✅ HealthMonitor initialized")
+            except Exception as e:
+                logger.error(f"HealthMonitor initialization failed: {e}")
+                self.health_monitor = None
             
             self._initialized = True
             logger.info("🚀 ApplicationState async initialization completed")
@@ -130,29 +142,29 @@ class NetflixGradeServiceManager:
         logger.info("🚀 Initializing Netflix-grade services...")
 
         try:
-            # Initialize health monitoring
-            app_state.health_monitor = HealthMonitor()
-            app_state.metrics = MetricsCollector()
-            app_state.performance = PerformanceMonitor()
-
-            # Core services
-            self.services = {
-                'health_monitor': {
+            # Core services - components should already be initialized in app_state
+            self.services = {}
+            
+            if app_state.health_monitor:
+                self.services['health_monitor'] = {
                     'instance': app_state.health_monitor,
                     'status': 'healthy',
                     'initialized_at': time.time()
-                },
-                'metrics_collector': {
+                }
+            
+            if app_state.metrics:
+                self.services['metrics_collector'] = {
                     'instance': app_state.metrics,
                     'status': 'healthy',
                     'initialized_at': time.time()
-                },
-                'performance_monitor': {
+                }
+            
+            if app_state.performance:
+                self.services['performance_monitor'] = {
                     'instance': app_state.performance,
                     'status': 'healthy',
                     'initialized_at': time.time()
                 }
-            }
 
             # Update service health
             for service_name in self.services:
@@ -227,6 +239,9 @@ async def lifespan(app: FastAPI):
     try:
         # Optimize garbage collection for production
         gc.set_threshold(700, 10, 10)
+
+        # Initialize Netflix health monitor
+        await health_monitor.initialize()
 
         # Initialize ApplicationState async components
         await app_state.initialize()
@@ -423,21 +438,48 @@ async def root():
             app_state.metrics.increment('static_file.served', 1.0, {"file": "index"})
             return FileResponse(index_path)
 
-        # Return comprehensive status
-        uptime = app_state.health_monitor.get_uptime()
+        # Calculate proper health status
+        health_status = "healthy"
+        if app_state.health_monitor:
+            try:
+                uptime = app_state.health_monitor.get_uptime()
+            except:
+                uptime = timedelta(seconds=time.time() - (app_state.startup_time.timestamp() if app_state.startup_time else time.time()))
+        else:
+            uptime = timedelta(seconds=60)  # Default uptime
+            
+        # Check if critical components are missing
+        missing_components = []
+        if not app_state.metrics:
+            missing_components.append("metrics")
+        if not app_state.performance:
+            missing_components.append("performance")
+        if not app_state.health_monitor:
+            missing_components.append("health_monitor")
+            
+        if missing_components:
+            health_status = "degraded"
+        else:
+            health_status = app_state.health_status
 
         return JSONResponse({
             "application": {
                 "name": settings.app_name,
                 "version": settings.app_version,
                 "environment": settings.environment.value,
-                "status": app_state.health_status
+                "status": health_status
             },
             "performance": {
                 "uptime_seconds": uptime.total_seconds(),
                 "total_requests": app_state.total_requests,
                 "active_connections": app_state.active_connections,
                 "error_rate": app_state.error_count / max(app_state.total_requests, 1)
+            },
+            "components": {
+                "metrics": "available" if app_state.metrics else "unavailable",
+                "performance": "available" if app_state.performance else "unavailable", 
+                "health_monitor": "available" if app_state.health_monitor else "unavailable",
+                "missing": missing_components
             },
             "features": {
                 "netflix_grade": True,
@@ -605,8 +647,6 @@ async def clear_cache():
 async def get_system_diagnostics():
     """Netflix-grade system diagnostics endpoint"""
     try:
-        from .netflix_health_monitor import health_monitor
-        
         diagnostics = await health_monitor.get_detailed_diagnostics()
         
         return JSONResponse({

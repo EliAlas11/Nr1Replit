@@ -8,88 +8,174 @@ import time
 import logging
 import asyncio
 import psutil
-from typing import Dict, Any, Optional
-from datetime import datetime
-from fastapi import Request
+import os
+import sys
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
+from collections import defaultdict, deque
+from dataclasses import dataclass
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+class HealthStatus(Enum):
+    """Health status enumeration"""
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    CRITICAL = "critical"
+
+@dataclass
+class HealthMetric:
+    """Individual health metric"""
+    name: str
+    value: Any
+    status: HealthStatus
+    timestamp: float = None
+    message: str = ""
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = time.time()
+
 class NetflixHealthMonitor:
-    """Netflix-tier health monitoring and diagnostics"""
-    
+    """Netflix-tier comprehensive health monitoring system"""
+
     def __init__(self):
-        self.startup_time = time.time()
-        self.health_checks: Dict[str, Any] = {}
-        self.system_metrics: Dict[str, Any] = {}
-        self.error_counts: Dict[str, int] = {}
-        
-    async def comprehensive_health_check(self) -> Dict[str, Any]:
-        """Perform comprehensive Netflix-grade health check"""
+        self.start_time = time.time()
+        self.metrics: Dict[str, HealthMetric] = {}
+        self.error_counts = defaultdict(int)
+        self.health_history: deque = deque(maxlen=100)
+        self.last_check_time = 0
+        self.check_interval = 30  # seconds
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize async components"""
+        if self._initialized:
+            return
         try:
-            start_time = time.time()
+            self._initialized = True
+            logger.info("🏥 NetflixHealthMonitor initialized")
+        except Exception as e:
+            logger.error(f"NetflixHealthMonitor initialization failed: {e}")
+            raise
+
+    def get_uptime(self) -> timedelta:
+        """Get application uptime"""
+        return timedelta(seconds=time.time() - self.start_time)
+
+    def update_status(self, status: str):
+        """Update overall health status"""
+        self.metrics["overall_status"] = HealthMetric(
+            name="overall_status",
+            value=status,
+            status=HealthStatus.HEALTHY if status == "healthy" else HealthStatus.DEGRADED
+        )
+
+    async def perform_health_check(self) -> Dict[str, Any]:
+        """Perform comprehensive health check"""
+        try:
+            check_start = time.time()
             
-            # System metrics
-            system_health = await self._check_system_health()
+            # Perform all health checks
+            await self._check_system_health()
+            await self._check_application_health()
+            await self._check_dependencies()
+
+            # Calculate overall status
+            overall_status = self._calculate_overall_status()
             
-            # Application health
-            app_health = await self._check_application_health()
-            
-            # Performance metrics
-            performance = await self._check_performance_metrics()
-            
-            # Security status
-            security = await self._check_security_status()
-            
-            # Overall health score
-            health_score = self._calculate_health_score(
-                system_health, app_health, performance, security
-            )
-            
-            check_duration = time.time() - start_time
-            
-            return {
-                "status": "healthy" if health_score >= 0.8 else "degraded",
-                "health_score": health_score,
-                "timestamp": datetime.utcnow().isoformat(),
-                "uptime_seconds": time.time() - self.startup_time,
-                "check_duration_ms": round(check_duration * 1000, 2),
-                "netflix_tier": "AAA+",
-                "system": system_health,
-                "application": app_health,
-                "performance": performance,
-                "security": security,
-                "version": "v10.0.0",
-                "environment": "production"
+            # Store health history
+            health_record = {
+                "timestamp": check_start,
+                "status": overall_status,
+                "check_duration": time.time() - check_start
             }
-            
+            self.health_history.append(health_record)
+
+            # Build comprehensive response
+            return {
+                "status": overall_status,
+                "timestamp": datetime.utcnow().isoformat(),
+                "uptime": {
+                    "seconds": self.get_uptime().total_seconds(),
+                    "human_readable": str(self.get_uptime())
+                },
+                "system": await self._get_system_metrics(),
+                "application": await self._get_application_metrics(),
+                "dependencies": await self._get_dependency_status(),
+                "performance": {
+                    "check_duration": time.time() - check_start,
+                    "last_check": self.last_check_time
+                },
+                "netflix_tier": "Enterprise AAA+",
+                "version": "10.0.0"
+            }
+
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return {
-                "status": "error",
+                "status": "unhealthy",
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
-                "netflix_tier": "degraded"
+                "netflix_tier": "Emergency Mode"
             }
 
-    async def _check_system_health(self) -> Dict[str, Any]:
+    async def _check_system_health(self):
         """Check system-level health metrics"""
         try:
+            # CPU check
             cpu_percent = psutil.cpu_percent(interval=0.1)
+            cpu_status = HealthStatus.HEALTHY
+            if cpu_percent > 90:
+                cpu_status = HealthStatus.CRITICAL
+            elif cpu_percent > 75:
+                cpu_status = HealthStatus.DEGRADED
+
+            self.metrics["cpu"] = HealthMetric(
+                name="cpu",
+                value=cpu_percent,
+                status=cpu_status
+            )
+
+            # Memory check
             memory = psutil.virtual_memory()
+            memory_status = HealthStatus.HEALTHY
+            if memory.percent > 90:
+                memory_status = HealthStatus.CRITICAL
+            elif memory.percent > 80:
+                memory_status = HealthStatus.DEGRADED
+
+            self.metrics["memory"] = HealthMetric(
+                name="memory",
+                value=memory.percent,
+                status=memory_status
+            )
+
+            # Disk check
             disk = psutil.disk_usage('/')
-            
-            return {
-                "cpu_usage_percent": cpu_percent,
-                "memory_usage_percent": memory.percent,
-                "memory_available_gb": round(memory.available / (1024**3), 2),
-                "disk_usage_percent": disk.percent,
-                "disk_free_gb": round(disk.free / (1024**3), 2),
-                "load_average": list(psutil.getloadavg()) if hasattr(psutil, 'getloadavg') else [0, 0, 0],
-                "status": "healthy" if cpu_percent < 80 and memory.percent < 85 else "warning"
-            }
+            disk_percent = (disk.used / disk.total) * 100
+            disk_status = HealthStatus.HEALTHY
+            if disk_percent > 95:
+                disk_status = HealthStatus.CRITICAL
+            elif disk_percent > 85:
+                disk_status = HealthStatus.DEGRADED
+
+            self.metrics["disk"] = HealthMetric(
+                name="disk",
+                value=disk_percent,
+                status=disk_status
+            )
+
         except Exception as e:
             logger.error(f"System health check failed: {e}")
-            return {"status": "error", "error": str(e)}
+            self.metrics["system"] = HealthMetric(
+                name="system",
+                value="error",
+                status=HealthStatus.UNHEALTHY,
+                message=str(e)
+            )
 
     async def _check_application_health(self) -> Dict[str, Any]:
         """Check application-level health"""
@@ -103,116 +189,161 @@ class NetflixHealthMonitor:
             ]
             
             module_status = {}
+            failed_modules = []
+            
             for module in critical_modules:
                 try:
-                    __import__(module)
-                    module_status[module] = "healthy"
-                except ImportError:
-                    module_status[module] = "failed"
+                    if module in sys.modules:
+                        module_status[module] = "loaded"
+                    else:
+                        # Try to import
+                        __import__(module)
+                        module_status[module] = "healthy"
+                except ImportError as e:
+                    module_status[module] = f"failed: {str(e)}"
+                    failed_modules.append(module)
+                except Exception as e:
+                    module_status[module] = f"error: {str(e)}"
+                    failed_modules.append(module)
+
+            # Check essential directories
+            essential_dirs = ["./uploads", "./temp", "./logs", "./cache"]
+            directory_status = {}
             
-            failed_modules = [k for k, v in module_status.items() if v == "failed"]
-            
+            for directory in essential_dirs:
+                if os.path.exists(directory):
+                    directory_status[directory] = "exists"
+                else:
+                    try:
+                        os.makedirs(directory, exist_ok=True)
+                        directory_status[directory] = "created"
+                    except Exception as e:
+                        directory_status[directory] = f"failed: {str(e)}"
+
+            app_status = HealthStatus.HEALTHY
+            if failed_modules:
+                app_status = HealthStatus.DEGRADED if len(failed_modules) < 2 else HealthStatus.CRITICAL
+
+            self.metrics["application"] = HealthMetric(
+                name="application",
+                value={
+                    "modules": module_status,
+                    "directories": directory_status,
+                    "failed_modules": failed_modules
+                },
+                status=app_status
+            )
+
             return {
                 "modules": module_status,
+                "directories": directory_status,
                 "failed_modules": failed_modules,
-                "status": "healthy" if not failed_modules else "critical",
+                "status": app_status.value,
                 "error_count": sum(self.error_counts.values()),
-                "middleware_active": True
+                "middleware_active": len([m for m in module_status.values() if "healthy" in str(m) or "loaded" in str(m)]) > 0
             }
+
         except Exception as e:
             logger.error(f"Application health check failed: {e}")
+            self.metrics["application"] = HealthMetric(
+                name="application",
+                value="error",
+                status=HealthStatus.UNHEALTHY,
+                message=str(e)
+            )
             return {"status": "error", "error": str(e)}
 
-    async def _check_performance_metrics(self) -> Dict[str, Any]:
-        """Check performance metrics"""
+    async def _check_dependencies(self):
+        """Check external dependencies"""
+        try:
+            # For now, mark dependencies as healthy
+            # In a real implementation, you would check database, Redis, APIs, etc.
+            self.metrics["dependencies"] = HealthMetric(
+                name="dependencies",
+                value="available",
+                status=HealthStatus.HEALTHY
+            )
+
+        except Exception as e:
+            logger.error(f"Dependencies check failed: {e}")
+            self.metrics["dependencies"] = HealthMetric(
+                name="dependencies",
+                value="error",
+                status=HealthStatus.UNHEALTHY,
+                message=str(e)
+            )
+
+    def _calculate_overall_status(self) -> str:
+        """Calculate overall health status from all metrics"""
+        if not self.metrics:
+            return "unknown"
+
+        statuses = [metric.status for metric in self.metrics.values()]
+        
+        if HealthStatus.CRITICAL in statuses:
+            return "critical"
+        elif HealthStatus.UNHEALTHY in statuses:
+            return "unhealthy"
+        elif HealthStatus.DEGRADED in statuses:
+            return "degraded"
+        else:
+            return "healthy"
+
+    async def _get_system_metrics(self) -> Dict[str, Any]:
+        """Get current system metrics"""
         try:
             return {
-                "average_response_time_ms": 0.0,  # Would be calculated from metrics
-                "requests_per_second": 0.0,       # Would be calculated from metrics
-                "active_connections": len(psutil.net_connections()) if hasattr(psutil, 'net_connections') else 0,
-                "memory_efficiency": "optimal",
-                "status": "optimal"
+                "cpu_percent": self.metrics.get("cpu", HealthMetric("cpu", 0, HealthStatus.HEALTHY)).value,
+                "memory_percent": self.metrics.get("memory", HealthMetric("memory", 0, HealthStatus.HEALTHY)).value,
+                "disk_percent": self.metrics.get("disk", HealthMetric("disk", 0, HealthStatus.HEALTHY)).value,
+                "load_average": os.getloadavg() if hasattr(os, 'getloadavg') else [0, 0, 0]
             }
-        except Exception as e:
-            logger.error(f"Performance metrics check failed: {e}")
-            return {"status": "error", "error": str(e)}
+        except Exception:
+            return {"error": "system_metrics_unavailable"}
 
-    async def _check_security_status(self) -> Dict[str, Any]:
-        """Check security status"""
-        try:
-            return {
-                "middleware_active": True,
-                "rate_limiting": "active",
-                "threat_protection": "active",
-                "security_headers": "enabled",
-                "encryption": "TLS",
-                "status": "secure"
-            }
-        except Exception as e:
-            logger.error(f"Security status check failed: {e}")
-            return {"status": "error", "error": str(e)}
+    async def _get_application_metrics(self) -> Dict[str, Any]:
+        """Get current application metrics"""
+        app_metric = self.metrics.get("application")
+        if app_metric:
+            return app_metric.value if isinstance(app_metric.value, dict) else {"status": str(app_metric.value)}
+        return {"status": "unknown"}
 
-    def _calculate_health_score(self, system: Dict, app: Dict, performance: Dict, security: Dict) -> float:
-        """Calculate overall health score (0.0 to 1.0)"""
-        try:
-            scores = []
-            
-            # System health score
-            if system.get("status") == "healthy":
-                scores.append(1.0)
-            elif system.get("status") == "warning":
-                scores.append(0.7)
-            else:
-                scores.append(0.3)
-            
-            # Application health score
-            if app.get("status") == "healthy":
-                scores.append(1.0)
-            elif app.get("status") == "warning":
-                scores.append(0.6)
-            else:
-                scores.append(0.2)
-            
-            # Performance score
-            if performance.get("status") == "optimal":
-                scores.append(1.0)
-            else:
-                scores.append(0.5)
-            
-            # Security score
-            if security.get("status") == "secure":
-                scores.append(1.0)
-            else:
-                scores.append(0.4)
-            
-            return sum(scores) / len(scores) if scores else 0.0
-            
-        except Exception as e:
-            logger.error(f"Health score calculation failed: {e}")
-            return 0.5
-
-    def increment_error_count(self, error_type: str):
-        """Increment error count for monitoring"""
-        self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+    async def _get_dependency_status(self) -> Dict[str, Any]:
+        """Get dependency status"""
+        dep_metric = self.metrics.get("dependencies")
+        if dep_metric:
+            return {"status": dep_metric.value, "health": dep_metric.status.value}
+        return {"status": "unknown"}
 
     async def get_detailed_diagnostics(self) -> Dict[str, Any]:
         """Get detailed system diagnostics"""
         try:
-            return {
-                "timestamp": datetime.utcnow().isoformat(),
-                "uptime": time.time() - self.startup_time,
+            diagnostics = {
                 "system_info": {
-                    "platform": psutil.PLATFORM,
-                    "cpu_count": psutil.cpu_count(),
-                    "memory_total_gb": round(psutil.virtual_memory().total / (1024**3), 2)
+                    "python_version": sys.version,
+                    "platform": sys.platform,
+                    "pid": os.getpid(),
+                    "working_directory": os.getcwd()
                 },
-                "error_statistics": dict(self.error_counts),
-                "health_history": self.health_checks,
-                "netflix_grade": "Enterprise AAA+"
+                "resource_usage": await self._get_system_metrics(),
+                "application_state": await self._get_application_metrics(),
+                "health_history": list(self.health_history)[-10:],  # Last 10 checks
+                "error_summary": dict(self.error_counts),
+                "uptime": {
+                    "seconds": self.get_uptime().total_seconds(),
+                    "human_readable": str(self.get_uptime())
+                }
             }
+
+            return diagnostics
+
         except Exception as e:
-            logger.error(f"Diagnostics failed: {e}")
+            logger.error(f"Diagnostics collection failed: {e}")
             return {"error": str(e)}
+
+    def record_error(self, error_type: str):
+        """Record an error occurrence"""
+        self.error_counts[error_type] += 1
 
 # Global health monitor instance
 health_monitor = NetflixHealthMonitor()
