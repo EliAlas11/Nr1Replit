@@ -1,0 +1,38 @@
+🔍 Testing Netflix-grade import validation...
+ ✅ FastAPI import: SUCCESS
+2025-06-02 11:41:43,205 - app.config - INFO - <module>:229 - Netflix-grade configuration loaded for environment: production
+❌ App config import: FAILED - invalid syntax (cache.py, line 464)
+❌ Utils package import: FAILED - invalid syntax (cache.py, line 464)
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/test_imports.py", line 36, in test_critical_imports
+    from app.utils import cache, MetricsCollector, PerformanceMonitor, HealthMonitor
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/__init__.py", line 14, in <module>
+    from .main import app
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 34, in <module>
+    from .utils import HealthMonitor, MetricsCollector, PerformanceMonitor, cache
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/__init__.py", line 5, in <module>
+    from .cache import cache, CacheManager
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/cache.py", line 464
+    from dataclasses importdataclass, field
+                     ^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+✅ Middleware imports: SUCCESS
+❌ Main app import: FAILED - invalid syntax (cache.py, line 464)
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/test_imports.py", line 55, in test_critical_imports
+    from app.main import app
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/__init__.py", line 14, in <module>
+    from .main import app
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 34, in <module>
+    from .utils import HealthMonitor, MetricsCollector, PerformanceMonitor, cache
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/__init__.py", line 5, in <module>
+    from .cache import cache, CacheManager
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/cache.py", line 464
+    from dataclasses importdataclass, field
+                     ^^^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+
+❌ Import validation FAILED with 3 errors:
+  - App config: invalid syntax (cache.py, line 464)
+  - Utils package: invalid syntax (cache.py, line 464)
+  - Main app: invalid syntax (cache.py, line 464)
