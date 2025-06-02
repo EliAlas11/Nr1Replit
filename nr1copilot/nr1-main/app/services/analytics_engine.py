@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v6.0 - Netflix-Level Advanced Analytics Engine
 Real-time analytics, viral prediction, and ROI tracking
@@ -84,21 +83,21 @@ class NetflixLevelAnalyticsEngine:
         self.viral_predictions = {}
         self.roi_tracking = {}
         self.user_analytics = defaultdict(dict)
-        
+
         # Performance monitoring
         self.analytics_cache = {}
         self.cache_ttl = 300  # 5 minutes
         self.processing_queue = asyncio.Queue(maxsize=10000)
-        
+
         # Machine learning models (simulated)
         self.viral_model = {}
         self.engagement_model = {}
         self.trend_analyzer = {}
-        
+
         # Background tasks
         self.background_tasks = set()
         self.data_collectors = {}
-        
+
         # Enterprise features
         self.alert_thresholds = {
             "low_engagement": 0.03,
@@ -106,28 +105,28 @@ class NetflixLevelAnalyticsEngine:
             "viral_potential": 0.8,
             "roi_decline": -0.2
         }
-        
+
         logger.info("🔬 Netflix-level analytics engine initialized")
 
     async def enterprise_warm_up(self):
         """Warm up analytics engine with ML models and data"""
         try:
             start_time = time.time()
-            
+
             # Initialize ML models
             await self._initialize_viral_prediction_models()
             await self._initialize_engagement_models()
             await self._initialize_trend_analyzers()
-            
+
             # Start background data collection
             await self._start_background_collectors()
-            
+
             # Pre-load trending data
             await self._preload_trending_insights()
-            
+
             warm_up_time = time.time() - start_time
             logger.info(f"🔥 Analytics engine warm-up completed in {warm_up_time:.2f}s")
-            
+
         except Exception as e:
             logger.error(f"Analytics engine warm-up failed: {e}", exc_info=True)
 
@@ -139,13 +138,13 @@ class NetflixLevelAnalyticsEngine:
     ) -> Dict[str, Any]:
         """Get comprehensive real-time analytics dashboard with Netflix-grade caching"""
         cache_key = f"dashboard_{user_id}_{timeframe}"
-        
+
         # Check cache first
         cached_data = self.analytics_cache.get(cache_key)
         if cached_data and datetime.utcnow() < cached_data["expires_at"]:
             logger.debug(f"🚀 Cache hit for dashboard: {cache_key}")
             return cached_data["data"]
-        
+
         try:
             # Parallel data fetching for optimal performance
             tasks = [
@@ -159,10 +158,10 @@ class NetflixLevelAnalyticsEngine:
                 self._generate_actionable_recommendations(user_id),
                 self._generate_predictive_insights(user_id)
             ]
-            
+
             # Execute all tasks concurrently
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Handle any exceptions gracefully
             engagement_metrics = results[0] if not isinstance(results[0], Exception) else {}
             performance_data = results[1] if not isinstance(results[1], Exception) else {}
@@ -173,7 +172,7 @@ class NetflixLevelAnalyticsEngine:
             alerts = results[6] if not isinstance(results[6], Exception) else []
             recommendations = results[7] if not isinstance(results[7], Exception) else []
             predictive_insights = results[8] if not isinstance(results[8], Exception) else {}
-            
+
             dashboard = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "user_id": user_id,
@@ -194,7 +193,7 @@ class NetflixLevelAnalyticsEngine:
                     "data_freshness": "real_time"
                 }
             }
-            
+
             # Enhanced caching with TTL based on data type
             cache_ttl = self._calculate_dynamic_ttl(timeframe)
             self.analytics_cache[cache_key] = {
@@ -202,10 +201,10 @@ class NetflixLevelAnalyticsEngine:
                 "timestamp": datetime.utcnow(),
                 "expires_at": datetime.utcnow() + timedelta(seconds=cache_ttl)
             }
-            
+
             logger.info(f"📊 Dashboard generated for {user_id} in {timeframe} timeframe")
             return dashboard
-            
+
         except Exception as e:
             logger.error(f"Real-time dashboard generation failed: {e}", exc_info=True)
             return self._get_fallback_dashboard(user_id, session_id)
@@ -220,19 +219,19 @@ class NetflixLevelAnalyticsEngine:
         try:
             # Engagement breakdown
             engagement = await self._analyze_detailed_engagement(video_id, platform_data)
-            
+
             # Viral scoring with ML
             viral_analysis = await self._perform_viral_analysis(video_id, platform_data)
-            
+
             # Revenue attribution
             revenue_analysis = await self._analyze_revenue_attribution(video_id, user_id)
-            
+
             # Platform optimization insights
             platform_insights = await self._generate_platform_insights(video_id, platform_data)
-            
+
             # Audience insights
             audience_analysis = await self._analyze_audience_behavior(video_id, platform_data)
-            
+
             analysis = {
                 "video_id": video_id,
                 "analysis_timestamp": datetime.utcnow().isoformat(),
@@ -245,12 +244,12 @@ class NetflixLevelAnalyticsEngine:
                 "predictive_metrics": await self._predict_future_performance(video_id, platform_data),
                 "competitive_position": await self._analyze_competitive_position(video_id)
             }
-            
+
             # Store analysis for future reference
             self.user_analytics[user_id][video_id] = analysis
-            
+
             return analysis
-            
+
         except Exception as e:
             logger.error(f"Video performance analysis failed: {e}", exc_info=True)
             return self._get_fallback_video_analysis(video_id)
@@ -265,36 +264,36 @@ class NetflixLevelAnalyticsEngine:
         try:
             # Content analysis
             content_score = await self._analyze_content_viral_factors(content_features)
-            
+
             # Historical performance weighting
             history_score = await self._analyze_user_viral_history(user_history)
-            
+
             # Platform trend alignment
             trend_score = await self._analyze_trend_alignment(content_features, platform_trends)
-            
+
             # Competitive landscape analysis
             competition_score = await self._analyze_competitive_landscape(content_features)
-            
+
             # ML-based prediction
             ml_prediction = await self._ml_viral_prediction(
                 content_score, history_score, trend_score, competition_score
             )
-            
+
             # Generate platform-specific scores
             platform_scores = await self._generate_platform_viral_scores(
                 content_features, ml_prediction
             )
-            
+
             # Optimal timing analysis
             optimal_times = await self._analyze_optimal_posting_times(
                 user_history, platform_trends
             )
-            
+
             # Content optimization suggestions
             optimizations = await self._generate_optimization_suggestions(
                 content_features, ml_prediction
             )
-            
+
             prediction = ViralPrediction(
                 viral_probability=ml_prediction["viral_probability"],
                 confidence_score=ml_prediction["confidence"],
@@ -305,9 +304,9 @@ class NetflixLevelAnalyticsEngine:
                 competitive_analysis=competition_score,
                 predicted_metrics=ml_prediction["predicted_metrics"]
             )
-            
+
             return prediction
-            
+
         except Exception as e:
             logger.error(f"Viral prediction failed: {e}", exc_info=True)
             return self._get_fallback_viral_prediction()
@@ -323,34 +322,34 @@ class NetflixLevelAnalyticsEngine:
         try:
             # Revenue calculation
             total_revenue = sum(revenue_sources.values())
-            
+
             # Cost analysis
             total_costs = sum(costs.values())
-            
+
             # Platform-specific CPM calculation
             views_data = revenue_sources.get("platform_metrics", {})
             cpm = await self._calculate_platform_cpm(views_data, total_revenue)
-            
+
             # Conversion tracking
             conversion_data = await self._analyze_conversions(user_id, video_id)
-            
+
             # Affiliate earnings analysis
             affiliate_earnings = revenue_sources.get("affiliate", 0)
             affiliate_attribution = await self._analyze_affiliate_attribution(user_id, video_id)
-            
+
             # Brand deal value assessment
             brand_value = revenue_sources.get("brand_deals", 0)
             brand_impact = await self._assess_brand_deal_impact(user_id, video_id)
-            
+
             # Organic reach valuation
             organic_value = await self._calculate_organic_reach_value(user_id, video_id)
-            
+
             # ROI calculation
             roi_percentage = ((total_revenue - total_costs) / max(total_costs, 1)) * 100
-            
+
             # Lifetime value projection
             lifetime_value = await self._project_lifetime_value(user_id, video_id, total_revenue)
-            
+
             roi_metrics = ROIMetrics(
                 total_revenue=total_revenue,
                 cost_per_mille=cpm,
@@ -362,7 +361,7 @@ class NetflixLevelAnalyticsEngine:
                 revenue_sources=revenue_sources,
                 lifetime_value=lifetime_value
             )
-            
+
             # Store ROI data for trending analysis
             self.roi_tracking[f"{user_id}_{video_id}"] = {
                 "metrics": roi_metrics,
@@ -370,9 +369,9 @@ class NetflixLevelAnalyticsEngine:
                 "attribution_data": affiliate_attribution,
                 "brand_impact": brand_impact
             }
-            
+
             return roi_metrics
-            
+
         except Exception as e:
             logger.error(f"ROI tracking failed: {e}", exc_info=True)
             return self._get_fallback_roi_metrics()
@@ -389,12 +388,12 @@ class NetflixLevelAnalyticsEngine:
             # Get performance data for both videos
             video_a_data = await self._get_video_performance_data(video_a_id, user_id)
             video_b_data = await self._get_video_performance_data(video_b_id, user_id)
-            
+
             # Statistical significance testing
             significance_results = await self._calculate_statistical_significance(
                 video_a_data, video_b_data, comparison_metrics
             )
-            
+
             # Metric comparison analysis
             metric_comparisons = {}
             for metric in comparison_metrics:
@@ -403,27 +402,27 @@ class NetflixLevelAnalyticsEngine:
                     video_b_data.get(metric, 0),
                     metric
                 )
-            
+
             # Visual insights generation
             visual_insights = await self._generate_visual_comparison_insights(
                 video_a_data, video_b_data
             )
-            
+
             # Audience behavior comparison
             audience_comparison = await self._compare_audience_behavior(
                 video_a_id, video_b_id
             )
-            
+
             # Conversion funnel analysis
             funnel_comparison = await self._compare_conversion_funnels(
                 video_a_id, video_b_id, user_id
             )
-            
+
             # Winner determination with confidence
             winner_analysis = await self._determine_ab_winner(
                 video_a_data, video_b_data, significance_results
             )
-            
+
             comparison = {
                 "comparison_id": f"ab_{uuid.uuid4().hex[:8]}",
                 "timestamp": datetime.utcnow().isoformat(),
@@ -441,14 +440,14 @@ class NetflixLevelAnalyticsEngine:
                 "metric_comparisons": metric_comparisons,
                 "visual_insights": visual_insights,
                 "audience_comparison": audience_comparison,
-                "funnel_analysis": funnel_comparison,
+                "funnel_analysis": funnel_analysis,
                 "winner_analysis": winner_analysis,
                 "actionable_insights": await self._generate_ab_insights(winner_analysis),
                 "confidence_score": significance_results.get("overall_confidence", 0.8)
             }
-            
+
             return comparison
-            
+
         except Exception as e:
             logger.error(f"A/B comparison failed: {e}", exc_info=True)
             return self._get_fallback_ab_comparison(video_a_id, video_b_id)
@@ -462,22 +461,22 @@ class NetflixLevelAnalyticsEngine:
         try:
             # Get user's recent content
             recent_content = await self._get_recent_user_content(user_id, days=7)
-            
+
             # Analyze performance against thresholds
             underperforming = []
-            
+
             for content in recent_content:
                 performance_analysis = await self._analyze_content_performance(
                     content, alert_config
                 )
-                
+
                 if performance_analysis["is_underperforming"]:
                     # Generate specific insights for underperformance
                     insights = await self._diagnose_underperformance(content)
-                    
+
                     # Suggest recovery strategies
                     recovery_strategies = await self._suggest_recovery_strategies(content, insights)
-                    
+
                     underperforming.append({
                         "content_id": content["id"],
                         "title": content.get("title", ""),
@@ -488,13 +487,13 @@ class NetflixLevelAnalyticsEngine:
                         "recovery_strategies": recovery_strategies,
                         "predicted_improvement": await self._predict_improvement_potential(content)
                     })
-            
+
             # Generate trend analysis
             trend_analysis = await self._analyze_performance_trends(user_id, recent_content)
-            
+
             # Alert prioritization
             priority_alerts = await self._prioritize_alerts(underperforming)
-            
+
             monitoring_report = {
                 "user_id": user_id,
                 "monitoring_timestamp": datetime.utcnow().isoformat(),
@@ -507,12 +506,12 @@ class NetflixLevelAnalyticsEngine:
                 "recommendations": await self._generate_performance_recommendations(user_id, trend_analysis),
                 "next_review_date": (datetime.utcnow() + timedelta(days=1)).isoformat()
             }
-            
+
             # Store monitoring data
             self.user_analytics[user_id]["performance_monitoring"] = monitoring_report
-            
+
             return monitoring_report
-            
+
         except Exception as e:
             logger.error(f"Underperformance monitoring failed: {e}", exc_info=True)
             return self._get_fallback_monitoring_report(user_id)
@@ -527,33 +526,33 @@ class NetflixLevelAnalyticsEngine:
         try:
             # Platform trend analysis
             platform_trends = await self._analyze_platform_trends(industry, timeframe)
-            
+
             # Viral content analysis
             viral_trends = await self._analyze_viral_content_trends(industry, timeframe)
-            
+
             # Hashtag and keyword trends
             hashtag_trends = await self._analyze_hashtag_trends(industry, timeframe)
-            
+
             # Audio/music trends
             audio_trends = await self._analyze_audio_trends(timeframe)
-            
+
             # Visual style trends
             visual_trends = await self._analyze_visual_trends(industry, timeframe)
-            
+
             # Competitor analysis
             competitor_trends = await self._analyze_competitor_trends(user_id, industry)
-            
+
             # Opportunity identification
             opportunities = await self._identify_trend_opportunities(
                 user_id, platform_trends, viral_trends
             )
-            
+
             # Content format trends
             format_trends = await self._analyze_content_format_trends(industry, timeframe)
-            
+
             # Timing and scheduling trends
             timing_trends = await self._analyze_optimal_timing_trends(industry)
-            
+
             trend_report = {
                 "user_id": user_id,
                 "industry": industry,
@@ -574,9 +573,9 @@ class NetflixLevelAnalyticsEngine:
                 ),
                 "trend_alerts": await self._generate_trend_alerts(user_id, platform_trends)
             }
-            
+
             return trend_report
-            
+
         except Exception as e:
             logger.error(f"Content trend tracking failed: {e}", exc_info=True)
             return self._get_fallback_trend_report(user_id, industry)
@@ -586,10 +585,10 @@ class NetflixLevelAnalyticsEngine:
     async def _get_engagement_metrics(self, user_id: str, timeframe: str) -> Dict[str, Any]:
         """Get comprehensive engagement metrics"""
         import random
-        
+
         # Simulate real engagement data (replace with actual analytics)
         base_views = random.randint(10000, 100000)
-        
+
         return {
             "total_views": base_views,
             "unique_viewers": int(base_views * random.uniform(0.7, 0.9)),
@@ -607,7 +606,7 @@ class NetflixLevelAnalyticsEngine:
     async def _get_performance_analytics(self, user_id: str, timeframe: str) -> Dict[str, Any]:
         """Get detailed performance analytics"""
         import random
-        
+
         return {
             "video_completion_rate": random.uniform(0.6, 0.9),
             "audience_retention_curve": [
@@ -638,9 +637,9 @@ class NetflixLevelAnalyticsEngine:
     async def _get_viral_predictions(self, user_id: str, session_id: str) -> Dict[str, Any]:
         """Get viral prediction insights"""
         import random
-        
+
         viral_score = random.uniform(0.6, 0.95)
-        
+
         return {
             "viral_probability": viral_score,
             "confidence": random.uniform(0.8, 0.95),
@@ -663,10 +662,10 @@ class NetflixLevelAnalyticsEngine:
     async def _get_roi_metrics(self, user_id: str, timeframe: str) -> Dict[str, Any]:
         """Get ROI tracking metrics"""
         import random
-        
+
         revenue = random.uniform(1000, 10000)
         costs = random.uniform(100, 1000)
-        
+
         return {
             "total_revenue": revenue,
             "total_costs": costs,
@@ -688,7 +687,7 @@ class NetflixLevelAnalyticsEngine:
     async def _get_trend_analysis(self, user_id: str, timeframe: str) -> Dict[str, Any]:
         """Get trend analysis data"""
         import random
-        
+
         return {
             "trending_topics": [
                 {"topic": "AI Tools", "growth": random.uniform(0.2, 0.8)},
@@ -715,7 +714,7 @@ class NetflixLevelAnalyticsEngine:
     async def _get_competitive_insights(self, user_id: str) -> Dict[str, Any]:
         """Get competitive landscape insights"""
         import random
-        
+
         return {
             "market_position": random.choice(["Top 10%", "Top 25%", "Top 50%"]),
             "engagement_vs_average": random.uniform(1.2, 2.5),
@@ -736,9 +735,9 @@ class NetflixLevelAnalyticsEngine:
     async def _generate_smart_alerts(self, user_id: str) -> List[Dict[str, Any]]:
         """Generate intelligent alerts based on performance"""
         import random
-        
+
         alerts = []
-        
+
         # Performance alerts
         if random.random() > 0.7:
             alerts.append({
@@ -748,7 +747,7 @@ class NetflixLevelAnalyticsEngine:
                 "action": "Review recent content performance",
                 "urgency": "medium"
             })
-        
+
         if random.random() > 0.8:
             alerts.append({
                 "type": "viral_opportunity",
@@ -757,7 +756,7 @@ class NetflixLevelAnalyticsEngine:
                 "action": "Create content around 'AI productivity'",
                 "urgency": "high"
             })
-        
+
         return alerts
 
     async def _generate_actionable_recommendations(self, user_id: str) -> List[Dict[str, Any]]:
@@ -789,7 +788,7 @@ class NetflixLevelAnalyticsEngine:
     async def _generate_predictive_insights(self, user_id: str) -> Dict[str, Any]:
         """Generate predictive insights for future performance"""
         import random
-        
+
         return {
             "next_week_predictions": {
                 "expected_views": random.randint(20000, 100000),
@@ -826,6 +825,7 @@ class NetflixLevelAnalyticsEngine:
         await asyncio.sleep(0.1)
         self.trend_analyzer = {"loaded": True, "version": "v3.0"}
 
+```tool_code
     async def _start_background_collectors(self):
         """Start background data collection tasks"""
         collector_task = asyncio.create_task(self._continuous_data_collection())
@@ -838,7 +838,7 @@ class NetflixLevelAnalyticsEngine:
                 await asyncio.sleep(30)  # Collect every 30 seconds
                 # Simulate data collection
                 logger.debug("📊 Collecting real-time analytics data...")
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -935,13 +935,52 @@ class NetflixLevelAnalyticsEngine:
     async def graceful_shutdown(self):
         """Gracefully shutdown analytics engine"""
         logger.info("🔄 Shutting down analytics engine...")
-        
+
         # Cancel background tasks
         for task in self.background_tasks:
             task.cancel()
-        
+
         # Clear caches
         self.analytics_cache.clear()
         self.user_analytics.clear()
-        
+
         logger.info("✅ Analytics engine shutdown complete")
+
+    def _calculate_dynamic_ttl(self, timeframe: str) -> int:
+        """Calculate dynamic TTL based on data type for optimal performance"""
+        ttl_map = {
+            "5m": 10,    # 10 seconds for real-time
+            "15m": 30,   # 30 seconds for near real-time
+            "1h": 60,    # 1 minute for hourly
+            "6h": 180,   # 3 minutes for 6-hour
+            "24h": 300,  # 5 minutes for daily
+            "7d": 900,   # 15 minutes for weekly
+            "30d": 1800, # 30 minutes for monthly
+        }
+        return ttl_map.get(timeframe, 600)  # 10 minutes default
+
+    async def _optimize_cache_performance(self):
+        """Optimize cache performance for enterprise scale"""
+        # Implement cache warming and cleanup
+        current_time = datetime.utcnow()
+
+        # Remove expired entries
+        expired_keys = [
+            key for key, data in self.analytics_cache.items()
+            if current_time > data["expires_at"]
+        ]
+
+        for key in expired_keys:
+            del self.analytics_cache[key]
+
+        # Cache size management
+        if len(self.analytics_cache) > 10000:  # Max 10k entries
+            # Remove oldest 20% of entries
+            sorted_items = sorted(
+                self.analytics_cache.items(),
+                key=lambda x: x[1]["timestamp"]
+            )
+
+            remove_count = len(sorted_items) // 5
+            for key, _ in sorted_items[:remove_count]:
+                del self.analytics_cache[key]

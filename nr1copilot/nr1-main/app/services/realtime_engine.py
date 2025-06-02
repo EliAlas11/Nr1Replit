@@ -509,28 +509,56 @@ class EnterpriseRealtimeEngine:
     # Private helper methods
 
     async def _process_message_queue(self):
-        """Background task to process message queue"""
+        """Enterprise-grade message queue processing with optimization"""
+        batch_size = 50  # Process messages in batches for efficiency
+        batch_timeout = 0.1  # 100ms timeout for batching
+        
         while True:
             try:
-                # Get message from queue
-                broadcast_type, target, message = await self.message_queue.get()
+                batch = []
+                batch_start = time.time()
                 
-                # Broadcast message
-                if broadcast_type == "session":
-                    await self._broadcast_to_session(target, message)
-                elif broadcast_type == "all":
-                    await self._broadcast_to_all(message)
+                # Collect messages in batches for optimal performance
+                while len(batch) < batch_size and (time.time() - batch_start) < batch_timeout:
+                    try:
+                        message = await asyncio.wait_for(
+                            self.message_queue.get(), 
+                            timeout=batch_timeout - (time.time() - batch_start)
+                        )
+                        batch.append(message)
+                    except asyncio.TimeoutError:
+                        break
+                
+                if not batch:
+                    continue
+                
+                # Process batch concurrently
+                tasks = []
+                for broadcast_type, target, message in batch:
+                    if broadcast_type == "session":
+                        tasks.append(self._broadcast_to_session(target, message))
+                    elif broadcast_type == "all":
+                        tasks.append(self._broadcast_to_all(message))
+                
+                # Execute all broadcasts concurrently
+                results = await asyncio.gather(*tasks, return_exceptions=True)
                 
                 # Update stats
-                self.broadcast_stats["total_messages"] += 1
+                successful = sum(1 for r in results if not isinstance(r, Exception))
+                failed = len(results) - successful
                 
-                # Mark task as done
-                self.message_queue.task_done()
+                self.broadcast_stats["total_messages"] += len(batch)
+                self.broadcast_stats["successful_broadcasts"] += successful
+                self.broadcast_stats["failed_broadcasts"] += failed
+                
+                # Mark all tasks as done
+                for _ in batch:
+                    self.message_queue.task_done()
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Message queue processing error: {e}")
+                logger.error(f"Batch message processing error: {e}")
                 self.broadcast_stats["failed_broadcasts"] += 1
 
     async def _broadcast_to_session(self, session_id: str, message: Dict[str, Any]):
