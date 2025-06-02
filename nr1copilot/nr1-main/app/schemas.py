@@ -1,35 +1,43 @@
 
 """
-Netflix-Level Pydantic Schemas v5.0
-Comprehensive data validation and serialization
+Netflix-Level Schema Definitions
+Comprehensive data validation and serialization models
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import List, Dict, Any, Optional, Union
 from enum import Enum
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import BaseModel, Field, validator, root_validator
+from pydantic.types import conint, confloat, constr
 
 
-class ProcessingStatus(str, Enum):
-    """Processing status enumeration"""
+class ProcessingStage(str, Enum):
+    """Processing stages enumeration"""
     QUEUED = "queued"
-    INITIALIZING = "initializing"
     UPLOADING = "uploading"
     ANALYZING = "analyzing"
     EXTRACTING_FEATURES = "extracting_features"
-    CALCULATING_SCORES = "calculating_scores"
+    SCORING_SEGMENTS = "scoring_segments"
     GENERATING_TIMELINE = "generating_timeline"
-    CREATING_PREVIEWS = "creating_previews"
-    OPTIMIZING = "optimizing"
-    FINALIZING = "finalizing"
-    COMPLETED = "completed"
+    GENERATING_PREVIEW = "generating_preview"
+    COMPLETE = "complete"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class UploadStatus(str, Enum):
+    """Upload status enumeration"""
+    QUEUED = "queued"
+    UPLOADING = "uploading"
+    PAUSED = "paused"
+    RETRYING = "retrying"
+    COMPLETE = "complete"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
 
 class QualityLevel(str, Enum):
-    """Video quality levels"""
-    INSTANT = "instant"
+    """Quality level enumeration"""
     DRAFT = "draft"
     STANDARD = "standard"
     HIGH = "high"
@@ -37,342 +45,338 @@ class QualityLevel(str, Enum):
     ULTRA = "ultra"
 
 
-class Platform(str, Enum):
-    """Supported platforms"""
+class PlatformType(str, Enum):
+    """Social media platform types"""
     TIKTOK = "tiktok"
     INSTAGRAM = "instagram"
     YOUTUBE_SHORTS = "youtube_shorts"
     TWITTER = "twitter"
     SNAPCHAT = "snapchat"
-    FACEBOOK = "facebook"
-    LINKEDIN = "linkedin"
+    AUTO_DETECT = "auto_detect"
 
 
-class AnalysisType(str, Enum):
-    """Analysis types"""
-    BASIC = "basic"
-    COMPREHENSIVE = "comprehensive"
-    VIRAL_OPTIMIZATION = "viral_optimization"
-    PLATFORM_SPECIFIC = "platform_specific"
-    CUSTOM = "custom"
-
-
-# Base response models
-class BaseResponse(BaseModel):
-    """Base response model"""
-    success: bool = True
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    processing_time: Optional[float] = None
-    error_id: Optional[str] = None
-    message: Optional[str] = None
-
-
-class ErrorResponse(BaseResponse):
-    """Error response model"""
-    success: bool = False
-    error_code: Optional[str] = None
-    error_details: Optional[Dict[str, Any]] = None
-
-
-# Video processing models
-class VideoMetadata(BaseModel):
-    """Video metadata structure"""
-    duration: float = Field(..., description="Video duration in seconds")
-    width: int = Field(..., description="Video width in pixels")
-    height: int = Field(..., description="Video height in pixels")
-    fps: float = Field(..., description="Frames per second")
-    format: str = Field(..., description="Video format")
-    bitrate: Optional[int] = Field(None, description="Video bitrate")
-    audio_channels: Optional[int] = Field(None, description="Audio channels")
-    audio_sample_rate: Optional[int] = Field(None, description="Audio sample rate")
-    file_size: int = Field(..., description="File size in bytes")
-    codec: Optional[str] = Field(None, description="Video codec")
+# Base Models
+class NetflixBaseModel(BaseModel):
+    """Base model with Netflix-level standards"""
     
-    @validator('duration')
-    def validate_duration(cls, v):
-        if v <= 0:
-            raise ValueError('Duration must be positive')
-        if v > 600:  # 10 minutes max
-            raise ValueError('Duration too long (max 10 minutes)')
-        return v
+    class Config:
+        validate_assignment = True
+        extra = "forbid"
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class TimestampMixin(NetflixBaseModel):
+    """Mixin for timestamp fields"""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+
+
+# Request Models
+class VideoUploadRequest(NetflixBaseModel):
+    """Video upload request validation"""
+    title: Optional[constr(min_length=1, max_length=200)] = None
+    description: Optional[constr(max_length=1000)] = None
+    upload_id: Optional[str] = None
+    platform_optimization: Optional[PlatformType] = None
+    quality_preference: QualityLevel = QualityLevel.STANDARD
     
-    @validator('width', 'height')
-    def validate_dimensions(cls, v):
-        if v < 1 or v > 8192:
-            raise ValueError('Invalid video dimensions')
+    @validator("title")
+    def validate_title(cls, v):
+        if v is not None and v.strip() == "":
+            raise ValueError("Title cannot be empty")
         return v
 
 
-class ViralAnalysis(BaseModel):
-    """Viral potential analysis"""
-    viral_score: float = Field(..., ge=0, le=100, description="Viral score 0-100")
-    confidence: float = Field(..., ge=0, le=1, description="Confidence level 0-1")
-    factors: List[str] = Field(default_factory=list, description="Contributing factors")
-    recommendations: List[str] = Field(default_factory=list, description="Improvement suggestions")
-    platform_scores: Dict[Platform, float] = Field(default_factory=dict, description="Platform-specific scores")
-    emotion_analysis: Optional[Dict[str, Any]] = Field(None, description="Emotion analysis data")
-    trend_alignment: Optional[float] = Field(None, ge=0, le=100, description="Trend alignment score")
-    engagement_prediction: Optional[Dict[str, float]] = Field(None, description="Predicted engagement metrics")
-
-
-class KeyMoment(BaseModel):
-    """Key moment in video timeline"""
-    timestamp: float = Field(..., description="Timestamp in seconds")
-    type: str = Field(..., description="Moment type (hook, peak, climax, etc.)")
-    description: str = Field(..., description="Moment description")
-    viral_score: float = Field(..., ge=0, le=100, description="Viral score for this moment")
-    emotional_intensity: Optional[float] = Field(None, ge=0, le=1, description="Emotional intensity")
-    engagement_likelihood: Optional[float] = Field(None, ge=0, le=1, description="Engagement likelihood")
-
-
-class TimelineData(BaseModel):
-    """Interactive timeline data"""
-    duration: float = Field(..., description="Total duration in seconds")
-    viral_heatmap: List[float] = Field(..., description="Viral scores across timeline")
-    key_moments: List[KeyMoment] = Field(default_factory=list, description="Key moments")
-    energy_timeline: List[Dict[str, Any]] = Field(default_factory=list, description="Energy levels")
-    emotion_timeline: List[Dict[str, Any]] = Field(default_factory=list, description="Emotion timeline")
-    engagement_peaks: List[Dict[str, Any]] = Field(default_factory=list, description="Engagement peaks")
-    recommended_clips: List[Dict[str, Any]] = Field(default_factory=list, description="Recommended clip segments")
-
-
-class PreviewData(BaseModel):
-    """Preview generation data"""
-    preview_url: str = Field(..., description="Preview video URL")
-    thumbnail_url: Optional[str] = Field(None, description="Thumbnail image URL")
-    duration: float = Field(..., description="Preview duration")
-    quality: QualityLevel = Field(..., description="Preview quality level")
-    viral_analysis: Optional[ViralAnalysis] = Field(None, description="Viral analysis for preview")
-    generation_time: float = Field(..., description="Generation time in milliseconds")
-    cache_hit: bool = Field(False, description="Whether result was cached")
-
-
-class ProcessingJob(BaseModel):
-    """Processing job status"""
-    job_id: str = Field(..., description="Unique job identifier")
-    session_id: str = Field(..., description="Session identifier")
-    status: ProcessingStatus = Field(..., description="Current processing status")
-    progress: float = Field(0, ge=0, le=100, description="Progress percentage")
-    stage: str = Field("", description="Current processing stage")
-    message: str = Field("", description="Status message")
-    start_time: datetime = Field(..., description="Job start time")
-    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
-    processing_time: Optional[float] = Field(None, description="Total processing time")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
-
-
-# Request models
-class VideoUploadRequest(BaseModel):
-    """Video upload request"""
-    title: Optional[str] = Field(None, max_length=200, description="Video title")
-    description: Optional[str] = Field(None, max_length=2000, description="Video description")
-    tags: List[str] = Field(default_factory=list, max_items=20, description="Video tags")
-    target_platforms: List[Platform] = Field(default_factory=list, description="Target platforms")
-    analysis_type: AnalysisType = Field(AnalysisType.COMPREHENSIVE, description="Analysis type")
-    enable_ai_enhancement: bool = Field(True, description="Enable AI enhancement")
-    enable_viral_optimization: bool = Field(True, description="Enable viral optimization")
-    custom_settings: Dict[str, Any] = Field(default_factory=dict, description="Custom processing settings")
-
-
-class AnalysisRequest(BaseModel):
-    """Video analysis request"""
-    session_id: str = Field(..., description="Session identifier")
-    file_path: str = Field(..., description="Video file path")
-    title: Optional[str] = Field(None, max_length=200, description="Video title")
-    description: Optional[str] = Field(None, max_length=2000, description="Video description")
-    target_platforms: List[Platform] = Field(default_factory=list, description="Target platforms")
-    analysis_type: AnalysisType = Field(AnalysisType.COMPREHENSIVE, description="Analysis type")
-    custom_prompts: List[str] = Field(default_factory=list, description="Custom analysis prompts")
-    enable_deep_analysis: bool = Field(True, description="Enable deep AI analysis")
-
-
-class PreviewRequest(BaseModel):
-    """Preview generation request"""
-    session_id: str = Field(..., description="Session identifier")
-    start_time: float = Field(..., ge=0, description="Start time in seconds")
-    end_time: float = Field(..., description="End time in seconds")
-    quality: QualityLevel = Field(QualityLevel.STANDARD, description="Preview quality")
-    platform_optimizations: List[Platform] = Field(default_factory=list, description="Platform optimizations")
-    enable_viral_enhancements: bool = Field(True, description="Enable viral enhancements")
+class ChunkUploadRequest(NetflixBaseModel):
+    """Chunked upload request validation"""
+    upload_id: constr(min_length=1)
+    chunk_index: conint(ge=0)
+    total_chunks: conint(ge=1)
+    filename: constr(min_length=1, max_length=255)
+    chunk_hash: Optional[str] = None
     
-    @validator('end_time')
+    @validator("chunk_index")
+    def validate_chunk_index(cls, v, values):
+        if "total_chunks" in values and v >= values["total_chunks"]:
+            raise ValueError("Chunk index must be less than total chunks")
+        return v
+
+
+class AnalysisRequest(NetflixBaseModel):
+    """AI analysis request validation"""
+    session_id: constr(min_length=1)
+    file_path: constr(min_length=1)
+    title: Optional[str] = None
+    description: Optional[str] = None
+    target_platforms: List[PlatformType] = Field(default_factory=list)
+    custom_prompts: Optional[List[str]] = None
+    analysis_depth: constr(regex="^(fast|standard|deep)$") = "standard"
+    
+    @validator("target_platforms")
+    def validate_platforms(cls, v):
+        if len(v) > 5:
+            raise ValueError("Maximum 5 target platforms allowed")
+        return list(set(v))  # Remove duplicates
+
+
+class PreviewRequest(NetflixBaseModel):
+    """Preview generation request validation"""
+    session_id: constr(min_length=1)
+    start_time: confloat(ge=0)
+    end_time: confloat(gt=0)
+    quality: QualityLevel = QualityLevel.STANDARD
+    platform_optimization: Optional[PlatformType] = None
+    include_analysis: bool = True
+    
+    @validator("end_time")
     def validate_end_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
-            raise ValueError('End time must be greater than start time')
+        if "start_time" in values and v <= values["start_time"]:
+            raise ValueError("End time must be greater than start time")
+        if v - values.get("start_time", 0) > 300:  # 5 minutes max
+            raise ValueError("Preview duration cannot exceed 5 minutes")
         return v
 
 
-class ClipGenerationRequest(BaseModel):
-    """Clip generation request"""
-    session_id: str = Field(..., description="Session identifier")
-    clips: List[Dict[str, Any]] = Field(..., description="Clip specifications")
-    quality: QualityLevel = Field(QualityLevel.HIGH, description="Output quality")
-    target_platforms: List[Platform] = Field(default_factory=list, description="Target platforms")
-    enable_viral_optimization: bool = Field(True, description="Enable viral optimization")
-    enable_ai_enhancement: bool = Field(True, description="Enable AI enhancement")
-    output_format: str = Field("mp4", description="Output format")
-    custom_settings: Dict[str, Any] = Field(default_factory=dict, description="Custom settings")
+class TimelineInteractionRequest(NetflixBaseModel):
+    """Timeline interaction request validation"""
+    session_id: constr(min_length=1)
+    interaction_type: constr(regex="^(click|hover|selection|zoom)$")
+    timestamp: confloat(ge=0)
+    position: Dict[str, confloat(ge=0)] = Field(description="x, y coordinates")
+    selection_range: Optional[Dict[str, confloat(ge=0)]] = None
+    
+    @validator("position")
+    def validate_position(cls, v):
+        required_keys = {"x", "y"}
+        if not required_keys.issubset(v.keys()):
+            raise ValueError(f"Position must contain keys: {required_keys}")
+        return v
 
 
-# Response models
-class VideoUploadResponse(BaseResponse):
+# Response Models
+class UploadProgressResponse(NetflixBaseModel):
+    """Upload progress response"""
+    session_id: str
+    status: UploadStatus
+    progress: confloat(ge=0, le=100)
+    uploaded_bytes: conint(ge=0)
+    total_bytes: conint(ge=0)
+    speed: confloat(ge=0)  # bytes per second
+    eta: Optional[int] = None  # seconds
+    chunks_completed: conint(ge=0)
+    chunks_total: conint(ge=0)
+    error_message: Optional[str] = None
+
+
+class VideoUploadResponse(NetflixBaseModel):
     """Video upload response"""
-    session_id: str = Field(..., description="Session identifier")
-    file_path: str = Field(..., description="Uploaded file path")
-    file_size: int = Field(..., description="File size in bytes")
-    metadata: Optional[VideoMetadata] = Field(None, description="Video metadata")
-    analysis: Optional[Dict[str, Any]] = Field(None, description="Initial analysis")
-    preview: Optional[Dict[str, Any]] = Field(None, description="Initial preview data")
+    success: bool
+    session_id: str
+    file_path: Optional[str] = None
+    file_size: Optional[conint(ge=0)] = None
+    estimated_processing_time: Optional[confloat(ge=0)] = None
+    processing_time: Optional[confloat(ge=0)] = None
+    upload_id: Optional[str] = None
+    error: Optional[str] = None
 
 
-class AnalysisResponse(BaseResponse):
-    """Video analysis response"""
-    session_id: str = Field(..., description="Session identifier")
-    analysis: ViralAnalysis = Field(..., description="Comprehensive analysis")
-    timeline: Optional[TimelineData] = Field(None, description="Timeline data")
-    metadata: Optional[VideoMetadata] = Field(None, description="Video metadata")
-    cached: bool = Field(False, description="Whether result was cached")
+class ViralAnalysis(NetflixBaseModel):
+    """Viral potential analysis"""
+    viral_score: conint(ge=0, le=100)
+    confidence: confloat(ge=0, le=1)
+    factors: List[str] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+    engagement_prediction: Optional[confloat(ge=0)] = None
+    optimal_duration: Optional[confloat(ge=0)] = None
+    best_segments: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-class PreviewResponse(BaseResponse):
+class TimelineData(NetflixBaseModel):
+    """Timeline visualization data"""
+    duration: confloat(ge=0)
+    viral_heatmap: List[conint(ge=0, le=100)]
+    engagement_peaks: List[Dict[str, Any]] = Field(default_factory=list)
+    key_moments: List[Dict[str, Any]] = Field(default_factory=list)
+    emotional_timeline: List[Dict[str, Any]] = Field(default_factory=list)
+    trend_analysis: Optional[Dict[str, Any]] = None
+
+
+class AnalysisResponse(NetflixBaseModel):
+    """AI analysis response"""
+    success: bool
+    session_id: str
+    analysis: Optional[ViralAnalysis] = None
+    timeline: Optional[TimelineData] = None
+    processing_time: confloat(ge=0)
+    cached: bool = False
+    error: Optional[str] = None
+
+
+class PreviewResponse(NetflixBaseModel):
     """Preview generation response"""
-    session_id: str = Field(..., description="Session identifier")
-    preview_url: str = Field(..., description="Preview video URL")
-    thumbnail_url: Optional[str] = Field(None, description="Thumbnail URL")
-    viral_analysis: Optional[ViralAnalysis] = Field(None, description="Viral analysis")
-    suggestions: List[str] = Field(default_factory=list, description="Optimization suggestions")
-    quality: QualityLevel = Field(..., description="Preview quality")
+    success: bool
+    session_id: str
+    preview_url: Optional[str] = None
+    viral_analysis: Optional[ViralAnalysis] = None
+    suggestions: List[str] = Field(default_factory=list)
+    processing_time: confloat(ge=0)
+    generation_time: Optional[confloat(ge=0)] = None
+    quality_achieved: Optional[QualityLevel] = None
+    file_size: Optional[conint(ge=0)] = None
+    error: Optional[str] = None
 
 
-class ClipGenerationResponse(BaseResponse):
-    """Clip generation response"""
-    task_id: str = Field(..., description="Processing task identifier")
-    session_id: str = Field(..., description="Session identifier")
-    estimated_completion: datetime = Field(..., description="Estimated completion time")
-    clips_count: int = Field(..., description="Number of clips to generate")
-
-
-class ProcessingStatusResponse(ProcessingJob):
+class ProcessingStatus(NetflixBaseModel):
     """Processing status response"""
-    pass
+    session_id: str
+    stage: ProcessingStage
+    progress: confloat(ge=0, le=100)
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    estimated_completion: Optional[datetime] = None
+    processing_time: confloat(ge=0)
+    queue_position: Optional[conint(ge=0)] = None
+    error: Optional[str] = None
 
 
-# System models
-class SystemHealth(BaseModel):
+class SystemHealth(NetflixBaseModel):
     """System health status"""
-    status: str = Field(..., description="Overall system status")
-    services: Dict[str, str] = Field(..., description="Service statuses")
-    metrics: Dict[str, Any] = Field(..., description="System metrics")
-    version: str = Field("5.0.0", description="Application version")
-    uptime: Optional[float] = Field(None, description="System uptime in seconds")
-    load: Optional[Dict[str, float]] = Field(None, description="System load metrics")
+    status: constr(regex="^(healthy|degraded|unhealthy)$")
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    services: Dict[str, str] = Field(default_factory=dict)
+    metrics: Dict[str, Union[int, float, str]] = Field(default_factory=dict)
+    uptime: confloat(ge=0)
+    version: str
+    performance_score: Optional[confloat(ge=0, le=100)] = None
 
 
-class MetricsData(BaseModel):
-    """System metrics data"""
-    requests_total: int = Field(0, description="Total requests processed")
-    requests_per_second: float = Field(0, description="Current requests per second")
-    active_sessions: int = Field(0, description="Active sessions count")
-    processing_queue_size: int = Field(0, description="Processing queue size")
-    cache_hit_rate: float = Field(0, ge=0, le=1, description="Cache hit rate")
-    average_response_time: float = Field(0, description="Average response time in ms")
-    error_rate: float = Field(0, ge=0, le=1, description="Error rate")
-    memory_usage: Optional[Dict[str, float]] = Field(None, description="Memory usage metrics")
-    cpu_usage: Optional[float] = Field(None, ge=0, le=100, description="CPU usage percentage")
+class ErrorResponse(NetflixBaseModel):
+    """Standardized error response"""
+    error: bool = True
+    error_id: str
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    status_code: conint(ge=100, le=599)
+    path: Optional[str] = None
+    request_id: Optional[str] = None
 
 
-# WebSocket models
-class WebSocketMessage(BaseModel):
-    """WebSocket message structure"""
-    type: str = Field(..., description="Message type")
-    session_id: Optional[str] = Field(None, description="Session identifier")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Message data")
+class MetricsResponse(NetflixBaseModel):
+    """System metrics response"""
+    success: bool
+    metrics: Dict[str, Any]
+    collection_time: datetime = Field(default_factory=datetime.utcnow)
+    performance_indicators: Optional[Dict[str, Any]] = None
+    recommendations: List[str] = Field(default_factory=list)
 
 
-class UploadProgress(WebSocketMessage):
-    """Upload progress message"""
-    type: str = Field("upload_progress", const=True)
-    progress: float = Field(..., ge=0, le=100, description="Upload progress percentage")
-    uploaded_size: int = Field(..., description="Uploaded bytes")
-    total_size: int = Field(..., description="Total file size")
-    speed: Optional[float] = Field(None, description="Upload speed in bytes/second")
+class ClipRecommendation(NetflixBaseModel):
+    """Viral clip recommendation"""
+    clip_id: str
+    start_time: confloat(ge=0)
+    end_time: confloat(gt=0)
+    viral_score: conint(ge=0, le=100)
+    confidence: confloat(ge=0, le=1)
+    platform_optimized: List[PlatformType] = Field(default_factory=list)
+    title_suggestion: Optional[str] = None
+    description_suggestion: Optional[str] = None
+    hashtag_suggestions: List[str] = Field(default_factory=list)
+    
+    @validator("end_time")
+    def validate_duration(cls, v, values):
+        if "start_time" in values:
+            duration = v - values["start_time"]
+            if duration < 3:  # Minimum 3 seconds
+                raise ValueError("Clip duration must be at least 3 seconds")
+            if duration > 300:  # Maximum 5 minutes
+                raise ValueError("Clip duration cannot exceed 5 minutes")
+        return v
 
 
-class ProcessingProgress(WebSocketMessage):
-    """Processing progress message"""
-    type: str = Field("processing_progress", const=True)
-    status: ProcessingStatus = Field(..., description="Processing status")
-    progress: float = Field(..., ge=0, le=100, description="Processing progress")
-    stage: str = Field(..., description="Current stage")
-    message: str = Field("", description="Status message")
-    entertaining_fact: Optional[str] = Field(None, description="Entertaining fact")
+class WebSocketMessage(NetflixBaseModel):
+    """WebSocket message format"""
+    type: constr(min_length=1)
+    session_id: Optional[str] = None
+    data: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    message_id: Optional[str] = None
+    correlation_id: Optional[str] = None
 
 
-class ViralScoreUpdate(WebSocketMessage):
-    """Viral score update message"""
-    type: str = Field("viral_score_update", const=True)
-    viral_score: float = Field(..., ge=0, le=100, description="Updated viral score")
-    confidence: float = Field(..., ge=0, le=1, description="Confidence level")
-    factors: List[str] = Field(default_factory=list, description="Contributing factors")
+class CacheInfo(NetflixBaseModel):
+    """Cache information response"""
+    cache_key: str
+    hit: bool
+    ttl: Optional[int] = None
+    size: Optional[int] = None
+    created_at: Optional[datetime] = None
+    access_count: Optional[int] = None
 
 
-class TimelineUpdate(WebSocketMessage):
-    """Timeline update message"""
-    type: str = Field("timeline_update", const=True)
-    timeline_data: TimelineData = Field(..., description="Updated timeline data")
+# Validation Helpers
+def validate_file_extension(filename: str, allowed_extensions: List[str]) -> bool:
+    """Validate file extension"""
+    extension = filename.lower().split('.')[-1] if '.' in filename else ''
+    return extension in [ext.lower().strip('.') for ext in allowed_extensions]
 
 
-class PreviewUpdate(WebSocketMessage):
-    """Preview update message"""
-    type: str = Field("preview_update", const=True)
-    preview_data: PreviewData = Field(..., description="Preview data")
+def validate_session_id_format(session_id: str) -> bool:
+    """Validate session ID format"""
+    import re
+    pattern = r'^[a-zA-Z0-9_-]+$'
+    return bool(re.match(pattern, session_id)) and len(session_id) >= 8
 
 
-# Configuration models
-class AppConfig(BaseModel):
-    """Application configuration"""
-    debug: bool = Field(False, description="Debug mode")
-    max_file_size: int = Field(100 * 1024 * 1024, description="Max file size in bytes")
-    upload_path: str = Field("uploads", description="Upload directory path")
-    output_path: str = Field("output", description="Output directory path")
-    temp_path: str = Field("temp", description="Temporary files path")
-    cache_path: str = Field("cache", description="Cache directory path")
-    log_level: str = Field("INFO", description="Logging level")
-    enable_metrics: bool = Field(True, description="Enable metrics collection")
-    enable_caching: bool = Field(True, description="Enable response caching")
-    require_auth: bool = Field(False, description="Require authentication")
-    allowed_origins: List[str] = Field(["*"], description="CORS allowed origins")
-    rate_limit_requests: int = Field(100, description="Rate limit requests per minute")
-    rate_limit_window: int = Field(60, description="Rate limit window in seconds")
+def validate_viral_score_range(score: int) -> bool:
+    """Validate viral score is in valid range"""
+    return 0 <= score <= 100
+
+
+def validate_timestamp_sequence(start: float, end: float) -> bool:
+    """Validate timestamp sequence"""
+    return start >= 0 and end > start
 
 
 # Export all models
 __all__ = [
     # Enums
-    "ProcessingStatus", "QualityLevel", "Platform", "AnalysisType",
+    "ProcessingStage",
+    "UploadStatus", 
+    "QualityLevel",
+    "PlatformType",
     
-    # Base models
-    "BaseResponse", "ErrorResponse",
+    # Base Models
+    "NetflixBaseModel",
+    "TimestampMixin",
     
-    # Data models
-    "VideoMetadata", "ViralAnalysis", "KeyMoment", "TimelineData", 
-    "PreviewData", "ProcessingJob",
+    # Request Models
+    "VideoUploadRequest",
+    "ChunkUploadRequest",
+    "AnalysisRequest",
+    "PreviewRequest",
+    "TimelineInteractionRequest",
     
-    # Request models
-    "VideoUploadRequest", "AnalysisRequest", "PreviewRequest", "ClipGenerationRequest",
+    # Response Models
+    "UploadProgressResponse",
+    "VideoUploadResponse",
+    "ViralAnalysis",
+    "TimelineData",
+    "AnalysisResponse",
+    "PreviewResponse",
+    "ProcessingStatus",
+    "SystemHealth",
+    "ErrorResponse",
+    "MetricsResponse",
+    "ClipRecommendation",
+    "WebSocketMessage",
+    "CacheInfo",
     
-    # Response models
-    "VideoUploadResponse", "AnalysisResponse", "PreviewResponse", 
-    "ClipGenerationResponse", "ProcessingStatusResponse",
-    
-    # System models
-    "SystemHealth", "MetricsData",
-    
-    # WebSocket models
-    "WebSocketMessage", "UploadProgress", "ProcessingProgress", 
-    "ViralScoreUpdate", "TimelineUpdate", "PreviewUpdate",
-    
-    # Configuration
-    "AppConfig"
+    # Validators
+    "validate_file_extension",
+    "validate_session_id_format",
+    "validate_viral_score_range",
+    "validate_timestamp_sequence",
 ]
