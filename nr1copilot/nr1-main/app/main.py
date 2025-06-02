@@ -621,6 +621,211 @@ async def websocket_enterprise(websocket: WebSocket, session_id: str):
         await container.realtime_engine.cleanup_enterprise_connection(connection_id)
 
 
+@app.websocket("/api/v6/ws/viral-insights/{session_id}")
+async def websocket_viral_insights(websocket: WebSocket, session_id: str):
+    """Real-time viral insights WebSocket with live feedback"""
+    connection_id = f"viral_{session_id}_{uuid.uuid4().hex[:8]}"
+
+    try:
+        await websocket.accept()
+        app_state.performance_metrics["active_connections"] += 1
+
+        logger.info(f"🎯 Viral insights WebSocket connected: {connection_id}")
+
+        # Send initial connection confirmation
+        await websocket.send_json({
+            "type": "connection_established",
+            "connection_id": connection_id,
+            "features": ["viral_analysis", "sentiment_tracking", "engagement_prediction"],
+            "timestamp": datetime.utcnow().isoformat()
+        })
+
+        # Start real-time analysis loop
+        await container.realtime_engine.start_viral_insights_stream(
+            websocket, session_id, connection_id
+        )
+
+    except WebSocketDisconnect:
+        logger.info(f"Viral insights WebSocket {connection_id} disconnected")
+    except Exception as e:
+        logger.error(f"Viral insights WebSocket error {connection_id}: {e}", exc_info=True)
+        try:
+            await websocket.close(code=1011, reason="Viral insights service error")
+        except:
+            pass
+    finally:
+        app_state.performance_metrics["active_connections"] -= 1
+        if container.realtime_engine:
+            await container.realtime_engine.cleanup_viral_insights_connection(connection_id)
+
+
+# Enhanced upload endpoints with real-time feedback
+@app.post("/api/v6/upload/analyze-realtime")
+async def analyze_upload_realtime(
+    request: Request,
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    user=Depends(get_authenticated_user),
+    _=Depends(check_enterprise_rate_limit)
+):
+    """Real-time analysis during upload with immediate viral insights"""
+    try:
+        logger.info(f"🎯 Starting real-time analysis for session: {session_id}")
+
+        # Quick file validation
+        if not file.filename or file.size == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file provided"
+            )
+
+        # Immediate viral potential assessment
+        quick_analysis = await container.ai_analyzer.quick_viral_assessment(
+            file, session_id
+        )
+
+        # Broadcast initial insights
+        if container.realtime_engine:
+            await container.realtime_engine.broadcast_viral_insights(
+                session_id,
+                {
+                    "type": "early_analysis",
+                    "insights": quick_analysis,
+                    "confidence": 0.7,
+                    "stage": "initial_upload"
+                }
+            )
+
+        # Start background processing
+        background_task = asyncio.create_task(
+            container.ai_analyzer.analyze_video_comprehensive(
+                file, session_id, enable_realtime=True
+            )
+        )
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "initial_insights": quick_analysis,
+            "processing_started": True,
+            "estimated_completion": "2-3 minutes",
+            "websocket_endpoint": f"/api/v6/ws/viral-insights/{session_id}"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Real-time analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Real-time analysis initialization failed"
+        )
+
+
+@app.post("/api/v6/preview/generate-realtime")
+async def generate_preview_realtime(
+    request: Request,
+    data: Dict[str, Any],
+    user=Depends(get_authenticated_user),
+    _=Depends(check_enterprise_rate_limit)
+):
+    """Generate preview with real-time feedback and viral optimization"""
+    try:
+        session_id = data.get("session_id")
+        start_time = data.get("start_time", 0)
+        end_time = data.get("end_time", 15)
+        quality = data.get("quality", "high")
+        enable_viral_optimization = data.get("enable_viral_optimization", True)
+
+        if not session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session ID required"
+            )
+
+        logger.info(f"🎬 Generating real-time preview for session: {session_id}")
+
+        # Start preview generation with real-time updates
+        preview_task = asyncio.create_task(
+            container.video_service.generate_preview_with_realtime_feedback(
+                session_id, start_time, end_time, quality, enable_viral_optimization
+            )
+        )
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "preview_generation_started": True,
+            "estimated_time": "30-60 seconds",
+            "features": [
+                "Real-time sentiment analysis",
+                "Viral score tracking",
+                "Engagement prediction",
+                "Platform optimization"
+            ],
+            "websocket_endpoint": f"/api/v6/ws/viral-insights/{session_id}"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Real-time preview generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Real-time preview generation failed"
+        )
+
+
+@app.get("/api/v6/insights/trending")
+async def get_trending_insights():
+    """Get current trending viral factors and insights"""
+    try:
+        trending_data = await container.ai_analyzer.get_trending_viral_factors()
+        
+        return {
+            "success": True,
+            "trending_factors": trending_data.get("factors", []),
+            "viral_patterns": trending_data.get("patterns", []),
+            "platform_trends": trending_data.get("platform_trends", {}),
+            "optimal_timings": trending_data.get("optimal_timings", {}),
+            "last_updated": datetime.utcnow().isoformat(),
+            "confidence": trending_data.get("confidence", 0.85)
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Trending insights failed: {e}")
+        return {
+            "success": False,
+            "error": "Failed to fetch trending insights",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/api/v6/recommendations/{session_id}")
+async def get_smart_recommendations(
+    session_id: str,
+    user=Depends(get_authenticated_user)
+):
+    """Get AI-powered smart recommendations for video optimization"""
+    try:
+        recommendations = await container.ai_analyzer.generate_smart_recommendations(
+            session_id, user
+        )
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "recommendations": recommendations.get("clips", []),
+            "optimization_suggestions": recommendations.get("optimizations", []),
+            "platform_specific": recommendations.get("platform_specific", {}),
+            "confidence": recommendations.get("confidence", 0.8),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Smart recommendations failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate smart recommendations"
+        )
+
+
 # Enhanced error handlers with enterprise monitoring
 @app.exception_handler(HTTPException)
 async def enterprise_http_exception_handler(request: Request, exc: HTTPException):
