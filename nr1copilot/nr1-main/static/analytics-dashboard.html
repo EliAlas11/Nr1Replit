@@ -1,0 +1,932 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViralClip Pro - Advanced Analytics Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            color: #ffffff;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .dashboard-header {
+            background: rgba(99, 102, 241, 0.1);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .dashboard-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .time-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .time-btn {
+            padding: 0.5rem 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 0.5rem;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .time-btn.active {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            transform: scale(1.05);
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .analytics-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analytics-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .card-metric {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .metric-positive {
+            color: #10b981;
+        }
+
+        .metric-negative {
+            color: #ef4444;
+        }
+
+        .metric-neutral {
+            color: #6366f1;
+        }
+
+        .trend-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .chart-container {
+            height: 200px;
+            margin: 1rem 0;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .retention-curve {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, 
+                rgba(99, 102, 241, 0.1) 0%, 
+                rgba(168, 85, 247, 0.1) 50%,
+                rgba(236, 72, 153, 0.1) 100%);
+            border-radius: 0.5rem;
+            position: relative;
+        }
+
+        .viral-score-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                #6366f1 0deg 270deg,
+                rgba(99, 102, 241, 0.2) 270deg 360deg
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 1rem auto;
+            position: relative;
+        }
+
+        .viral-score-inner {
+            width: 90px;
+            height: 90px;
+            background: #0f0f0f;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .viral-score-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #6366f1;
+        }
+
+        .viral-score-label {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+
+        .platform-scores {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .platform-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+        }
+
+        .platform-name {
+            font-weight: 500;
+        }
+
+        .platform-score {
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .insights-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .insight-item {
+            padding: 0.8rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 0.5rem;
+            border-left: 3px solid #6366f1;
+        }
+
+        .insight-title {
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .insight-description {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .roi-breakdown {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .roi-item {
+            text-align: center;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+        }
+
+        .roi-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .roi-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 0.2rem;
+        }
+
+        .alert-banner {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .alert-icon {
+            font-size: 1.5rem;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .alert-description {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .trending-topics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .trending-tag {
+            padding: 0.3rem 0.8rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            color: #6366f1;
+        }
+
+        .recommendations-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .recommendation-item {
+            padding: 1rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 0.5rem;
+        }
+
+        .recommendation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .recommendation-impact {
+            padding: 0.2rem 0.5rem;
+            background: rgba(16, 185, 129, 0.2);
+            border-radius: 0.3rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #10b981;
+        }
+
+        .ab-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .ab-video {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .ab-winner {
+            border: 2px solid #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .ab-metric {
+            margin: 0.5rem 0;
+        }
+
+        .ab-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(99, 102, 241, 0.3);
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 1rem auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .time-selector {
+                flex-wrap: wrap;
+            }
+
+            .roi-breakdown {
+                grid-template-columns: 1fr;
+            }
+
+            .ab-comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="header-content">
+            <h1 class="dashboard-title">🔬 Advanced Creator Analytics</h1>
+            <div class="time-selector">
+                <button class="time-btn active" data-timeframe="24h">24H</button>
+                <button class="time-btn" data-timeframe="7d">7D</button>
+                <button class="time-btn" data-timeframe="30d">30D</button>
+                <button class="time-btn" data-timeframe="90d">90D</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-container" id="dashboardContainer">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script>
+        class AdvancedAnalyticsDashboard {
+            constructor() {
+                this.currentTimeframe = '24h';
+                this.websocket = null;
+                this.dashboardData = null;
+                this.updateInterval = null;
+                
+                this.initializeEventListeners();
+                this.connectWebSocket();
+                this.loadDashboard();
+            }
+
+            initializeEventListeners() {
+                // Timeframe selector
+                document.querySelectorAll('.time-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.currentTimeframe = e.target.dataset.timeframe;
+                        this.loadDashboard();
+                    });
+                });
+
+                // Auto-refresh every 30 seconds
+                this.updateInterval = setInterval(() => {
+                    this.loadDashboard();
+                }, 30000);
+            }
+
+            connectWebSocket() {
+                try {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    this.websocket = new WebSocket(`${protocol}//${window.location.host}/ws/analytics`);
+                    
+                    this.websocket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.handleRealtimeUpdate(data);
+                    };
+
+                    this.websocket.onopen = () => {
+                        console.log('🔗 Analytics WebSocket connected');
+                    };
+
+                    this.websocket.onerror = (error) => {
+                        console.error('Analytics WebSocket error:', error);
+                    };
+                } catch (error) {
+                    console.error('Failed to connect WebSocket:', error);
+                }
+            }
+
+            async loadDashboard() {
+                try {
+                    const response = await fetch(`/api/v7/analytics/dashboard?timeframe=${this.currentTimeframe}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.dashboardData = data.dashboard;
+                        this.renderDashboard();
+                    } else {
+                        this.showError('Failed to load analytics data');
+                    }
+                } catch (error) {
+                    console.error('Dashboard loading error:', error);
+                    this.showError('Network error loading dashboard');
+                }
+            }
+
+            renderDashboard() {
+                const container = document.getElementById('dashboardContainer');
+                const data = this.dashboardData;
+
+                container.innerHTML = `
+                    ${this.renderAlerts(data.alerts)}
+                    ${this.renderEngagementMetrics(data.engagement_metrics)}
+                    ${this.renderViralInsights(data.viral_insights)}
+                    ${this.renderPerformanceAnalytics(data.performance_analytics)}
+                    ${this.renderROITracking(data.roi_tracking)}
+                    ${this.renderTrendAnalysis(data.trend_analysis)}
+                    ${this.renderRecommendations(data.recommendations)}
+                    ${this.renderPredictiveInsights(data.predictive_insights)}
+                    ${this.renderCompetitiveInsights(data.competitive_insights)}
+                `;
+
+                this.initializeInteractiveElements();
+            }
+
+            renderAlerts(alerts) {
+                if (!alerts || alerts.length === 0) return '';
+                
+                return alerts.map(alert => `
+                    <div class="alert-banner">
+                        <div class="alert-icon">${this.getAlertIcon(alert.severity)}</div>
+                        <div class="alert-content">
+                            <div class="alert-title">${alert.message}</div>
+                            <div class="alert-description">${alert.action}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            renderEngagementMetrics(metrics) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">📊 Engagement Overview</h3>
+                            <div class="status-indicator"></div>
+                        </div>
+                        
+                        <div class="roi-breakdown">
+                            <div class="roi-item">
+                                <div class="roi-value">${this.formatNumber(metrics.total_views)}</div>
+                                <div class="roi-label">Total Views</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(metrics.engagement_rate * 100).toFixed(1)}%</div>
+                                <div class="roi-label">Engagement Rate</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(metrics.click_through_rate * 100).toFixed(2)}%</div>
+                                <div class="roi-label">CTR</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(metrics.retention_rate * 100).toFixed(0)}%</div>
+                                <div class="roi-label">Retention</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-container">
+                            <div class="retention-curve" id="retentionChart"></div>
+                        </div>
+
+                        <div class="trend-indicator">
+                            <span>📈</span>
+                            <span>+12% vs last period</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderViralInsights(insights) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">🚀 Viral Prediction</h3>
+                            <div class="status-indicator"></div>
+                        </div>
+                        
+                        <div class="viral-score-circle">
+                            <div class="viral-score-inner">
+                                <div class="viral-score-number">${(insights.viral_probability * 100).toFixed(0)}</div>
+                                <div class="viral-score-label">Viral Score</div>
+                            </div>
+                        </div>
+
+                        <div class="platform-scores">
+                            ${Object.entries(insights.platform_scores).map(([platform, score]) => `
+                                <div class="platform-item">
+                                    <span class="platform-name">${platform}</span>
+                                    <span class="platform-score">${score.toFixed(0)}%</span>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="insights-list">
+                            ${insights.key_viral_factors.slice(0, 3).map(factor => `
+                                <div class="insight-item">
+                                    <div class="insight-title">✨ ${factor}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderPerformanceAnalytics(performance) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">📈 Performance Analytics</h3>
+                        </div>
+                        
+                        <div class="roi-breakdown">
+                            <div class="roi-item">
+                                <div class="roi-value">${(performance.video_completion_rate * 100).toFixed(1)}%</div>
+                                <div class="roi-label">Completion Rate</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(performance.traffic_sources.organic * 100).toFixed(0)}%</div>
+                                <div class="roi-label">Organic Traffic</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(performance.device_breakdown.mobile * 100).toFixed(0)}%</div>
+                                <div class="roi-label">Mobile Views</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${performance.geographic_data.top_countries.length}</div>
+                                <div class="roi-label">Countries</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-container">
+                            <canvas id="retentionCurve" width="300" height="150"></canvas>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderROITracking(roi) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">💰 ROI Tracking</h3>
+                        </div>
+                        
+                        <div class="card-metric metric-positive">
+                            $${roi.total_revenue.toFixed(0)}
+                        </div>
+                        <div class="trend-indicator">
+                            <span>💼</span>
+                            <span>Total Revenue</span>
+                        </div>
+
+                        <div class="roi-breakdown">
+                            <div class="roi-item">
+                                <div class="roi-value">${roi.roi_percentage.toFixed(1)}%</div>
+                                <div class="roi-label">ROI</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">$${roi.cpm.toFixed(2)}</div>
+                                <div class="roi-label">CPM</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(roi.conversion_rate * 100).toFixed(2)}%</div>
+                                <div class="roi-label">Conversion</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">$${roi.affiliate_earnings.toFixed(0)}</div>
+                                <div class="roi-label">Affiliate</div>
+                            </div>
+                        </div>
+
+                        <div class="insights-list">
+                            <div class="insight-item">
+                                <div class="insight-title">Revenue Breakdown</div>
+                                <div class="insight-description">
+                                    ${Object.entries(roi.revenue_breakdown).map(([source, percentage]) => 
+                                        `${source}: ${(percentage * 100).toFixed(0)}%`
+                                    ).join(' • ')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderTrendAnalysis(trends) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">📊 Trend Analysis</h3>
+                        </div>
+                        
+                        <div class="trending-topics">
+                            ${trends.trending_topics.map(topic => `
+                                <div class="trending-tag">
+                                    📈 ${topic.topic} (+${(topic.growth * 100).toFixed(0)}%)
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="insights-list">
+                            <div class="insight-item">
+                                <div class="insight-title">🎯 Content Format Trends</div>
+                                <div class="insight-description">
+                                    Vertical: ${(trends.content_format_trends.vertical_video * 100).toFixed(0)}% • 
+                                    Text: ${(trends.content_format_trends.text_overlays * 100).toFixed(0)}% • 
+                                    Audio: ${(trends.content_format_trends.trending_audio * 100).toFixed(0)}%
+                                </div>
+                            </div>
+                            <div class="insight-item">
+                                <div class="insight-title">⏰ Optimal Posting Times</div>
+                                <div class="insight-description">
+                                    ${trends.optimal_posting_times.join(' • ')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderRecommendations(recommendations) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">💡 Smart Recommendations</h3>
+                        </div>
+                        
+                        <div class="recommendations-list">
+                            ${recommendations.map(rec => `
+                                <div class="recommendation-item">
+                                    <div class="recommendation-header">
+                                        <span>${rec.recommendation}</span>
+                                        <span class="recommendation-impact">${rec.impact.toUpperCase()}</span>
+                                    </div>
+                                    <div class="insight-description">
+                                        ${rec.expected_improvement}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderPredictiveInsights(insights) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">🔮 Predictive Insights</h3>
+                        </div>
+                        
+                        <div class="roi-breakdown">
+                            <div class="roi-item">
+                                <div class="roi-value">${this.formatNumber(insights.next_week_predictions.expected_views)}</div>
+                                <div class="roi-label">Predicted Views</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(insights.next_week_predictions.predicted_engagement_rate * 100).toFixed(1)}%</div>
+                                <div class="roi-label">Expected Engagement</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(insights.next_week_predictions.viral_probability * 100).toFixed(0)}%</div>
+                                <div class="roi-label">Viral Chance</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(insights.growth_trajectory.follower_growth_rate * 100).toFixed(1)}%</div>
+                                <div class="roi-label">Growth Rate</div>
+                            </div>
+                        </div>
+
+                        <div class="insights-list">
+                            ${insights.optimization_opportunities.slice(0, 3).map(opp => `
+                                <div class="insight-item">
+                                    <div class="insight-title">🎯 ${opp}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderCompetitiveInsights(competitive) {
+                return `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">🏆 Competitive Analysis</h3>
+                        </div>
+                        
+                        <div class="card-metric metric-positive">
+                            ${competitive.market_position}
+                        </div>
+                        <div class="trend-indicator">
+                            <span>🎯</span>
+                            <span>Market Position</span>
+                        </div>
+
+                        <div class="roi-breakdown">
+                            <div class="roi-item">
+                                <div class="roi-value">${competitive.engagement_vs_average.toFixed(1)}x</div>
+                                <div class="roi-label">vs Average</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${competitive.growth_rate_vs_competitors.toFixed(1)}x</div>
+                                <div class="roi-label">Growth Rate</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${(competitive.differentiation_score * 100).toFixed(0)}%</div>
+                                <div class="roi-label">Differentiation</div>
+                            </div>
+                            <div class="roi-item">
+                                <div class="roi-value">${competitive.content_gap_opportunities.length}</div>
+                                <div class="roi-label">Opportunities</div>
+                            </div>
+                        </div>
+
+                        <div class="insights-list">
+                            ${competitive.content_gap_opportunities.slice(0, 3).map(gap => `
+                                <div class="insight-item">
+                                    <div class="insight-title">💡 ${gap}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            initializeInteractiveElements() {
+                // Initialize any interactive charts or elements
+                this.drawRetentionCurve();
+            }
+
+            drawRetentionCurve() {
+                const canvas = document.getElementById('retentionCurve');
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+
+                // Clear canvas
+                ctx.clearRect(0, 0, width, height);
+
+                // Sample retention data
+                const retentionData = this.dashboardData?.performance_analytics?.audience_retention_curve || [];
+                
+                if (retentionData.length === 0) return;
+
+                // Draw retention curve
+                ctx.beginPath();
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2;
+
+                retentionData.forEach((point, index) => {
+                    const x = (index / (retentionData.length - 1)) * width;
+                    const y = height - (point.retention * height);
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+
+                // Add gradient fill
+                ctx.lineTo(width, height);
+                ctx.lineTo(0, height);
+                ctx.closePath();
+
+                const gradient = ctx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+                gradient.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            }
+
+            handleRealtimeUpdate(data) {
+                // Handle real-time WebSocket updates
+                if (data.type === 'analytics_update') {
+                    this.dashboardData = { ...this.dashboardData, ...data.updates };
+                    this.renderDashboard();
+                }
+            }
+
+            formatNumber(num) {
+                if (num >= 1000000) {
+                    return (num / 1000000).toFixed(1) + 'M';
+                } else if (num >= 1000) {
+                    return (num / 1000).toFixed(1) + 'K';
+                }
+                return num.toString();
+            }
+
+            getAlertIcon(severity) {
+                switch (severity) {
+                    case 'high': return '🚨';
+                    case 'medium': return '⚠️';
+                    case 'low': return 'ℹ️';
+                    default: return '📌';
+                }
+            }
+
+            showError(message) {
+                const container = document.getElementById('dashboardContainer');
+                container.innerHTML = `
+                    <div class="analytics-card">
+                        <div class="card-header">
+                            <h3 class="card-title">❌ Error</h3>
+                        </div>
+                        <p>${message}</p>
+                        <button onclick="location.reload()" class="time-btn">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AdvancedAnalyticsDashboard();
+        });
+    </script>
+</body>
+</html>
