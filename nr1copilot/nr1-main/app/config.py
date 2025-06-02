@@ -1,339 +1,352 @@
 
 """
 Netflix-Level Configuration Management
-Production-ready settings with environment-based configuration
+Environment-based configuration with validation, secrets management, and performance tuning
 """
 
 import os
-import secrets
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from pydantic import BaseSettings, Field, validator
-from pydantic_settings import BaseSettings as PydanticBaseSettings
 import logging
+from functools import lru_cache
+from typing import Dict, Any, Optional, List
+from pathlib import Path
+
+from pydantic import BaseSettings, Field, validator
+from pydantic_settings import SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
-class DatabaseSettings(PydanticBaseSettings):
-    """Database configuration settings"""
-    url: str = Field(default="sqlite:///./viralclip.db", env="DATABASE_URL")
-    pool_size: int = Field(default=20, env="DB_POOL_SIZE")
-    max_overflow: int = Field(default=30, env="DB_MAX_OVERFLOW")
-    pool_timeout: int = Field(default=30, env="DB_POOL_TIMEOUT")
-    pool_recycle: int = Field(default=3600, env="DB_POOL_RECYCLE")
-    echo: bool = Field(default=False, env="DB_ECHO")
+class DatabaseConfig(BaseSettings):
+    """Database configuration with connection pooling"""
+    
+    # Database connection
+    database_url: str = Field(default="sqlite:///./viralclip.db", description="Database connection URL")
+    pool_size: int = Field(default=20, description="Connection pool size")
+    max_overflow: int = Field(default=30, description="Maximum connection overflow")
+    pool_timeout: int = Field(default=30, description="Pool connection timeout")
+    pool_recycle: int = Field(default=3600, description="Pool connection recycle time")
+    
+    # Query optimization
+    query_timeout: int = Field(default=30, description="Query timeout in seconds")
+    enable_query_logging: bool = Field(default=False, description="Enable SQL query logging")
+    
+    @validator('database_url')
+    def validate_database_url(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError("Database URL cannot be empty")
+        return v
 
 
-class RedisSettings(PydanticBaseSettings):
-    """Redis configuration for caching and sessions"""
-    url: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
-    max_connections: int = Field(default=50, env="REDIS_MAX_CONNECTIONS")
-    socket_timeout: int = Field(default=30, env="REDIS_SOCKET_TIMEOUT")
-    socket_connect_timeout: int = Field(default=30, env="REDIS_CONNECT_TIMEOUT")
-    retry_on_timeout: bool = Field(default=True, env="REDIS_RETRY_ON_TIMEOUT")
-    decode_responses: bool = Field(default=True, env="REDIS_DECODE_RESPONSES")
+class CacheConfig(BaseSettings):
+    """Caching configuration for Netflix-grade performance"""
+    
+    # Redis configuration
+    redis_url: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
+    redis_timeout: int = Field(default=5, description="Redis connection timeout")
+    
+    # Cache settings
+    default_ttl: int = Field(default=300, description="Default cache TTL in seconds")
+    max_memory_usage: str = Field(default="512mb", description="Maximum memory usage")
+    eviction_policy: str = Field(default="allkeys-lru", description="Cache eviction policy")
+    
+    # Performance caching
+    enable_query_cache: bool = Field(default=True, description="Enable database query caching")
+    enable_response_cache: bool = Field(default=True, description="Enable HTTP response caching")
+    enable_static_cache: bool = Field(default=True, description="Enable static content caching")
+    
+    # Cache warming
+    enable_cache_warming: bool = Field(default=True, description="Enable cache warming")
+    warming_batch_size: int = Field(default=100, description="Cache warming batch size")
 
 
-class SecuritySettings(PydanticBaseSettings):
-    """Security configuration"""
-    secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(32), env="SECRET_KEY")
-    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
-    jwt_expiration: int = Field(default=3600, env="JWT_EXPIRATION")  # 1 hour
-    bcrypt_rounds: int = Field(default=12, env="BCRYPT_ROUNDS")
-    cors_origins: List[str] = Field(default=["*"], env="CORS_ORIGINS")
-    trusted_hosts: List[str] = Field(default=["*"], env="TRUSTED_HOSTS")
-    rate_limit_requests: int = Field(default=1000, env="RATE_LIMIT_REQUESTS")
-    rate_limit_window: int = Field(default=3600, env="RATE_LIMIT_WINDOW")
+class SecurityConfig(BaseSettings):
+    """Security configuration with enterprise-grade settings"""
+    
+    # Authentication
+    secret_key: str = Field(default="your-super-secret-key-change-in-production", description="JWT secret key")
+    algorithm: str = Field(default="HS256", description="JWT algorithm")
+    access_token_expire_minutes: int = Field(default=30, description="Access token expiration")
+    refresh_token_expire_days: int = Field(default=7, description="Refresh token expiration")
+    
+    # Rate limiting
+    rate_limit_requests: int = Field(default=1000, description="Rate limit requests per minute")
+    rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
+    
+    # Security headers
+    enable_cors: bool = Field(default=True, description="Enable CORS")
+    cors_origins: List[str] = Field(default=["*"], description="Allowed CORS origins")
+    enable_csrf_protection: bool = Field(default=True, description="Enable CSRF protection")
+    
+    # Encryption
+    encryption_key: Optional[str] = Field(default=None, description="Data encryption key")
+    enable_field_encryption: bool = Field(default=False, description="Enable field-level encryption")
+    
+    @validator('secret_key')
+    def validate_secret_key(cls, v):
+        if len(v) < 32:
+            logger.warning("Secret key should be at least 32 characters for production use")
+        return v
 
 
-class UploadSettings(PydanticBaseSettings):
-    """Upload configuration"""
-    max_file_size: int = Field(default=2 * 1024 * 1024 * 1024, env="MAX_FILE_SIZE")  # 2GB
-    chunk_size: int = Field(default=8 * 1024 * 1024, env="CHUNK_SIZE")  # 8MB
-    max_concurrent_uploads: int = Field(default=5, env="MAX_CONCURRENT_UPLOADS")
-    max_concurrent_chunks: int = Field(default=10, env="MAX_CONCURRENT_CHUNKS")
-    upload_timeout: int = Field(default=3600, env="UPLOAD_TIMEOUT")  # 1 hour
-    supported_formats: List[str] = Field(
-        default=[".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v", ".3gp", ".mp3", ".wav", ".m4a", ".flac", ".aac"],
-        env="SUPPORTED_FORMATS"
-    )
+class PerformanceConfig(BaseSettings):
+    """Performance optimization configuration"""
+    
+    # Server settings
+    workers: int = Field(default=1, description="Number of worker processes")
+    worker_connections: int = Field(default=1000, description="Worker connections")
+    keepalive_timeout: int = Field(default=2, description="Keep-alive timeout")
+    
+    # Request handling
+    max_request_size: int = Field(default=100 * 1024 * 1024, description="Maximum request size in bytes")
+    request_timeout: int = Field(default=30, description="Request timeout in seconds")
+    
+    # File upload
+    max_upload_size: int = Field(default=2 * 1024 * 1024 * 1024, description="Maximum upload size in bytes")
+    chunk_size: int = Field(default=8192, description="File upload chunk size")
+    
+    # Background processing
+    max_background_tasks: int = Field(default=100, description="Maximum background tasks")
+    background_task_timeout: int = Field(default=300, description="Background task timeout")
+    
+    # Optimization flags
+    enable_gzip: bool = Field(default=True, description="Enable gzip compression")
+    enable_brotli: bool = Field(default=True, description="Enable brotli compression")
+    enable_static_caching: bool = Field(default=True, description="Enable static file caching")
 
 
-class ProcessingSettings(PydanticBaseSettings):
-    """Video processing configuration"""
-    ffmpeg_threads: int = Field(default=4, env="FFMPEG_THREADS")
-    processing_timeout: int = Field(default=1800, env="PROCESSING_TIMEOUT")  # 30 minutes
-    output_formats: List[str] = Field(default=["mp4", "webm"], env="OUTPUT_FORMATS")
-    quality_presets: List[str] = Field(default=["draft", "standard", "high", "premium"], env="QUALITY_PRESETS")
-    thumbnail_count: int = Field(default=5, env="THUMBNAIL_COUNT")
-
-
-class AISettings(PydanticBaseSettings):
-    """AI processing configuration"""
-    model_name: str = Field(default="gpt-4", env="AI_MODEL_NAME")
-    max_tokens: int = Field(default=4000, env="AI_MAX_TOKENS")
-    temperature: float = Field(default=0.7, env="AI_TEMPERATURE")
-    timeout: int = Field(default=120, env="AI_TIMEOUT")
-    max_retries: int = Field(default=3, env="AI_MAX_RETRIES")
-    api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
-
-
-class MonitoringSettings(PydanticBaseSettings):
+class MonitoringConfig(BaseSettings):
     """Monitoring and observability configuration"""
-    metrics_enabled: bool = Field(default=True, env="METRICS_ENABLED")
-    health_check_interval: int = Field(default=30, env="HEALTH_CHECK_INTERVAL")
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
-    structured_logging: bool = Field(default=True, env="STRUCTURED_LOGGING")
-    prometheus_enabled: bool = Field(default=True, env="PROMETHEUS_ENABLED")
-    jaeger_enabled: bool = Field(default=False, env="JAEGER_ENABLED")
-
-
-class PerformanceSettings(PydanticBaseSettings):
-    """Performance optimization settings"""
-    worker_count: int = Field(default=4, env="WORKER_COUNT")
-    max_requests_per_child: int = Field(default=10000, env="MAX_REQUESTS_PER_CHILD")
-    keepalive_timeout: int = Field(default=2, env="KEEPALIVE_TIMEOUT")
-    max_concurrent_requests: int = Field(default=1000, env="MAX_CONCURRENT_REQUESTS")
-    memory_limit_mb: int = Field(default=2048, env="MEMORY_LIMIT_MB")
-    cpu_limit_percent: int = Field(default=80, env="CPU_LIMIT_PERCENT")
-
-
-class SocialPublishingSettings(PydanticBaseSettings):
-    """Social media publishing configuration"""
-    max_concurrent_jobs: int = Field(default=100, env="SOCIAL_MAX_CONCURRENT_JOBS")
-    job_timeout: int = Field(default=300, env="SOCIAL_JOB_TIMEOUT")  # 5 minutes
-    retry_attempts: int = Field(default=3, env="SOCIAL_RETRY_ATTEMPTS")
-    circuit_breaker_threshold: int = Field(default=10, env="SOCIAL_CIRCUIT_BREAKER_THRESHOLD")
-    cache_ttl: int = Field(default=3600, env="SOCIAL_CACHE_TTL")  # 1 hour
-    webhook_timeout: int = Field(default=30, env="SOCIAL_WEBHOOK_TIMEOUT")
-    enable_analytics: bool = Field(default=True, env="SOCIAL_ENABLE_ANALYTICS")
-    enable_performance_monitoring: bool = Field(default=True, env="SOCIAL_ENABLE_MONITORING")
-
-
-class Settings(PydanticBaseSettings):
-    """Main application settings"""
     
-    # Application metadata
-    app_name: str = Field(default="ViralClip Pro", env="APP_NAME")
-    app_version: str = Field(default="7.0.0", env="APP_VERSION")
-    environment: str = Field(default="development", env="ENVIRONMENT")
-    debug: bool = Field(default=True, env="DEBUG")
+    # Logging
+    log_level: str = Field(default="INFO", description="Logging level")
+    log_format: str = Field(default="json", description="Log format: json or text")
+    enable_structured_logging: bool = Field(default=True, description="Enable structured logging")
     
-    # Server configuration
-    host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=5000, env="PORT")
+    # Metrics
+    enable_metrics: bool = Field(default=True, description="Enable metrics collection")
+    metrics_endpoint: str = Field(default="/metrics", description="Metrics endpoint")
     
-    # Directory paths
-    base_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent)
-    upload_path: Path = Field(default_factory=lambda: Path("uploads"))
-    output_path: Path = Field(default_factory=lambda: Path("output"))
-    temp_path: Path = Field(default_factory=lambda: Path("temp"))
-    cache_path: Path = Field(default_factory=lambda: Path("cache"))
-    logs_path: Path = Field(default_factory=lambda: Path("logs"))
+    # Health checks
+    enable_health_checks: bool = Field(default=True, description="Enable health checks")
+    health_check_interval: int = Field(default=30, description="Health check interval in seconds")
     
-    # Component settings
-    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    redis: RedisSettings = Field(default_factory=RedisSettings)
-    security: SecuritySettings = Field(default_factory=SecuritySettings)
-    upload: UploadSettings = Field(default_factory=UploadSettings)
-    processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
-    ai: AISettings = Field(default_factory=AISettings)
-    monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
-    performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
-    social_publishing: SocialPublishingSettings = Field(default_factory=SocialPublishingSettings)
+    # Alerting
+    enable_alerting: bool = Field(default=True, description="Enable alerting")
+    alert_webhook_url: Optional[str] = Field(default=None, description="Alert webhook URL")
+    
+    # Profiling
+    enable_profiling: bool = Field(default=False, description="Enable performance profiling")
+    profiling_sample_rate: float = Field(default=0.01, description="Profiling sample rate")
+
+
+class AIConfig(BaseSettings):
+    """AI and ML configuration"""
+    
+    # Model settings
+    model_cache_size: int = Field(default=100, description="ML model cache size")
+    model_timeout: int = Field(default=30, description="Model inference timeout")
+    
+    # Processing
+    max_concurrent_predictions: int = Field(default=10, description="Maximum concurrent predictions")
+    batch_size: int = Field(default=32, description="ML batch processing size")
+    
+    # Quality thresholds
+    min_confidence_threshold: float = Field(default=0.7, description="Minimum confidence threshold")
+    viral_score_threshold: float = Field(default=0.8, description="Viral score threshold")
     
     # Feature flags
-    enable_websockets: bool = Field(default=True, env="ENABLE_WEBSOCKETS")
-    enable_ai_analysis: bool = Field(default=True, env="ENABLE_AI_ANALYSIS")
-    enable_social_publishing: bool = Field(default=True, env="ENABLE_SOCIAL_PUBLISHING")
-    enable_batch_processing: bool = Field(default=True, env="ENABLE_BATCH_PROCESSING")
-    enable_real_time_updates: bool = Field(default=True, env="ENABLE_REAL_TIME_UPDATES")
+    enable_viral_prediction: bool = Field(default=True, description="Enable viral prediction")
+    enable_sentiment_analysis: bool = Field(default=True, description="Enable sentiment analysis")
+    enable_content_moderation: bool = Field(default=True, description="Enable content moderation")
+
+
+class NetflixLevelSettings(BaseSettings):
+    """Netflix-level application settings with comprehensive configuration"""
     
-    # External service URLs
-    webhook_url: Optional[str] = Field(default=None, env="WEBHOOK_URL")
-    cdn_url: Optional[str] = Field(default=None, env="CDN_URL")
-    analytics_url: Optional[str] = Field(default=None, env="ANALYTICS_URL")
+    # Environment
+    environment: str = Field(default="development", description="Application environment")
+    debug: bool = Field(default=False, description="Debug mode")
+    testing: bool = Field(default=False, description="Testing mode")
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "allow"
+    # Application
+    app_name: str = Field(default="ViralClip Pro", description="Application name")
+    app_version: str = Field(default="7.0.0", description="Application version")
+    api_prefix: str = Field(default="/api/v7", description="API prefix")
     
-    @validator("upload_path", "output_path", "temp_path", "cache_path", "logs_path", pre=True)
-    def ensure_absolute_paths(cls, v, values):
-        """Ensure all paths are absolute"""
-        if isinstance(v, str):
-            v = Path(v)
-        
-        if not v.is_absolute():
-            base_dir = values.get("base_dir", Path(__file__).parent.parent)
-            v = base_dir / v
-        
-        return v
+    # Server
+    host: str = Field(default="0.0.0.0", description="Server host")
+    port: int = Field(default=5000, description="Server port")
+    reload: bool = Field(default=False, description="Auto-reload on changes")
     
-    @validator("environment")
+    # Nested configurations
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
+    performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
+    ai: AIConfig = Field(default_factory=AIConfig)
+    
+    # Paths
+    static_dir: Path = Field(default=Path("static"), description="Static files directory")
+    upload_dir: Path = Field(default=Path("uploads"), description="Upload directory")
+    log_dir: Path = Field(default=Path("logs"), description="Log directory")
+    
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        case_sensitive=False,
+        extra="allow"
+    )
+    
+    @validator('environment')
     def validate_environment(cls, v):
-        """Validate environment setting"""
-        valid_environments = ["development", "staging", "production"]
+        valid_environments = ['development', 'staging', 'production', 'testing']
         if v not in valid_environments:
-            raise ValueError(f"Environment must be one of {valid_environments}")
+            raise ValueError(f"Environment must be one of: {valid_environments}")
         return v
     
-    @validator("log_level")
-    def validate_log_level(cls, v):
-        """Validate log level"""
-        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-        if v.upper() not in valid_levels:
-            raise ValueError(f"Log level must be one of {valid_levels}")
-        return v.upper()
+    @validator('port')
+    def validate_port(cls, v):
+        if not 1 <= v <= 65535:
+            raise ValueError("Port must be between 1 and 65535")
+        return v
     
-    def ensure_directories(self):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._create_directories()
+        self._validate_production_settings()
+    
+    def _create_directories(self):
         """Create necessary directories"""
-        directories = [
-            self.upload_path,
-            self.output_path,
-            self.temp_path,
-            self.cache_path,
-            self.logs_path,
-            self.upload_path / "chunks",
-            self.output_path / "thumbnails",
-            self.output_path / "previews",
-            self.temp_path / "processing",
-            self.cache_path / "redis_backup"
-        ]
-        
+        directories = [self.upload_dir, self.log_dir]
         for directory in directories:
-            try:
-                directory.mkdir(parents=True, exist_ok=True, mode=0o755)
-            except Exception as e:
-                logging.warning(f"Failed to create directory {directory}: {e}")
+            directory.mkdir(parents=True, exist_ok=True)
     
-    @property
+    def _validate_production_settings(self):
+        """Validate production-specific settings"""
+        if self.environment == "production":
+            if self.debug:
+                logger.warning("Debug mode should be disabled in production")
+            
+            if self.security.secret_key == "your-super-secret-key-change-in-production":
+                raise ValueError("Secret key must be changed for production use")
+            
+            if not self.monitoring.enable_metrics:
+                logger.warning("Metrics should be enabled in production")
+    
+    def get_database_url(self) -> str:
+        """Get database URL with environment override"""
+        return os.getenv("DATABASE_URL", self.database.database_url)
+    
+    def get_redis_url(self) -> str:
+        """Get Redis URL with environment override"""
+        return os.getenv("REDIS_URL", self.cache.redis_url)
+    
     def is_production(self) -> bool:
         """Check if running in production"""
         return self.environment == "production"
     
-    @property
     def is_development(self) -> bool:
         """Check if running in development"""
         return self.environment == "development"
     
-    @property
-    def is_staging(self) -> bool:
-        """Check if running in staging"""
-        return self.environment == "staging"
-    
-    def get_database_url(self) -> str:
-        """Get formatted database URL"""
-        return self.database.url
-    
-    def get_redis_url(self) -> str:
-        """Get formatted Redis URL"""
-        return self.redis.url
-    
     def get_cors_origins(self) -> List[str]:
-        """Get CORS origins as list"""
-        if isinstance(self.security.cors_origins, str):
-            return [origin.strip() for origin in self.security.cors_origins.split(",")]
+        """Get CORS origins with environment override"""
+        env_origins = os.getenv("CORS_ORIGINS")
+        if env_origins:
+            return [origin.strip() for origin in env_origins.split(",")]
         return self.security.cors_origins
-    
-    def get_trusted_hosts(self) -> List[str]:
-        """Get trusted hosts as list"""
-        if isinstance(self.security.trusted_hosts, str):
-            return [host.strip() for host in self.security.trusted_hosts.split(",")]
-        return self.security.trusted_hosts
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert settings to dictionary"""
         return {
-            "app": {
-                "name": self.app_name,
-                "version": self.app_version,
-                "environment": self.environment,
-                "debug": self.debug
+            "app_name": self.app_name,
+            "app_version": self.app_version,
+            "environment": self.environment,
+            "debug": self.debug,
+            "host": self.host,
+            "port": self.port,
+            "api_prefix": self.api_prefix,
+            "database": {
+                "pool_size": self.database.pool_size,
+                "max_overflow": self.database.max_overflow
             },
-            "server": {
-                "host": self.host,
-                "port": self.port
+            "cache": {
+                "default_ttl": self.cache.default_ttl,
+                "max_memory_usage": self.cache.max_memory_usage
             },
-            "features": {
-                "websockets": self.enable_websockets,
-                "ai_analysis": self.enable_ai_analysis,
-                "social_publishing": self.enable_social_publishing,
-                "batch_processing": self.enable_batch_processing,
-                "real_time_updates": self.enable_real_time_updates
+            "security": {
+                "rate_limit_requests": self.security.rate_limit_requests,
+                "enable_cors": self.security.enable_cors
             },
             "performance": {
-                "worker_count": self.performance.worker_count,
-                "max_concurrent_requests": self.performance.max_concurrent_requests,
-                "memory_limit_mb": self.performance.memory_limit_mb
+                "workers": self.performance.workers,
+                "max_request_size": self.performance.max_request_size
+            },
+            "monitoring": {
+                "log_level": self.monitoring.log_level,
+                "enable_metrics": self.monitoring.enable_metrics
             }
         }
 
 
+@lru_cache()
+def get_settings() -> NetflixLevelSettings:
+    """Get cached settings instance"""
+    return NetflixLevelSettings()
+
+
 # Global settings instance
-settings = Settings()
+settings = get_settings()
 
-# Ensure directories exist on import
-settings.ensure_directories()
+# Export commonly used configurations
+DATABASE_URL = settings.get_database_url()
+REDIS_URL = settings.get_redis_url()
+CORS_ORIGINS = settings.get_cors_origins()
+SECRET_KEY = settings.security.secret_key
+DEBUG = settings.debug
+ENVIRONMENT = settings.environment
 
-
-# Configuration utilities
-class ConfigManager:
-    """Centralized configuration management"""
-    
-    def __init__(self, settings_instance: Settings):
-        self.settings = settings_instance
-    
-    def validate_configuration(self) -> Dict[str, Any]:
-        """Validate all configuration settings"""
-        validation_results = {
-            "valid": True,
-            "errors": [],
-            "warnings": []
+# Logging configuration
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        },
+        "json": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+            "class": "pythonjsonlogger.jsonlogger.JsonFormatter"
         }
-        
-        # Check required directories
-        for path_name in ["upload_path", "output_path", "temp_path", "cache_path", "logs_path"]:
-            path = getattr(self.settings, path_name)
-            if not path.exists():
-                validation_results["warnings"].append(f"Directory does not exist: {path}")
-        
-        # Check external dependencies
-        if self.settings.enable_ai_analysis and not self.settings.ai.api_key:
-            validation_results["warnings"].append("AI analysis enabled but no API key provided")
-        
-        # Validate memory limits
-        if self.settings.performance.memory_limit_mb < 512:
-            validation_results["warnings"].append("Memory limit is very low, may cause performance issues")
-        
-        # Check file size limits
-        if self.settings.upload.max_file_size > 5 * 1024 * 1024 * 1024:  # 5GB
-            validation_results["warnings"].append("Very large file size limit may impact performance")
-        
-        return validation_results
-    
-    def get_feature_flags(self) -> Dict[str, bool]:
-        """Get all feature flags"""
-        return {
-            "websockets": self.settings.enable_websockets,
-            "ai_analysis": self.settings.enable_ai_analysis,
-            "social_publishing": self.settings.enable_social_publishing,
-            "batch_processing": self.settings.enable_batch_processing,
-            "real_time_updates": self.settings.enable_real_time_updates
+    },
+    "handlers": {
+        "default": {
+            "level": settings.monitoring.log_level,
+            "formatter": "json" if settings.monitoring.log_format == "json" else "standard",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout"
+        },
+        "file": {
+            "level": "INFO",
+            "formatter": "json",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": settings.log_dir / "app.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5
         }
-    
-    def update_runtime_config(self, updates: Dict[str, Any]) -> bool:
-        """Update configuration at runtime"""
-        try:
-            for key, value in updates.items():
-                if hasattr(self.settings, key):
-                    setattr(self.settings, key, value)
-            return True
-        except Exception as e:
-            logging.error(f"Failed to update runtime config: {e}")
-            return False
+    },
+    "loggers": {
+        "": {
+            "handlers": ["default", "file"],
+            "level": settings.monitoring.log_level,
+            "propagate": False
+        }
+    }
+}
 
-
-# Global config manager
-config_manager = ConfigManager(settings)
+logger.info(f"🚀 Configuration loaded for {ENVIRONMENT} environment")
+logger.info(f"📊 Performance: {settings.performance.workers} workers, {settings.performance.max_request_size} max request size")
+logger.info(f"🔒 Security: CORS {'enabled' if settings.security.enable_cors else 'disabled'}, Rate limiting: {settings.security.rate_limit_requests}/min")
+logger.info(f"💾 Cache: TTL {settings.cache.default_ttl}s, Memory limit {settings.cache.max_memory_usage}")

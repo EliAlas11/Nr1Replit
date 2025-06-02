@@ -196,30 +196,39 @@ class NetflixLevelApplication:
             self.logger.error(f"Shutdown error: {e}")
 
     async def _configure_middleware(self, app: FastAPI):
-        """Configure application middleware"""
+        """Configure Netflix-grade middleware stack"""
+        from app.middleware.error_handler import NetflixLevelErrorHandler
+        from app.middleware.performance import NetflixLevelPerformanceMiddleware
+        from app.middleware.security import NetflixLevelSecurityMiddleware
+        from app.config import settings
 
-        # Security middleware (first)
-        app.add_middleware(SecurityMiddleware)
+        # Security middleware (first) - Netflix-grade security
+        app.add_middleware(NetflixLevelSecurityMiddleware)
 
-        # CORS middleware
+        # CORS middleware with production-ready configuration
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=settings.get_cors_origins(),
             allow_credentials=True,
-            allow_methods=["*"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["*"],
             max_age=86400,
+            expose_headers=["X-Response-Time", "X-Request-ID", "X-Performance-Grade"]
         )
 
-        # Compression middleware
-        app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
+        # Compression middleware with optimized settings
+        if settings.performance.enable_gzip:
+            app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 
-        # Performance monitoring middleware
-        app.add_middleware(PerformanceMiddleware)
+        # Netflix-level performance monitoring
+        app.add_middleware(NetflixLevelPerformanceMiddleware)
 
-        # Error handling middleware (last)
-        app.add_middleware(ErrorHandlerMiddleware)
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+        # Netflix-level error handling (last)
+        app.add_middleware(NetflixLevelErrorHandler)
+        
+        # Trusted host middleware with configurable hosts
+        allowed_hosts = ["*"] if settings.is_development() else ["localhost", "127.0.0.1"]
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     async def _configure_routes(self, app: FastAPI):
         """Configure application routes"""

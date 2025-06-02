@@ -137,25 +137,42 @@ class NetflixLevelAnalyticsEngine:
         session_id: str,
         timeframe: str = "24h"
     ) -> Dict[str, Any]:
-        """Get comprehensive real-time analytics dashboard"""
+        """Get comprehensive real-time analytics dashboard with Netflix-grade caching"""
+        cache_key = f"dashboard_{user_id}_{timeframe}"
+        
+        # Check cache first
+        cached_data = self.analytics_cache.get(cache_key)
+        if cached_data and datetime.utcnow() < cached_data["expires_at"]:
+            logger.debug(f"🚀 Cache hit for dashboard: {cache_key}")
+            return cached_data["data"]
+        
         try:
-            # Core engagement metrics
-            engagement_metrics = await self._get_engagement_metrics(user_id, timeframe)
+            # Parallel data fetching for optimal performance
+            tasks = [
+                self._get_engagement_metrics(user_id, timeframe),
+                self._get_performance_analytics(user_id, timeframe),
+                self._get_viral_predictions(user_id, session_id),
+                self._get_roi_metrics(user_id, timeframe),
+                self._get_trend_analysis(user_id, timeframe),
+                self._get_competitive_insights(user_id),
+                self._generate_smart_alerts(user_id),
+                self._generate_actionable_recommendations(user_id),
+                self._generate_predictive_insights(user_id)
+            ]
             
-            # Performance analytics
-            performance_data = await self._get_performance_analytics(user_id, timeframe)
+            # Execute all tasks concurrently
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            # Viral prediction insights
-            viral_insights = await self._get_viral_predictions(user_id, session_id)
-            
-            # ROI tracking
-            roi_data = await self._get_roi_metrics(user_id, timeframe)
-            
-            # Trend analysis
-            trend_data = await self._get_trend_analysis(user_id, timeframe)
-            
-            # Competitive insights
-            competitive_data = await self._get_competitive_insights(user_id)
+            # Handle any exceptions gracefully
+            engagement_metrics = results[0] if not isinstance(results[0], Exception) else {}
+            performance_data = results[1] if not isinstance(results[1], Exception) else {}
+            viral_insights = results[2] if not isinstance(results[2], Exception) else {}
+            roi_data = results[3] if not isinstance(results[3], Exception) else {}
+            trend_data = results[4] if not isinstance(results[4], Exception) else {}
+            competitive_data = results[5] if not isinstance(results[5], Exception) else {}
+            alerts = results[6] if not isinstance(results[6], Exception) else []
+            recommendations = results[7] if not isinstance(results[7], Exception) else []
+            predictive_insights = results[8] if not isinstance(results[8], Exception) else {}
             
             dashboard = {
                 "timestamp": datetime.utcnow().isoformat(),
@@ -168,19 +185,25 @@ class NetflixLevelAnalyticsEngine:
                 "roi_tracking": roi_data,
                 "trend_analysis": trend_data,
                 "competitive_insights": competitive_data,
-                "alerts": await self._generate_smart_alerts(user_id),
-                "recommendations": await self._generate_actionable_recommendations(user_id),
-                "predictive_insights": await self._generate_predictive_insights(user_id)
+                "alerts": alerts,
+                "recommendations": recommendations,
+                "predictive_insights": predictive_insights,
+                "performance": {
+                    "cache_hit": False,
+                    "generation_time": time.time(),
+                    "data_freshness": "real_time"
+                }
             }
             
-            # Cache dashboard for performance
-            cache_key = f"dashboard_{user_id}_{timeframe}"
+            # Enhanced caching with TTL based on data type
+            cache_ttl = self._calculate_dynamic_ttl(timeframe)
             self.analytics_cache[cache_key] = {
                 "data": dashboard,
                 "timestamp": datetime.utcnow(),
-                "expires_at": datetime.utcnow() + timedelta(seconds=self.cache_ttl)
+                "expires_at": datetime.utcnow() + timedelta(seconds=cache_ttl)
             }
             
+            logger.info(f"📊 Dashboard generated for {user_id} in {timeframe} timeframe")
             return dashboard
             
         except Exception as e:
