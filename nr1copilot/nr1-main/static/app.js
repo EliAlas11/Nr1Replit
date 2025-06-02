@@ -1,691 +1,847 @@
 
 /**
  * ViralClip Pro v6.0 - Netflix-Level Frontend Architecture
- * Advanced client with real-time features, progressive loading, and enterprise UX
+ * Enterprise-grade client with advanced performance and user experience
  */
 
-class NetflixLevelViralClipApp {
+class NetflixLevelApp {
     constructor() {
+        // Core state management
         this.state = {
-            isInitialized: false,
+            isUploading: false,
+            isProcessing: false,
             currentSession: null,
-            uploadProgress: {},
-            realTimeInsights: {},
-            templates: [],
-            brandKits: [],
-            batchJobs: [],
-            performanceMetrics: {}
+            uploadProgress: 0,
+            files: new Map(),
+            templates: new Map(),
+            captions: new Map(),
+            batchJobs: new Map(),
+            brandKits: new Map()
         };
 
+        // Performance optimization
+        this.performanceObserver = new PerformanceObserver((list) => {
+            this.handlePerformanceEntries(list.getEntries());
+        });
+
+        // WebSocket connections
         this.websockets = new Map();
-        this.eventBus = new EventTarget();
-        this.cache = new Map();
-        this.retryQueue = [];
-        
-        // Performance monitoring
-        this.performanceObserver = null;
-        this.networkMonitor = new NetworkMonitor();
-        
-        this.initializeApp();
+        this.reconnectAttempts = new Map();
+        this.maxReconnectAttempts = 5;
+
+        // UI state
+        this.activeTab = 'upload';
+        this.notificationQueue = [];
+        this.modalStack = [];
+
+        // Initialize
+        this.init();
     }
 
-    async initializeApp() {
+    async init() {
         try {
-            console.log('🎬 Initializing Netflix-level ViralClip Pro...');
+            console.log('🎬 Initializing ViralClip Pro v6.0 - Netflix Architecture');
+
+            // Initialize performance monitoring
+            this.initPerformanceMonitoring();
+
+            // Setup event listeners
+            this.setupEventListeners();
+
+            // Initialize UI components
+            this.initializeUI();
+
+            // Load user preferences
+            await this.loadUserPreferences();
+
+            // Initialize real-time features
+            this.initializeRealTimeFeatures();
+
+            // Start health monitoring
+            this.startHealthMonitoring();
+
+            console.log('✅ ViralClip Pro initialized successfully');
+
+        } catch (error) {
+            console.error('❌ Initialization failed:', error);
+            this.showErrorNotification('Application initialization failed', error.message);
+        }
+    }
+
+    initPerformanceMonitoring() {
+        // Monitor Core Web Vitals
+        this.performanceObserver.observe({ entryTypes: ['navigation', 'paint', 'largest-contentful-paint'] });
+
+        // Monitor resource loading
+        this.performanceObserver.observe({ entryTypes: ['resource'] });
+
+        // Custom performance metrics
+        this.metrics = {
+            startTime: performance.now(),
+            interactionCount: 0,
+            errorCount: 0,
+            uploadCount: 0,
+            averageUploadTime: 0
+        };
+    }
+
+    setupEventListeners() {
+        // File upload drag and drop
+        this.setupDragAndDrop();
+
+        // Form submissions
+        this.setupFormHandlers();
+
+        // Navigation
+        this.setupNavigation();
+
+        // Real-time updates
+        this.setupWebSocketHandlers();
+
+        // Keyboard shortcuts
+        this.setupKeyboardShortcuts();
+
+        // Window events
+        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+        window.addEventListener('online', this.handleOnline.bind(this));
+        window.addEventListener('offline', this.handleOffline.bind(this));
+    }
+
+    setupDragAndDrop() {
+        const dropZones = document.querySelectorAll('.drop-zone');
+        
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', this.handleDragOver.bind(this));
+            zone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+            zone.addEventListener('drop', this.handleFileDrop.bind(this));
+        });
+    }
+
+    handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const dropZone = event.currentTarget;
+        dropZone.classList.add('drag-over');
+        
+        // Add visual feedback
+        if (!dropZone.querySelector('.drag-indicator')) {
+            const indicator = document.createElement('div');
+            indicator.className = 'drag-indicator';
+            indicator.innerHTML = `
+                <div class="drag-icon">📁</div>
+                <div class="drag-text">Drop your video here</div>
+            `;
+            dropZone.appendChild(indicator);
+        }
+    }
+
+    handleDragLeave(event) {
+        event.preventDefault();
+        
+        const dropZone = event.currentTarget;
+        dropZone.classList.remove('drag-over');
+        
+        const indicator = dropZone.querySelector('.drag-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+
+    async handleFileDrop(event) {
+        event.preventDefault();
+        
+        const dropZone = event.currentTarget;
+        dropZone.classList.remove('drag-over');
+        
+        const indicator = dropZone.querySelector('.drag-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+
+        const files = Array.from(event.dataTransfer.files);
+        
+        if (files.length === 0) {
+            this.showErrorNotification('No files detected', 'Please drop valid video files');
+            return;
+        }
+
+        // Validate files
+        const validFiles = this.validateFiles(files);
+        
+        if (validFiles.length === 0) {
+            this.showErrorNotification('Invalid files', 'Please drop valid video files (MP4, MOV, AVI)');
+            return;
+        }
+
+        // Process files
+        for (const file of validFiles) {
+            await this.processFile(file);
+        }
+    }
+
+    validateFiles(files) {
+        const allowedTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime'];
+        const maxSize = 500 * 1024 * 1024; // 500MB
+
+        return files.filter(file => {
+            if (!allowedTypes.includes(file.type)) {
+                this.showWarningNotification(`Unsupported file type: ${file.name}`, 'Please use MP4, MOV, or AVI files');
+                return false;
+            }
+
+            if (file.size > maxSize) {
+                this.showWarningNotification(`File too large: ${file.name}`, 'Maximum file size is 500MB');
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    async processFile(file) {
+        try {
+            const sessionId = this.generateSessionId();
             
-            // Progressive initialization
-            await this.setupPerformanceMonitoring();
-            await this.initializeUI();
-            await this.setupEventListeners();
-            await this.loadInitialData();
-            await this.setupRealTimeConnections();
+            // Update UI immediately
+            this.showFilePreview(file, sessionId);
             
-            this.state.isInitialized = true;
-            this.showSuccessToast('ViralClip Pro Ready! 🚀');
+            // Start upload
+            await this.uploadFile(file, sessionId);
             
         } catch (error) {
-            console.error('App initialization failed:', error);
-            this.handleCriticalError(error);
+            console.error('File processing failed:', error);
+            this.showErrorNotification('Upload failed', error.message);
         }
     }
 
-    async setupPerformanceMonitoring() {
-        // Advanced performance monitoring
-        if ('PerformanceObserver' in window) {
-            this.performanceObserver = new PerformanceObserver((list) => {
-                for (const entry of list.getEntries()) {
-                    this.trackPerformanceMetric(entry);
-                }
-            });
+    showFilePreview(file, sessionId) {
+        const previewContainer = document.getElementById('file-previews');
+        
+        if (!previewContainer) {
+            console.warn('Preview container not found');
+            return;
+        }
+
+        const preview = document.createElement('div');
+        preview.className = 'file-preview';
+        preview.id = `preview-${sessionId}`;
+        
+        // Create thumbnail
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.addEventListener('loadedmetadata', () => {
+            // Capture thumbnail at 1 second
+            video.currentTime = 1;
+        });
+        
+        video.addEventListener('seeked', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
             
-            this.performanceObserver.observe({
-                entryTypes: ['navigation', 'resource', 'paint', 'largest-contentful-paint']
-            });
-        }
-
-        // Network quality monitoring
-        if ('connection' in navigator) {
-            this.networkMonitor.start();
-        }
-    }
-
-    async initializeUI() {
-        // Initialize advanced upload zone
-        this.setupAdvancedUploadZone();
-        
-        // Initialize template gallery
-        this.setupTemplateGallery();
-        
-        // Initialize brand kit editor
-        this.setupBrandKitEditor();
-        
-        // Initialize batch processing dashboard
-        this.setupBatchDashboard();
-        
-        // Initialize real-time insights panel
-        this.setupInsightsPanel();
-        
-        // Setup progressive loading
-        this.setupProgressiveLoading();
-    }
-
-    setupAdvancedUploadZone() {
-        const uploadZone = document.getElementById('upload-zone');
-        if (!uploadZone) return;
-
-        // Enhanced drag and drop with visual feedback
-        uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadZone.classList.add('drag-active');
-            this.showDropZonePreview(e);
-        });
-
-        uploadZone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove('drag-active');
-            this.hideDropZonePreview();
-        });
-
-        uploadZone.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove('drag-active');
-            this.hideDropZonePreview();
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
             
-            const files = Array.from(e.dataTransfer.files);
-            await this.handleFilesDrop(files);
+            const thumbnail = canvas.toDataURL('image/jpeg', 0.8);
+            
+            preview.innerHTML = `
+                <div class="preview-thumbnail">
+                    <img src="${thumbnail}" alt="Video thumbnail" />
+                    <div class="preview-overlay">
+                        <div class="play-button">▶</div>
+                    </div>
+                </div>
+                <div class="preview-info">
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-size">${this.formatFileSize(file.size)}</div>
+                    <div class="upload-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text">Preparing upload...</div>
+                    </div>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn-cancel" onclick="app.cancelUpload('${sessionId}')">Cancel</button>
+                </div>
+            `;
+            
+            URL.revokeObjectURL(video.src);
         });
 
-        // File input handling
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) {
-            fileInput.addEventListener('change', async (e) => {
-                const files = Array.from(e.target.files);
-                await this.handleFilesDrop(files);
-            });
-        }
+        previewContainer.appendChild(preview);
     }
 
-    async handleFilesDrop(files) {
-        for (const file of files) {
-            if (this.validateFile(file)) {
-                await this.startAdvancedUpload(file);
-            }
-        }
-    }
-
-    validateFile(file) {
-        const maxSize = 500 * 1024 * 1024; // 500MB
-        const allowedTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/webm'];
-        
-        if (file.size > maxSize) {
-            this.showErrorToast(`File too large: ${file.name}. Max size is 500MB.`);
-            return false;
-        }
-        
-        if (!allowedTypes.includes(file.type)) {
-            this.showErrorToast(`Invalid file type: ${file.name}. Please use MP4, MOV, AVI, or WebM.`);
-            return false;
-        }
-        
-        return true;
-    }
-
-    async startAdvancedUpload(file) {
-        const sessionId = this.generateSessionId();
-        const uploadId = this.generateUploadId();
-        
+    async uploadFile(file, sessionId) {
         try {
+            this.state.isUploading = true;
+            
             // Initialize upload session
-            await this.initializeUploadSession(file, sessionId, uploadId);
-            
+            const initResponse = await this.apiCall('/api/v6/upload/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: file.name,
+                    file_size: file.size,
+                    upload_id: sessionId,
+                    total_chunks: Math.ceil(file.size / (1024 * 1024)) // 1MB chunks
+                })
+            });
+
+            if (!initResponse.success) {
+                throw new Error(initResponse.message || 'Upload initialization failed');
+            }
+
             // Start chunked upload
-            await this.performChunkedUpload(file, sessionId, uploadId);
+            await this.uploadFileInChunks(file, sessionId);
             
-            // Setup real-time analysis
-            await this.startRealTimeAnalysis(sessionId);
+            // Start real-time analysis
+            this.startRealTimeAnalysis(sessionId);
             
         } catch (error) {
             console.error('Upload failed:', error);
-            this.handleUploadError(sessionId, error);
+            this.updateUploadProgress(sessionId, 0, 'Upload failed', true);
+            throw error;
         }
     }
 
-    async initializeUploadSession(file, sessionId, uploadId) {
+    async uploadFileInChunks(file, sessionId) {
         const chunkSize = 1024 * 1024; // 1MB chunks
         const totalChunks = Math.ceil(file.size / chunkSize);
         
-        const response = await fetch('/api/v6/upload/init', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                filename: file.name,
-                file_size: file.size,
-                upload_id: uploadId,
-                session_id: sessionId,
-                total_chunks: totalChunks
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Upload initialization failed: ${response.statusText}`);
-        }
-        
-        this.state.uploadProgress[sessionId] = {
-            filename: file.name,
-            totalChunks,
-            uploadedChunks: 0,
-            progress: 0,
-            status: 'uploading',
-            startTime: Date.now()
-        };
-        
-        this.updateUploadProgress(sessionId);
-    }
-
-    async performChunkedUpload(file, sessionId, uploadId) {
-        const chunkSize = 1024 * 1024; // 1MB chunks
-        const totalChunks = Math.ceil(file.size / chunkSize);
-        
-        // Upload chunks in parallel (limited concurrency)
-        const concurrency = 3;
-        const chunks = [];
-        
-        for (let i = 0; i < totalChunks; i++) {
-            const start = i * chunkSize;
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * chunkSize;
             const end = Math.min(start + chunkSize, file.size);
             const chunk = file.slice(start, end);
             
-            chunks.push({ chunk, index: i });
+            const formData = new FormData();
+            formData.append('file', chunk);
+            formData.append('upload_id', sessionId);
+            formData.append('chunk_index', chunkIndex.toString());
+            formData.append('total_chunks', totalChunks.toString());
+            
+            const response = await this.apiCall('/api/v6/upload/chunk', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.success) {
+                throw new Error(`Chunk upload failed: ${response.message}`);
+            }
+
+            // Update progress
+            const progress = ((chunkIndex + 1) / totalChunks) * 100;
+            this.updateUploadProgress(sessionId, progress, 'Uploading...');
         }
-        
-        await this.processChunksWithConcurrency(chunks, concurrency, sessionId, uploadId, totalChunks);
+
+        this.updateUploadProgress(sessionId, 100, 'Upload complete');
     }
 
-    async processChunksWithConcurrency(chunks, concurrency, sessionId, uploadId, totalChunks) {
-        const promises = [];
+    updateUploadProgress(sessionId, progress, message, isError = false) {
+        const preview = document.getElementById(`preview-${sessionId}`);
         
-        for (let i = 0; i < chunks.length; i += concurrency) {
-            const batch = chunks.slice(i, i + concurrency);
+        if (!preview) return;
+
+        const progressFill = preview.querySelector('.progress-fill');
+        const progressText = preview.querySelector('.progress-text');
+
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
             
-            const batchPromises = batch.map(({ chunk, index }) => 
-                this.uploadChunk(chunk, index, sessionId, uploadId, totalChunks)
-            );
-            
-            promises.push(...batchPromises);
-            
-            // Wait for current batch before starting next
-            await Promise.all(batchPromises);
+            if (isError) {
+                progressFill.style.background = 'var(--error-gradient)';
+            } else if (progress === 100) {
+                progressFill.style.background = 'var(--success-gradient)';
+            }
         }
-        
-        await Promise.all(promises);
+
+        if (progressText) {
+            progressText.textContent = message;
+            
+            if (isError) {
+                progressText.style.color = 'var(--error-color)';
+            }
+        }
     }
 
-    async uploadChunk(chunk, chunkIndex, sessionId, uploadId, totalChunks) {
-        const formData = new FormData();
-        formData.append('file', chunk);
-        formData.append('upload_id', uploadId);
-        formData.append('chunk_index', chunkIndex);
-        formData.append('total_chunks', totalChunks);
-        formData.append('session_id', sessionId);
-        
-        const response = await fetch('/api/v6/upload/chunk', {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Chunk upload failed: ${response.statusText}`);
-        }
-        
-        // Update progress
-        this.state.uploadProgress[sessionId].uploadedChunks++;
-        this.state.uploadProgress[sessionId].progress = 
-            (this.state.uploadProgress[sessionId].uploadedChunks / totalChunks) * 100;
-            
-        this.updateUploadProgress(sessionId);
-        
-        return response.json();
-    }
-
-    async startRealTimeAnalysis(sessionId) {
+    startRealTimeAnalysis(sessionId) {
         // Connect to viral insights WebSocket
-        const wsUrl = `ws://${window.location.host}/api/v6/ws/viral-insights/${sessionId}`;
-        const ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-            console.log(`🎯 Real-time insights connected for session: ${sessionId}`);
-            this.websockets.set(sessionId, ws);
-        };
-        
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            this.handleRealTimeInsight(sessionId, data);
-        };
-        
-        ws.onclose = () => {
-            console.log(`Insights WebSocket closed for session: ${sessionId}`);
-            this.websockets.delete(sessionId);
-        };
-        
-        ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
+        this.connectWebSocket(`viral-insights/${sessionId}`, (data) => {
+            this.handleViralInsights(sessionId, data);
+        });
+
+        // Update UI for analysis phase
+        this.updateUploadProgress(sessionId, 100, 'Analyzing viral potential...');
     }
 
-    handleRealTimeInsight(sessionId, data) {
-        this.state.realTimeInsights[sessionId] = data;
-        
+    handleViralInsights(sessionId, data) {
+        console.log('🎯 Viral insights received:', data);
+
+        const preview = document.getElementById(`preview-${sessionId}`);
+        if (!preview) return;
+
         switch (data.type) {
             case 'early_analysis':
-                this.displayEarlyInsights(sessionId, data.insights);
+                this.showEarlyInsights(preview, data.insights);
                 break;
+            
             case 'viral_score_update':
-                this.updateViralScore(sessionId, data.score);
+                this.updateViralScore(preview, data.viral_score);
                 break;
+            
             case 'sentiment_analysis':
-                this.updateSentimentDisplay(sessionId, data.sentiment);
+                this.showSentimentAnalysis(preview, data.sentiment);
                 break;
-            case 'engagement_prediction':
-                this.updateEngagementPrediction(sessionId, data.prediction);
+            
+            case 'analysis_complete':
+                this.showCompleteAnalysis(preview, data.results);
                 break;
         }
+    }
+
+    showEarlyInsights(preview, insights) {
+        const insightsContainer = preview.querySelector('.preview-info');
         
-        this.updateInsightsPanel(sessionId);
+        if (!insightsContainer.querySelector('.viral-insights')) {
+            const viralInsights = document.createElement('div');
+            viralInsights.className = 'viral-insights';
+            viralInsights.innerHTML = `
+                <div class="viral-score">
+                    <span class="score-label">Viral Score:</span>
+                    <span class="score-value">${insights.viral_score}/100</span>
+                </div>
+                <div class="key-factors">
+                    ${insights.key_factors.map(factor => `<span class="factor-tag">${factor}</span>`).join('')}
+                </div>
+            `;
+            insightsContainer.appendChild(viralInsights);
+        }
     }
 
-    setupTemplateGallery() {
-        this.loadViralTemplates();
-        this.setupTemplateFilters();
-        this.setupTemplateSearch();
-    }
-
-    async loadViralTemplates() {
+    // Template Management
+    async loadTemplates() {
         try {
-            const response = await fetch('/api/v6/templates');
-            const data = await response.json();
+            const response = await this.apiCall('/api/v6/templates');
             
-            if (data.success) {
-                this.state.templates = data.templates;
+            if (response.success) {
+                this.state.templates.clear();
+                
+                response.templates.forEach(template => {
+                    this.state.templates.set(template.template_id, template);
+                });
+                
                 this.renderTemplateGallery();
             }
+            
         } catch (error) {
             console.error('Failed to load templates:', error);
+            this.showErrorNotification('Template loading failed', error.message);
         }
     }
 
     renderTemplateGallery() {
         const gallery = document.getElementById('template-gallery');
         if (!gallery) return;
-        
-        gallery.innerHTML = this.state.templates.map(template => `
-            <div class="template-card" data-template-id="${template.template_id}">
+
+        gallery.innerHTML = '';
+
+        this.state.templates.forEach(template => {
+            const templateCard = document.createElement('div');
+            templateCard.className = 'template-card';
+            templateCard.innerHTML = `
                 <div class="template-preview">
-                    <img src="${template.thumbnail_url}" alt="${template.name}" loading="lazy">
-                    <div class="viral-score">${Math.round(template.viral_score * 100)}%</div>
-                    <div class="play-overlay">▶</div>
+                    <img src="${template.thumbnail_url}" alt="${template.name}" loading="lazy" />
+                    <div class="template-overlay">
+                        <div class="viral-score">${template.viral_score}/100</div>
+                        <div class="template-actions">
+                            <button class="btn-preview" onclick="app.previewTemplate('${template.template_id}')">
+                                Preview
+                            </button>
+                            <button class="btn-use" onclick="app.useTemplate('${template.template_id}')">
+                                Use Template
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="template-info">
-                    <h3>${template.name}</h3>
-                    <p>${template.description}</p>
-                    <div class="template-tags">
-                        <span class="platform-tag">${template.platform}</span>
-                        <span class="category-tag">${template.category}</span>
+                    <h3 class="template-name">${template.name}</h3>
+                    <p class="template-description">${template.description}</p>
+                    <div class="template-meta">
+                        <span class="category">${template.category}</span>
+                        <span class="platform">${template.platform}</span>
+                        <span class="usage-count">${template.usage_count} uses</span>
                     </div>
-                    <div class="viral-factors">
-                        ${template.viral_factors.slice(0, 3).map(factor => 
-                            `<span class="factor-tag">${factor}</span>`
-                        ).join('')}
-                    </div>
-                    <button class="use-template-btn" onclick="app.useTemplate('${template.template_id}')">
-                        Use Template
-                    </button>
                 </div>
-            </div>
-        `).join('');
+            `;
+
+            gallery.appendChild(templateCard);
+        });
     }
 
-    async useTemplate(templateId) {
-        const brandKitId = this.getSelectedBrandKit();
-        const customizations = this.getTemplateCustomizations();
-        
+    async generateCaptions(sessionId, options = {}) {
         try {
-            const response = await fetch(`/api/v6/templates/${templateId}/customize`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    brand_kit_id: brandKitId,
-                    customizations: customizations
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showTemplateEditor(data.customized_template);
+            this.showProcessingIndicator('Generating smart captions...');
+
+            const formData = new FormData();
+            formData.append('session_id', sessionId);
+            formData.append('language', options.language || 'en');
+            formData.append('platform', options.platform || 'auto');
+            formData.append('viral_enhancement', options.viral_enhancement !== false);
+
+            // Get the uploaded file for this session
+            const fileInput = document.querySelector(`input[data-session="${sessionId}"]`);
+            if (fileInput && fileInput.files[0]) {
+                formData.append('file', fileInput.files[0]);
             }
+
+            const response = await this.apiCall('/api/v6/captions/generate', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.success) {
+                this.state.captions.set(sessionId, response.captions);
+                this.showCaptionResults(sessionId, response.captions);
+            } else {
+                throw new Error(response.message || 'Caption generation failed');
+            }
+
         } catch (error) {
-            console.error('Template customization failed:', error);
-            this.showErrorToast('Failed to customize template');
+            console.error('Caption generation failed:', error);
+            this.showErrorNotification('Caption generation failed', error.message);
+        } finally {
+            this.hideProcessingIndicator();
         }
     }
 
-    setupBrandKitEditor() {
-        const editor = document.getElementById('brand-kit-editor');
-        if (!editor) return;
-        
-        // Color picker integration
-        this.setupColorPickers();
-        
-        // Font selector
-        this.setupFontSelector();
-        
-        // Brand kit saving
-        this.setupBrandKitSaving();
+    showCaptionResults(sessionId, captions) {
+        const resultsContainer = document.getElementById('caption-results');
+        if (!resultsContainer) return;
+
+        resultsContainer.innerHTML = `
+            <div class="caption-header">
+                <h3>Generated Captions</h3>
+                <div class="caption-stats">
+                    <span class="viral-score">Viral Score: ${captions.overall_viral_score}/100</span>
+                    <span class="speaker-count">Speakers: ${captions.speaker_count || 1}</span>
+                </div>
+            </div>
+
+            <div class="caption-segments">
+                ${captions.segments.map(segment => `
+                    <div class="caption-segment" data-start="${segment.start_time}" data-end="${segment.end_time}">
+                        <div class="segment-time">
+                            ${this.formatTime(segment.start_time)} - ${this.formatTime(segment.end_time)}
+                        </div>
+                        <div class="segment-text">${segment.text}</div>
+                        <div class="segment-meta">
+                            <span class="confidence">Confidence: ${Math.round(segment.confidence * 100)}%</span>
+                            <span class="viral-score">Viral: ${segment.viral_score}/100</span>
+                            <span class="emotion">${segment.emotion}</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div class="caption-actions">
+                <button class="btn btn-primary" onclick="app.exportCaptions('${sessionId}', 'srt')">
+                    Export SRT
+                </button>
+                <button class="btn btn-secondary" onclick="app.exportCaptions('${sessionId}', 'vtt')">
+                    Export VTT
+                </button>
+                <button class="btn btn-secondary" onclick="app.editCaptions('${sessionId}')">
+                    Edit Captions
+                </button>
+            </div>
+        `;
+
+        resultsContainer.style.display = 'block';
     }
 
-    setupBatchDashboard() {
-        this.loadBatchJobs();
-        this.setupBatchJobSubmission();
-        this.startBatchStatusPolling();
+    // Batch Processing
+    async submitBatchJob(jobType, inputData, priority = 'normal') {
+        try {
+            const response = await this.apiCall('/api/v6/batch/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    job_type: jobType,
+                    input_data: inputData,
+                    priority: priority,
+                    session_id: this.state.currentSession
+                })
+            });
+
+            if (response.success) {
+                this.state.batchJobs.set(response.job_id, {
+                    id: response.job_id,
+                    type: jobType,
+                    priority: priority,
+                    status: 'queued',
+                    submitted_at: new Date().toISOString()
+                });
+
+                this.showSuccessNotification('Job submitted', `Job ${response.job_id} queued successfully`);
+                this.updateBatchJobsUI();
+                
+                return response.job_id;
+            } else {
+                throw new Error(response.message || 'Job submission failed');
+            }
+
+        } catch (error) {
+            console.error('Batch job submission failed:', error);
+            this.showErrorNotification('Job submission failed', error.message);
+            throw error;
+        }
     }
 
     async loadBatchJobs() {
         try {
-            const response = await fetch('/api/v6/user/jobs');
-            const data = await response.json();
+            const response = await this.apiCall('/api/v6/user/jobs');
             
-            if (data.success) {
-                this.state.batchJobs = data.jobs;
-                this.renderBatchDashboard();
+            if (response.success) {
+                this.state.batchJobs.clear();
+                
+                response.jobs.forEach(job => {
+                    this.state.batchJobs.set(job.job_id, job);
+                });
+                
+                this.updateBatchJobsUI();
             }
+            
         } catch (error) {
             console.error('Failed to load batch jobs:', error);
         }
     }
 
-    renderBatchDashboard() {
-        const dashboard = document.getElementById('batch-dashboard');
-        if (!dashboard) return;
-        
-        dashboard.innerHTML = `
-            <div class="batch-header">
-                <h2>Batch Processing Queue</h2>
-                <button onclick="app.showBatchJobForm()" class="primary-btn">New Batch Job</button>
-            </div>
-            <div class="batch-stats">
-                <div class="stat-card">
-                    <span class="stat-value">${this.state.batchJobs.length}</span>
-                    <span class="stat-label">Total Jobs</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${this.getBatchJobsByStatus('processing').length}</span>
-                    <span class="stat-label">Processing</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${this.getBatchJobsByStatus('queued').length}</span>
-                    <span class="stat-label">Queued</span>
-                </div>
-            </div>
-            <div class="batch-jobs-list">
-                ${this.state.batchJobs.map(job => this.renderBatchJob(job)).join('')}
-            </div>
-        `;
-    }
-
-    renderBatchJob(job) {
-        return `
-            <div class="batch-job-card" data-job-id="${job.job_id}">
-                <div class="job-header">
-                    <span class="job-type">${job.job_type}</span>
-                    <span class="job-status status-${job.status}">${job.status}</span>
-                </div>
-                <div class="job-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${job.progress}%"></div>
-                    </div>
-                    <span class="progress-text">${Math.round(job.progress)}%</span>
-                </div>
-                <div class="job-actions">
-                    <button onclick="app.viewJobDetails('${job.job_id}')" class="secondary-btn">Details</button>
-                    ${job.status === 'queued' || job.status === 'processing' ? 
-                        `<button onclick="app.cancelJob('${job.job_id}')" class="danger-btn">Cancel</button>` : ''
-                    }
-                </div>
-            </div>
-        `;
-    }
-
-    // Caption Generation Interface
-    async generateCaptions(sessionId) {
-        const settings = this.getCaptionSettings();
-        
-        try {
-            const response = await fetch('/api/v6/captions/generate', {
-                method: 'POST',
-                body: this.buildCaptionFormData(sessionId, settings)
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.displayCaptions(sessionId, data.captions);
-                this.showCaptionAnalytics(data.captions);
-            }
-        } catch (error) {
-            console.error('Caption generation failed:', error);
-            this.showErrorToast('Failed to generate captions');
-        }
-    }
-
-    displayCaptions(sessionId, captions) {
-        const container = document.getElementById('captions-container');
+    updateBatchJobsUI() {
+        const container = document.getElementById('batch-jobs');
         if (!container) return;
-        
+
         container.innerHTML = `
-            <div class="captions-header">
-                <h3>AI-Generated Captions</h3>
-                <div class="viral-score-display">
-                    <span>Viral Score: ${Math.round(captions.overall_viral_score * 100)}%</span>
-                </div>
+            <div class="batch-header">
+                <h3>Batch Jobs</h3>
+                <button class="btn btn-sm" onclick="app.loadBatchJobs()">Refresh</button>
             </div>
-            <div class="captions-segments">
-                ${captions.segments.map((segment, index) => `
-                    <div class="caption-segment" data-start="${segment.start_time}" data-end="${segment.end_time}">
-                        <div class="segment-timeline">
-                            <span class="timestamp">${this.formatTime(segment.start_time)}</span>
+            <div class="jobs-list">
+                ${Array.from(this.state.batchJobs.values()).map(job => `
+                    <div class="job-item" data-status="${job.status}">
+                        <div class="job-info">
+                            <div class="job-id">${job.job_id}</div>
+                            <div class="job-type">${job.job_type}</div>
+                            <div class="job-status ${job.status}">${job.status}</div>
                         </div>
-                        <div class="segment-content">
-                            <div class="caption-text" contenteditable="true">${segment.text}</div>
-                            <div class="segment-metrics">
-                                <span class="confidence">Confidence: ${Math.round(segment.confidence * 100)}%</span>
-                                <span class="viral-potential">Viral: ${Math.round(segment.viral_score * 100)}%</span>
-                                ${segment.emotion ? `<span class="emotion">${segment.emotion}</span>` : ''}
-                            </div>
+                        <div class="job-actions">
+                            ${job.status === 'queued' || job.status === 'running' ? 
+                                `<button class="btn-cancel" onclick="app.cancelBatchJob('${job.job_id}')">Cancel</button>` : 
+                                ''
+                            }
                         </div>
                     </div>
                 `).join('')}
-            </div>
-            <div class="captions-actions">
-                <button onclick="app.exportCaptions('${sessionId}', 'srt')" class="secondary-btn">Export SRT</button>
-                <button onclick="app.exportCaptions('${sessionId}', 'vtt')" class="secondary-btn">Export VTT</button>
-                <button onclick="app.exportCaptions('${sessionId}', 'json')" class="secondary-btn">Export JSON</button>
             </div>
         `;
     }
 
     // Utility Methods
+    connectWebSocket(endpoint, onMessage) {
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v6/ws/${endpoint}`;
+        
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+            console.log(`🔌 WebSocket connected: ${endpoint}`);
+            this.reconnectAttempts.set(endpoint, 0);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                onMessage(data);
+            } catch (error) {
+                console.error('WebSocket message parsing failed:', error);
+            }
+        };
+
+        ws.onclose = (event) => {
+            console.log(`🔌 WebSocket disconnected: ${endpoint}`);
+            
+            // Attempt reconnection
+            const attempts = this.reconnectAttempts.get(endpoint) || 0;
+            if (attempts < this.maxReconnectAttempts) {
+                setTimeout(() => {
+                    this.reconnectAttempts.set(endpoint, attempts + 1);
+                    this.connectWebSocket(endpoint, onMessage);
+                }, Math.pow(2, attempts) * 1000); // Exponential backoff
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error(`WebSocket error: ${endpoint}`, error);
+        };
+
+        this.websockets.set(endpoint, ws);
+        return ws;
+    }
+
+    async apiCall(endpoint, options = {}) {
+        try {
+            const response = await fetch(endpoint, {
+                ...options,
+                headers: {
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+            }
+
+            return await response.json();
+
+        } catch (error) {
+            console.error(`API call failed: ${endpoint}`, error);
+            throw error;
+        }
+    }
+
     generateSessionId() {
         return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 
-    generateUploadId() {
-        return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     formatTime(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
 
-    showSuccessToast(message) {
-        this.showToast(message, 'success');
-    }
+    showNotification(type, title, message) {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-icon">${type === 'error' ? '❌' : type === 'success' ? '✅' : '⚠️'}</div>
+            <div class="notification-content">
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+            </div>
+            <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+        `;
 
-    showErrorToast(message) {
-        this.showToast(message, 'error');
-    }
+        document.body.appendChild(notification);
 
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.textContent = message;
-        
-        document.body.appendChild(toast);
-        
+        // Auto-remove after 5 seconds
         setTimeout(() => {
-            toast.classList.add('show');
-        }, 100);
-        
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => document.body.removeChild(toast), 300);
-        }, 3000);
-    }
-
-    updateUploadProgress(sessionId) {
-        const progress = this.state.uploadProgress[sessionId];
-        const progressBar = document.querySelector(`[data-session="${sessionId}"] .progress-fill`);
-        const progressText = document.querySelector(`[data-session="${sessionId}"] .progress-text`);
-        
-        if (progressBar) {
-            progressBar.style.width = `${progress.progress}%`;
-        }
-        
-        if (progressText) {
-            progressText.textContent = `${Math.round(progress.progress)}%`;
-        }
-    }
-
-    getBatchJobsByStatus(status) {
-        return this.state.batchJobs.filter(job => job.status === status);
-    }
-
-    async setupEventListeners() {
-        // Global error handling
-        window.addEventListener('error', (e) => {
-            console.error('Global error:', e.error);
-            this.trackError(e.error);
-        });
-
-        // Unhandled promise rejections
-        window.addEventListener('unhandledrejection', (e) => {
-            console.error('Unhandled promise rejection:', e.reason);
-            this.trackError(e.reason);
-        });
-
-        // Visibility change handling
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                this.pauseNonEssentialOperations();
-            } else {
-                this.resumeOperations();
+            if (notification.parentElement) {
+                notification.remove();
             }
+        }, 5000);
+    }
+
+    showSuccessNotification(title, message) {
+        this.showNotification('success', title, message);
+    }
+
+    showErrorNotification(title, message) {
+        this.showNotification('error', title, message);
+    }
+
+    showWarningNotification(title, message) {
+        this.showNotification('warning', title, message);
+    }
+
+    showProcessingIndicator(message) {
+        let indicator = document.getElementById('processing-indicator');
+        
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'processing-indicator';
+            indicator.className = 'processing-indicator';
+            document.body.appendChild(indicator);
+        }
+
+        indicator.innerHTML = `
+            <div class="processing-content">
+                <div class="spinner"></div>
+                <div class="processing-message">${message}</div>
+            </div>
+        `;
+        
+        indicator.style.display = 'flex';
+    }
+
+    hideProcessingIndicator() {
+        const indicator = document.getElementById('processing-indicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
+
+    // Initialize the app when the page loads
+    initializeUI() {
+        // Setup tab navigation
+        this.setupTabNavigation();
+        
+        // Load initial data
+        this.loadTemplates();
+        this.loadBatchJobs();
+        
+        // Setup periodic updates
+        setInterval(() => {
+            this.loadBatchJobs();
+        }, 30000); // Update every 30 seconds
+    }
+
+    setupTabNavigation() {
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const targetTab = button.dataset.tab;
+                
+                // Update active tab
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                button.classList.add('active');
+                document.getElementById(`${targetTab}-tab`).classList.add('active');
+                
+                this.activeTab = targetTab;
+            });
         });
     }
 
-    handleCriticalError(error) {
-        console.error('Critical error:', error);
-        
-        // Show user-friendly error message
-        const errorContainer = document.getElementById('error-container');
-        if (errorContainer) {
-            errorContainer.innerHTML = `
-                <div class="critical-error">
-                    <h2>🚨 Service Temporarily Unavailable</h2>
-                    <p>We're experiencing technical difficulties. Please try again in a moment.</p>
-                    <button onclick="location.reload()" class="primary-btn">Retry</button>
-                </div>
-            `;
-            errorContainer.style.display = 'block';
-        }
-    }
-
-    trackError(error) {
-        // Error tracking implementation
-        console.error('Tracked error:', error);
-    }
-
-    pauseNonEssentialOperations() {
-        // Pause animations, polling, etc.
-    }
-
-    resumeOperations() {
-        // Resume operations
+    startHealthMonitoring() {
+        setInterval(async () => {
+            try {
+                const response = await this.apiCall('/api/v6/health');
+                
+                if (response.status !== 'healthy') {
+                    this.showWarningNotification('System Health', 'Some services may be experiencing issues');
+                }
+                
+            } catch (error) {
+                console.warn('Health check failed:', error);
+            }
+        }, 60000); // Check every minute
     }
 }
 
-// Network Monitor Class
-class NetworkMonitor {
-    constructor() {
-        this.connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-        this.callbacks = new Set();
-    }
+// Initialize the application
+const app = new NetflixLevelApp();
 
-    start() {
-        if (this.connection) {
-            this.connection.addEventListener('change', () => {
-                this.notifyCallbacks();
-            });
-        }
-    }
-
-    getConnectionInfo() {
-        if (!this.connection) return null;
-        
-        return {
-            effectiveType: this.connection.effectiveType,
-            downlink: this.connection.downlink,
-            rtt: this.connection.rtt,
-            saveData: this.connection.saveData
-        };
-    }
-
-    notifyCallbacks() {
-        const info = this.getConnectionInfo();
-        this.callbacks.forEach(callback => callback(info));
-    }
-
-    addCallback(callback) {
-        this.callbacks.add(callback);
-    }
-
-    removeCallback(callback) {
-        this.callbacks.delete(callback);
-    }
-}
-
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new NetflixLevelViralClipApp();
-});
+// Export for global access
+window.app = app;

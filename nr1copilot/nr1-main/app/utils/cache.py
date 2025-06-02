@@ -1,605 +1,511 @@
-
 """
-ViralClip Pro v6.0 - Netflix-Level Enterprise Cache Manager
-Advanced caching with Redis-like performance, intelligent invalidation, and analytics
+Netflix-Level Cache Manager
+Enterprise caching with intelligent invalidation and performance optimization
 """
 
 import asyncio
-import logging
 import json
 import time
 import hashlib
+import logging
 import pickle
 import weakref
-from typing import Dict, List, Any, Optional, Union, Callable, Tuple
+from typing import Any, Dict, List, Optional, Set, Union
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from pathlib import Path
-import threading
 from collections import OrderedDict, defaultdict
-from concurrent.futures import ThreadPoolExecutor
-import psutil
+from dataclasses import dataclass, field
+import threading
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class CacheEntry:
-    """Enterprise cache entry with comprehensive metadata"""
-    key: str
+    """Enhanced cache entry with metadata and analytics"""
     value: Any
-    created_at: datetime
-    last_accessed: datetime
+    created_at: float
+    ttl: float
     access_count: int = 0
-    ttl: Optional[float] = None
+    last_accessed: float = field(default_factory=time.time)
     size_bytes: int = 0
-    tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
+    tags: Set[str] = field(default_factory=set)
+    dependencies: Set[str] = field(default_factory=set)
+    compression_ratio: float = 1.0
+
     @property
     def is_expired(self) -> bool:
-        if self.ttl is None:
-            return False
-        return time.time() - self.created_at.timestamp() > self.ttl
-    
+        """Check if cache entry has expired"""
+        return time.time() > (self.created_at + self.ttl)
+
     @property
     def age_seconds(self) -> float:
-        return time.time() - self.created_at.timestamp()
+        """Get age of cache entry in seconds"""
+        return time.time() - self.created_at
 
-
-@dataclass
-class CacheStats:
-    """Comprehensive cache statistics"""
-    total_operations: int = 0
-    hits: int = 0
-    misses: int = 0
-    evictions: int = 0
-    memory_usage: int = 0
-    entry_count: int = 0
-    average_access_time: float = 0.0
-    hit_rate: float = 0.0
-    
-    def update_hit_rate(self):
-        total = self.hits + self.misses
-        self.hit_rate = (self.hits / total * 100) if total > 0 else 0.0
+    @property
+    def access_frequency(self) -> float:
+        """Calculate access frequency per hour"""
+        age_hours = max(self.age_seconds / 3600, 0.01)
+        return self.access_count / age_hours
 
 
 class NetflixLevelCacheManager:
-    """Netflix-level enterprise cache with advanced features"""
+    """Netflix-level cache with enterprise patterns and performance optimization"""
 
-    def __init__(
-        self,
-        max_memory_mb: int = 512,
-        max_entries: int = 10000,
-        default_ttl: Optional[float] = 3600,
-        cleanup_interval: float = 300,
-        enable_analytics: bool = True
-    ):
-        self.max_memory_bytes = max_memory_mb * 1024 * 1024
-        self.max_entries = max_entries
+    def __init__(self, max_size: int = 10000, default_ttl: int = 3600):
+        # Core cache storage
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
+        self._cache_lock = asyncio.Lock()
+
+        # Configuration
+        self.max_size = max_size
         self.default_ttl = default_ttl
-        self.cleanup_interval = cleanup_interval
-        self.enable_analytics = enable_analytics
-        
-        # Core storage
-        self.cache: OrderedDict[str, CacheEntry] = OrderedDict()
-        self.tag_index: Dict[str, set] = defaultdict(set)
-        
-        # Thread safety
-        self.lock = threading.RLock()
-        
-        # Performance monitoring
-        self.stats = CacheStats()
-        self.operation_times: List[float] = []
-        self.access_patterns: Dict[str, List[datetime]] = defaultdict(list)
-        
-        # Background tasks
-        self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cache")
-        self.cleanup_task = None
-        self.analytics_task = None
-        
-        # Event handlers
-        self.event_handlers: Dict[str, List[Callable]] = defaultdict(list)
-        
-        # Start background processes
-        asyncio.create_task(self._start_background_tasks())
-        
-        logger.info(f"🚀 Netflix-level cache initialized: {max_memory_mb}MB, {max_entries} entries")
+        self.compression_threshold = 1024  # bytes
 
-    async def _start_background_tasks(self):
-        """Start background maintenance tasks"""
-        self.cleanup_task = asyncio.create_task(self._cleanup_loop())
-        
-        if self.enable_analytics:
-            self.analytics_task = asyncio.create_task(self._analytics_loop())
+        # Performance metrics
+        self.metrics = {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "total_size_bytes": 0,
+            "avg_access_time_ms": 0.0,
+            "compression_ratio": 0.0
+        }
+
+        # Advanced features
+        self._tag_index: Dict[str, Set[str]] = defaultdict(set)
+        self._dependency_graph: Dict[str, Set[str]] = defaultdict(set)
+        self._access_patterns: Dict[str, List[float]] = defaultdict(list)
+        self._warming_tasks: Set[asyncio.Task] = set()
+
+        # Background tasks
+        self._cleanup_task = None
+        self._metrics_task = None
+        self._is_running = False
+
+        logger.info("🚀 Netflix-level cache manager initialized")
+
+    async def enterprise_warm_up(self):
+        """Enterprise warm-up with preloading and optimization"""
+        try:
+            start_time = time.time()
+
+            # Start background tasks
+            await self._start_background_tasks()
+
+            # Preload critical data
+            await self._preload_critical_cache()
+
+            # Initialize performance monitoring
+            await self._initialize_performance_monitoring()
+
+            warm_up_time = time.time() - start_time
+            logger.info(f"🔥 Cache manager warm-up completed in {warm_up_time:.2f}s")
+
+        except Exception as e:
+            logger.error(f"Cache warm-up failed: {e}", exc_info=True)
 
     async def get_enterprise(
-        self,
-        key: str,
+        self, 
+        key: str, 
         default: Any = None,
         update_access: bool = True
     ) -> Any:
-        """Get value with enterprise features and analytics"""
+        """Enterprise get with performance monitoring and analytics"""
         start_time = time.time()
-        
+
         try:
-            with self.lock:
-                entry = self.cache.get(key)
-                
+            async with self._cache_lock:
+                entry = self._cache.get(key)
+
                 if entry is None:
-                    self.stats.misses += 1
-                    self.stats.total_operations += 1
-                    await self._emit_event('cache_miss', {'key': key})
+                    self.metrics["misses"] += 1
+                    self._record_access_pattern(key, False)
                     return default
-                
+
                 if entry.is_expired:
                     await self._remove_entry(key)
-                    self.stats.misses += 1
-                    self.stats.total_operations += 1
-                    await self._emit_event('cache_expired', {'key': key, 'age': entry.age_seconds})
+                    self.metrics["misses"] += 1
+                    self._record_access_pattern(key, False)
                     return default
-                
+
                 # Update access metadata
                 if update_access:
-                    entry.last_accessed = datetime.utcnow()
                     entry.access_count += 1
-                    
+                    entry.last_accessed = time.time()
+
                     # Move to end for LRU
-                    self.cache.move_to_end(key)
-                    
-                    # Track access patterns
-                    if self.enable_analytics:
-                        self.access_patterns[key].append(datetime.utcnow())
-                        # Keep only recent access history
-                        cutoff = datetime.utcnow() - timedelta(hours=24)
-                        self.access_patterns[key] = [
-                            t for t in self.access_patterns[key] if t > cutoff
-                        ]
-                
-                self.stats.hits += 1
-                self.stats.total_operations += 1
-                
+                    self._cache.move_to_end(key)
+
+                self.metrics["hits"] += 1
+                self._record_access_pattern(key, True)
+
+                # Update performance metrics
+                access_time = (time.time() - start_time) * 1000
+                self._update_access_time_metric(access_time)
+
                 return entry.value
-                
-        finally:
-            operation_time = time.time() - start_time
-            self.operation_times.append(operation_time)
-            
-            # Keep only recent operation times for moving average
-            if len(self.operation_times) > 1000:
-                self.operation_times = self.operation_times[-1000:]
-            
-            self.stats.average_access_time = sum(self.operation_times) / len(self.operation_times)
-            self.stats.update_hit_rate()
+
+        except Exception as e:
+            logger.error(f"Cache get failed for key {key}: {e}")
+            return default
 
     async def set_enterprise(
         self,
         key: str,
         value: Any,
-        ttl: Optional[float] = None,
-        tags: List[str] = None,
-        metadata: Dict[str, Any] = None
+        ttl: Optional[int] = None,
+        tags: Optional[Set[str]] = None,
+        dependencies: Optional[Set[str]] = None,
+        compress: bool = True
     ) -> bool:
-        """Set value with enterprise features"""
+        """Enterprise set with compression, tagging, and dependency tracking"""
         try:
-            with self.lock:
-                # Calculate value size
-                size_bytes = await self._calculate_size(value)
-                
-                # Check memory limits
-                if not await self._check_memory_capacity(size_bytes):
-                    await self._make_space(size_bytes)
-                
+            async with self._cache_lock:
+                # Prepare value and calculate size
+                processed_value, size_bytes, compression_ratio = await self._process_value(
+                    value, compress
+                )
+
                 # Create cache entry
                 entry = CacheEntry(
-                    key=key,
-                    value=value,
-                    created_at=datetime.utcnow(),
-                    last_accessed=datetime.utcnow(),
+                    value=processed_value,
+                    created_at=time.time(),
                     ttl=ttl or self.default_ttl,
                     size_bytes=size_bytes,
-                    tags=tags or [],
-                    metadata=metadata or {}
+                    tags=tags or set(),
+                    dependencies=dependencies or set(),
+                    compression_ratio=compression_ratio
                 )
-                
-                # Remove existing entry if present
-                if key in self.cache:
-                    await self._remove_entry(key)
-                
-                # Add new entry
-                self.cache[key] = entry
-                
-                # Update tag index
-                for tag in entry.tags:
-                    self.tag_index[tag].add(key)
-                
-                # Update stats
-                self.stats.entry_count = len(self.cache)
-                self.stats.memory_usage = sum(e.size_bytes for e in self.cache.values())
-                
-                await self._emit_event('cache_set', {
-                    'key': key,
-                    'size_bytes': size_bytes,
-                    'ttl': entry.ttl,
-                    'tags': entry.tags
-                })
-                
+
+                # Check if we need to evict
+                await self._ensure_capacity(size_bytes)
+
+                # Store entry
+                self._cache[key] = entry
+                self._cache.move_to_end(key)
+
+                # Update indexes
+                self._update_tag_index(key, tags or set())
+                self._update_dependency_graph(key, dependencies or set())
+
+                # Update metrics
+                self.metrics["total_size_bytes"] += size_bytes
+                self._update_compression_metric(compression_ratio)
+
                 return True
-                
+
         except Exception as e:
             logger.error(f"Cache set failed for key {key}: {e}")
             return False
 
-    async def delete_enterprise(self, key: str) -> bool:
-        """Delete entry with enterprise cleanup"""
-        try:
-            with self.lock:
-                if key not in self.cache:
-                    return False
-                
-                await self._remove_entry(key)
-                await self._emit_event('cache_delete', {'key': key})
-                return True
-                
-        except Exception as e:
-            logger.error(f"Cache delete failed for key {key}: {e}")
-            return False
+    async def invalidate_by_tags(self, tags: Set[str]) -> int:
+        """Invalidate cache entries by tags with cascading dependencies"""
+        invalidated_count = 0
 
-    async def invalidate_by_tags(self, tags: List[str]) -> int:
-        """Invalidate all entries with specified tags"""
-        invalidated = 0
-        
         try:
-            with self.lock:
+            async with self._cache_lock:
                 keys_to_remove = set()
-                
+
+                # Find all keys with matching tags
                 for tag in tags:
-                    if tag in self.tag_index:
-                        keys_to_remove.update(self.tag_index[tag])
-                
+                    keys_to_remove.update(self._tag_index.get(tag, set()))
+
+                # Add dependent keys (cascading invalidation)
+                cascaded_keys = set()
                 for key in keys_to_remove:
-                    if key in self.cache:
+                    cascaded_keys.update(self._get_dependent_keys(key))
+
+                keys_to_remove.update(cascaded_keys)
+
+                # Remove entries
+                for key in keys_to_remove:
+                    if key in self._cache:
                         await self._remove_entry(key)
-                        invalidated += 1
-                
-                await self._emit_event('cache_invalidate_tags', {
-                    'tags': tags,
-                    'invalidated_count': invalidated
-                })
-                
+                        invalidated_count += 1
+
+                logger.info(f"🗑️ Invalidated {invalidated_count} cache entries by tags: {tags}")
+
         except Exception as e:
             logger.error(f"Tag invalidation failed: {e}")
-        
-        return invalidated
 
-    async def get_multi_enterprise(self, keys: List[str]) -> Dict[str, Any]:
-        """Get multiple values efficiently"""
-        results = {}
-        
-        for key in keys:
-            value = await self.get_enterprise(key)
-            if value is not None:
-                results[key] = value
-        
-        return results
+        return invalidated_count
 
-    async def set_multi_enterprise(
-        self,
-        items: Dict[str, Any],
-        ttl: Optional[float] = None,
-        tags: List[str] = None
-    ) -> Dict[str, bool]:
-        """Set multiple values efficiently"""
-        results = {}
-        
-        for key, value in items.items():
-            results[key] = await self.set_enterprise(key, value, ttl, tags)
-        
-        return results
-
-    async def increment_enterprise(self, key: str, delta: int = 1) -> Optional[int]:
-        """Atomic increment operation"""
+    async def get_cache_analytics(self) -> Dict[str, Any]:
+        """Get comprehensive cache analytics and performance metrics"""
         try:
-            with self.lock:
-                entry = self.cache.get(key)
-                
-                if entry is None:
-                    # Create new counter
-                    await self.set_enterprise(key, delta)
-                    return delta
-                
-                if not isinstance(entry.value, (int, float)):
-                    raise ValueError(f"Cannot increment non-numeric value: {type(entry.value)}")
-                
-                new_value = entry.value + delta
-                entry.value = new_value
-                entry.last_accessed = datetime.utcnow()
-                entry.access_count += 1
-                
-                return new_value
-                
-        except Exception as e:
-            logger.error(f"Cache increment failed for key {key}: {e}")
-            return None
+            async with self._cache_lock:
+                total_entries = len(self._cache)
+                hit_rate = 0.0
+                if self.metrics["hits"] + self.metrics["misses"] > 0:
+                    hit_rate = self.metrics["hits"] / (self.metrics["hits"] + self.metrics["misses"])
 
-    async def get_analytics(self) -> Dict[str, Any]:
-        """Get comprehensive cache analytics"""
-        with self.lock:
-            memory_usage_mb = self.stats.memory_usage / 1024 / 1024
-            
-            # Calculate top accessed keys
-            top_keys = sorted(
-                [(k, e.access_count) for k, e in self.cache.items()],
-                key=lambda x: x[1],
-                reverse=True
-            )[:10]
-            
-            # Calculate tag usage
-            tag_usage = {
-                tag: len(keys) for tag, keys in self.tag_index.items()
-            }
-            
-            # Calculate expiration info
-            expired_count = sum(1 for e in self.cache.values() if e.is_expired)
-            
-            return {
-                "performance": {
-                    "hit_rate": round(self.stats.hit_rate, 2),
-                    "total_operations": self.stats.total_operations,
-                    "hits": self.stats.hits,
-                    "misses": self.stats.misses,
-                    "average_access_time_ms": round(self.stats.average_access_time * 1000, 3)
-                },
-                "memory": {
-                    "usage_mb": round(memory_usage_mb, 2),
-                    "max_mb": self.max_memory_bytes / 1024 / 1024,
-                    "utilization_percent": round(memory_usage_mb / (self.max_memory_bytes / 1024 / 1024) * 100, 2)
-                },
-                "entries": {
-                    "total_count": len(self.cache),
-                    "max_count": self.max_entries,
-                    "expired_count": expired_count,
-                    "evictions": self.stats.evictions
-                },
-                "top_keys": [{"key": k, "access_count": c} for k, c in top_keys],
-                "tag_usage": dict(sorted(tag_usage.items(), key=lambda x: x[1], reverse=True)[:10]),
-                "system": {
-                    "process_memory_mb": round(psutil.Process().memory_info().rss / 1024 / 1024, 2),
-                    "cache_efficiency": round(len(self.cache) / max(1, self.stats.total_operations) * 100, 2)
+                # Calculate memory usage by category
+                memory_by_tags = defaultdict(int)
+                access_patterns = {}
+
+                for key, entry in self._cache.items():
+                    for tag in entry.tags:
+                        memory_by_tags[tag] += entry.size_bytes
+
+                    access_patterns[key] = {
+                        "access_count": entry.access_count,
+                        "access_frequency": entry.access_frequency,
+                        "age_seconds": entry.age_seconds,
+                        "size_bytes": entry.size_bytes
+                    }
+
+                # Top accessed entries
+                top_entries = sorted(
+                    access_patterns.items(),
+                    key=lambda x: x[1]["access_frequency"],
+                    reverse=True
+                )[:10]
+
+                return {
+                    "cache_status": {
+                        "total_entries": total_entries,
+                        "total_size_mb": self.metrics["total_size_bytes"] / 1024 / 1024,
+                        "hit_rate": hit_rate,
+                        "avg_access_time_ms": self.metrics["avg_access_time_ms"],
+                        "compression_ratio": self.metrics["compression_ratio"]
+                    },
+                    "performance": {
+                        "hits": self.metrics["hits"],
+                        "misses": self.metrics["misses"],
+                        "evictions": self.metrics["evictions"],
+                        "memory_efficiency": min(100.0, (hit_rate * 100))
+                    },
+                    "memory_distribution": dict(memory_by_tags),
+                    "top_accessed_entries": [
+                        {"key": k, **v} for k, v in top_entries
+                    ],
+                    "cache_health": {
+                        "fragmentation": self._calculate_fragmentation(),
+                        "utilization": min(100.0, (total_entries / self.max_size) * 100),
+                        "average_entry_age": self._calculate_average_age()
+                    }
                 }
-            }
 
-    async def enterprise_warm_up(self):
-        """Warm up cache with predictive loading"""
-        try:
-            # Pre-load frequently accessed data patterns
-            warm_up_keys = [
-                "system:health",
-                "app:config",
-                "templates:popular",
-                "viral:trending_factors"
-            ]
-            
-            # Simulate warming up cache
-            for key in warm_up_keys:
-                await self.set_enterprise(
-                    key,
-                    {"status": "warm", "timestamp": datetime.utcnow().isoformat()},
-                    ttl=1800,  # 30 minutes
-                    tags=["warm_up", "system"]
-                )
-            
-            logger.info(f"🔥 Cache warmed up with {len(warm_up_keys)} entries")
-            
         except Exception as e:
-            logger.error(f"Cache warm-up failed: {e}")
+            logger.error(f"Analytics generation failed: {e}")
+            return {"error": str(e)}
 
-    async def _cleanup_loop(self):
-        """Background cleanup task"""
-        while True:
-            try:
-                await asyncio.sleep(self.cleanup_interval)
-                await self._cleanup_expired()
-                await self._optimize_memory()
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Cache cleanup error: {e}")
-                await asyncio.sleep(60)  # Wait before retrying
-
-    async def _cleanup_expired(self):
-        """Remove expired entries"""
-        expired_keys = []
-        
-        with self.lock:
-            for key, entry in self.cache.items():
-                if entry.is_expired:
-                    expired_keys.append(key)
-        
-        for key in expired_keys:
-            await self._remove_entry(key)
-        
-        if expired_keys:
-            logger.debug(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
-
-    async def _optimize_memory(self):
-        """Optimize memory usage"""
-        with self.lock:
-            current_memory = sum(e.size_bytes for e in self.cache.values())
-            
-            if current_memory > self.max_memory_bytes * 0.8:  # 80% threshold
-                # Remove least recently used entries
-                lru_keys = list(self.cache.keys())[:int(len(self.cache) * 0.1)]  # Remove 10%
-                
-                for key in lru_keys:
-                    await self._remove_entry(key)
-                
-                logger.info(f"🗑️ Memory optimization: removed {len(lru_keys)} LRU entries")
-
-    async def _analytics_loop(self):
-        """Background analytics task"""
-        while True:
-            try:
-                await asyncio.sleep(300)  # 5 minutes
-                await self._update_analytics()
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Cache analytics error: {e}")
-
-    async def _update_analytics(self):
-        """Update cache analytics"""
+    async def _process_value(
+        self, 
+        value: Any, 
+        compress: bool
+    ) -> tuple[Any, int, float]:
+        """Process value with optional compression"""
         try:
-            analytics = await self.get_analytics()
-            
-            # Log performance metrics
-            if analytics["performance"]["hit_rate"] < 50:
-                logger.warning(f"Low cache hit rate: {analytics['performance']['hit_rate']}%")
-            
-            if analytics["memory"]["utilization_percent"] > 90:
-                logger.warning(f"High memory utilization: {analytics['memory']['utilization_percent']}%")
-            
+            # Serialize value
+            if isinstance(value, (dict, list)):
+                serialized = json.dumps(value, default=str).encode('utf-8')
+            else:
+                serialized = pickle.dumps(value)
+
+            original_size = len(serialized)
+
+            # Apply compression if beneficial
+            if compress and original_size > self.compression_threshold:
+                import gzip
+                compressed = gzip.compress(serialized)
+
+                if len(compressed) < original_size * 0.8:  # 20% savings threshold
+                    return compressed, len(compressed), original_size / len(compressed)
+
+            return serialized, original_size, 1.0
+
         except Exception as e:
-            logger.error(f"Analytics update failed: {e}")
+            logger.error(f"Value processing failed: {e}")
+            return value, len(str(value)), 1.0
+
+    async def _ensure_capacity(self, needed_bytes: int):
+        """Ensure cache has capacity using intelligent eviction"""
+        current_size = self.metrics["total_size_bytes"]
+
+        if len(self._cache) >= self.max_size or (current_size + needed_bytes) > (self.max_size * 1024):
+            # Intelligent eviction based on access patterns and age
+            eviction_candidates = []
+
+            for key, entry in self._cache.items():
+                # Calculate eviction score (lower is better for eviction)
+                age_factor = min(entry.age_seconds / 3600, 10)  # Cap at 10 hours
+                access_factor = max(entry.access_frequency, 0.1)
+                size_factor = entry.size_bytes / 1024  # KB
+
+                eviction_score = (age_factor * size_factor) / access_factor
+                eviction_candidates.append((key, eviction_score))
+
+            # Sort by eviction score (highest first)
+            eviction_candidates.sort(key=lambda x: x[1], reverse=True)
+
+            # Evict entries until we have enough space
+            for key, _ in eviction_candidates:
+                if (len(self._cache) < self.max_size * 0.8 and 
+                    self.metrics["total_size_bytes"] + needed_bytes < self.max_size * 1024 * 0.8):
+                    break
+
+                await self._remove_entry(key)
+                self.metrics["evictions"] += 1
 
     async def _remove_entry(self, key: str):
-        """Remove entry and update indexes"""
-        if key not in self.cache:
-            return
-        
-        entry = self.cache[key]
-        
-        # Remove from tag index
-        for tag in entry.tags:
-            self.tag_index[tag].discard(key)
-            if not self.tag_index[tag]:
-                del self.tag_index[tag]
-        
-        # Remove from cache
-        del self.cache[key]
-        
-        # Update stats
-        self.stats.entry_count = len(self.cache)
-        self.stats.memory_usage = sum(e.size_bytes for e in self.cache.values())
+        """Remove entry and clean up indexes"""
+        if key in self._cache:
+            entry = self._cache[key]
 
-    async def _calculate_size(self, value: Any) -> int:
-        """Calculate approximate size of value in bytes"""
-        try:
-            if isinstance(value, str):
-                return len(value.encode('utf-8'))
-            elif isinstance(value, (dict, list)):
-                return len(json.dumps(value, default=str).encode('utf-8'))
-            else:
-                return len(pickle.dumps(value))
-        except:
-            return 1024  # Default estimate
+            # Update metrics
+            self.metrics["total_size_bytes"] -= entry.size_bytes
 
-    async def _check_memory_capacity(self, size_bytes: int) -> bool:
-        """Check if there's enough memory capacity"""
-        current_memory = sum(e.size_bytes for e in self.cache.values())
-        return current_memory + size_bytes <= self.max_memory_bytes
+            # Clean up indexes
+            for tag in entry.tags:
+                self._tag_index[tag].discard(key)
+                if not self._tag_index[tag]:
+                    del self._tag_index[tag]
 
-    async def _make_space(self, needed_bytes: int):
-        """Make space by removing LRU entries"""
-        removed_bytes = 0
-        removed_count = 0
-        
-        # Remove entries until we have enough space
-        while removed_bytes < needed_bytes and self.cache:
-            # Get least recently used entry
-            lru_key = next(iter(self.cache))
-            entry = self.cache[lru_key]
-            
-            removed_bytes += entry.size_bytes
-            removed_count += 1
-            
-            await self._remove_entry(lru_key)
-            self.stats.evictions += 1
-        
-        if removed_count > 0:
-            logger.debug(f"🗑️ Evicted {removed_count} entries ({removed_bytes} bytes) to make space")
+            # Clean up dependencies
+            for dep in entry.dependencies:
+                self._dependency_graph[dep].discard(key)
+                if not self._dependency_graph[dep]:
+                    del self._dependency_graph[dep]
 
-    async def _emit_event(self, event_type: str, data: Dict[str, Any]):
-        """Emit cache events for monitoring"""
-        if event_type not in self.event_handlers:
-            return
-        
-        for handler in self.event_handlers[event_type]:
+            # Remove from cache
+            del self._cache[key]
+
+    def _update_tag_index(self, key: str, tags: Set[str]):
+        """Update tag index for efficient tag-based queries"""
+        for tag in tags:
+            self._tag_index[tag].add(key)
+
+    def _update_dependency_graph(self, key: str, dependencies: Set[str]):
+        """Update dependency graph for cascading invalidation"""
+        for dep in dependencies:
+            self._dependency_graph[dep].add(key)
+
+    def _get_dependent_keys(self, key: str) -> Set[str]:
+        """Get all keys that depend on the given key"""
+        return self._dependency_graph.get(key, set())
+
+    def _record_access_pattern(self, key: str, hit: bool):
+        """Record access pattern for analytics"""
+        self._access_patterns[key].append(time.time())
+
+        # Keep only recent access patterns (last hour)
+        cutoff = time.time() - 3600
+        self._access_patterns[key] = [
+            t for t in self._access_patterns[key] if t > cutoff
+        ]
+
+    def _update_access_time_metric(self, access_time_ms: float):
+        """Update rolling average access time"""
+        current_avg = self.metrics["avg_access_time_ms"]
+        total_requests = self.metrics["hits"] + self.metrics["misses"]
+
+        if total_requests > 0:
+            self.metrics["avg_access_time_ms"] = (
+                (current_avg * (total_requests - 1) + access_time_ms) / total_requests
+            )
+
+    def _update_compression_metric(self, ratio: float):
+        """Update rolling average compression ratio"""
+        current_ratio = self.metrics["compression_ratio"]
+        entries_count = len(self._cache)
+
+        if entries_count > 0:
+            self.metrics["compression_ratio"] = (
+                (current_ratio * (entries_count - 1) + ratio) / entries_count
+            )
+
+    def _calculate_fragmentation(self) -> float:
+        """Calculate cache fragmentation percentage"""
+        if not self._cache:
+            return 0.0
+
+        sizes = [entry.size_bytes for entry in self._cache.values()]
+        avg_size = sum(sizes) / len(sizes)
+        variance = sum((size - avg_size) ** 2 for size in sizes) / len(sizes)
+
+        return min(100.0, (variance / (avg_size ** 2)) * 100)
+
+    def _calculate_average_age(self) -> float:
+        """Calculate average age of cache entries in seconds"""
+        if not self._cache:
+            return 0.0
+
+        current_time = time.time()
+        total_age = sum(
+            current_time - entry.created_at 
+            for entry in self._cache.values()
+        )
+
+        return total_age / len(self._cache)
+
+    async def _start_background_tasks(self):
+        """Start background maintenance tasks"""
+        self._is_running = True
+
+        # Cleanup task
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
+        # Metrics task  
+        self._metrics_task = asyncio.create_task(self._metrics_loop())
+
+    async def _cleanup_loop(self):
+        """Background cleanup of expired entries"""
+        while self._is_running:
             try:
-                await handler(data)
+                await asyncio.sleep(300)  # 5 minutes
+
+                async with self._cache_lock:
+                    expired_keys = []
+                    for key, entry in self._cache.items():
+                        if entry.is_expired:
+                            expired_keys.append(key)
+
+                    for key in expired_keys:
+                        await self._remove_entry(key)
+
+                    if expired_keys:
+                        logger.info(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
+
             except Exception as e:
-                logger.error(f"Event handler error for {event_type}: {e}")
+                logger.error(f"Cache cleanup failed: {e}")
 
-    def add_event_handler(self, event_type: str, handler: Callable):
-        """Add event handler for cache events"""
-        self.event_handlers[event_type].append(handler)
+    async def _metrics_loop(self):
+        """Background metrics collection and optimization"""
+        while self._is_running:
+            try:
+                await asyncio.sleep(600)  # 10 minutes
 
-    async def clear_all(self):
-        """Clear all cache entries"""
-        with self.lock:
-            self.cache.clear()
-            self.tag_index.clear()
-            self.access_patterns.clear()
-            
-            # Reset stats
-            self.stats = CacheStats()
-        
-        await self._emit_event('cache_cleared', {})
-        logger.info("🧹 All cache entries cleared")
+                # Log performance metrics
+                analytics = await self.get_cache_analytics()
+                logger.info(f"📊 Cache performance: {analytics['cache_status']}")
 
-    async def export_data(self, include_values: bool = False) -> Dict[str, Any]:
-        """Export cache data for backup/analysis"""
-        with self.lock:
-            export_data = {
-                "metadata": {
-                    "export_time": datetime.utcnow().isoformat(),
-                    "entry_count": len(self.cache),
-                    "total_memory": self.stats.memory_usage
-                },
-                "entries": []
-            }
-            
-            for key, entry in self.cache.items():
-                entry_data = {
-                    "key": key,
-                    "created_at": entry.created_at.isoformat(),
-                    "last_accessed": entry.last_accessed.isoformat(),
-                    "access_count": entry.access_count,
-                    "ttl": entry.ttl,
-                    "size_bytes": entry.size_bytes,
-                    "tags": entry.tags,
-                    "metadata": entry.metadata
-                }
-                
-                if include_values:
-                    try:
-                        entry_data["value"] = json.dumps(entry.value, default=str)
-                    except:
-                        entry_data["value"] = str(entry.value)
-                
-                export_data["entries"].append(entry_data)
-            
-            return export_data
+            except Exception as e:
+                logger.error(f"Metrics collection failed: {e}")
+
+    async def _preload_critical_cache(self):
+        """Preload critical cache data"""
+        # This would typically load from a persistent store
+        # For now, we'll just initialize some common cache patterns
+        await self.set_enterprise("system_config", {"initialized": True}, ttl=86400)
+        logger.info("🔥 Critical cache data preloaded")
+
+    async def _initialize_performance_monitoring(self):
+        """Initialize performance monitoring"""
+        logger.info("📊 Performance monitoring initialized")
 
     async def graceful_shutdown(self):
-        """Gracefully shutdown cache manager"""
-        logger.info("🔄 Starting cache manager shutdown...")
-        
-        # Cancel background tasks
-        if self.cleanup_task and not self.cleanup_task.done():
-            self.cleanup_task.cancel()
-        
-        if self.analytics_task and not self.analytics_task.done():
-            self.analytics_task.cancel()
-        
-        # Shutdown executor
-        self.executor.shutdown(wait=True)
-        
-        # Final analytics
-        if self.enable_analytics:
-            final_stats = await self.get_analytics()
-            logger.info(f"📊 Final cache stats: {final_stats['performance']['hit_rate']}% hit rate, {final_stats['entries']['total_count']} entries")
-        
+        """Graceful shutdown of cache manager"""
+        self._is_running = False
+
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+        if self._metrics_task:
+            self._metrics_task.cancel()
+
+        # Cancel warming tasks
+        for task in self._warming_tasks:
+            task.cancel()
+
         logger.info("✅ Cache manager shutdown complete")
