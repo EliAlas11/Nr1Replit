@@ -1,247 +1,319 @@
+
 """
-Netflix-Grade Security Middleware
-Enterprise-level security controls and monitoring with comprehensive protection
+Enterprise Security Middleware
+Comprehensive security controls with rate limiting, input validation, and threat protection.
 """
 
 import time
 import logging
 import hashlib
-from typing import Dict, Set, Optional, List, Any
-from fastapi import Request, HTTPException
-from fastapi.responses import Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
+from typing import Dict, Optional, List, Callable
 from collections import defaultdict, deque
-from datetime import datetime
-import re
+from datetime import datetime, timedelta
+
+from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
-class SecurityMiddleware(BaseHTTPMiddleware):
-    """Netflix-tier security middleware with advanced threat protection"""
 
+class RateLimiter:
+    """Thread-safe rate limiter with sliding window."""
+    
+    def __init__(self, max_requests: int, window_seconds: int):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests: Dict[str, deque] = defaultdict(lambda: deque())
+    
+    def is_allowed(self, identifier: str) -> bool:
+        """Check if request is allowed for given identifier."""
+        now = time.time()
+        window_start = now - self.window_seconds
+        
+        # Clean old requests
+        user_requests = self.requests[identifier]
+        while user_requests and user_requests[0] < window_start:
+            user_requests.popleft()
+        
+        # Check if under limit
+        if len(user_requests) < self.max_requests:
+            user_requests.append(now)
+            return True
+        
+        return False
+    
+    def get_reset_time(self, identifier: str) -> int:
+        """Get time until rate limit resets."""
+        user_requests = self.requests[identifier]
+        if not user_requests:
+            return 0
+        
+        oldest_request = user_requests[0]
+        reset_time = oldest_request + self.window_seconds
+        return max(0, int(reset_time - time.time()))
+
+
+class SecurityMiddleware(BaseHTTPMiddleware):
+    """Enterprise-grade security middleware."""
+    
     def __init__(
-        self, 
+        self,
         app,
         rate_limit_requests: int = 100,
         rate_limit_window: int = 60,
-        max_content_length: int = 500 * 1024 * 1024  # 500MB
+        max_content_length: int = 50 * 1024 * 1024,  # 50MB
+        blocked_user_agents: Optional[List[str]] = None,
+        require_https: bool = False
     ):
         super().__init__(app)
-        self.rate_limit_requests = rate_limit_requests
-        self.rate_limit_window = rate_limit_window
+        
+        # Rate limiting
+        self.rate_limiter = RateLimiter(rate_limit_requests, rate_limit_window)
+        
+        # Content limits
         self.max_content_length = max_content_length
-
-        # Rate limiting storage
-        self.request_counts: Dict[str, deque] = defaultdict(lambda: deque(maxlen=1000))
-        self.blocked_ips: Set[str] = set()
-        self.suspicious_patterns: List[str] = [
-            r'(?i)(script|javascript|vbscript)',
-            r'(?i)(<script|</script>)',
-            r'(?i)(union\s+select|drop\s+table)',
-            r'(?i)(\.\.\/|\.\.\\)',
-            r'(?i)(cmd|powershell|bash)',
+        
+        # Security settings
+        self.blocked_user_agents = blocked_user_agents or [
+            "curl", "wget", "python-requests", "bot", "crawler", "scanner"
         ]
-
-        # Netflix-grade security headers
+        self.require_https = require_https
+        
+        # Suspicious activity tracking
+        self.suspicious_ips: Dict[str, Dict] = defaultdict(lambda: {
+            "violations": 0,
+            "last_violation": 0,
+            "blocked_until": 0
+        })
+        
+        # Security headers
         self.security_headers = {
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
             "X-XSS-Protection": "1; mode=block",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-            "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
-            "X-Netflix-Security": "AAA+",
-            "X-Security-Level": "Enterprise"
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
         }
-
-        logger.info("🛡️ Netflix-grade Security Middleware initialized")
-
-    async def dispatch(self, request: Request, call_next) -> Response:
-        """Process request with comprehensive security controls"""
-        start_time = time.time()
-        client_ip = self._get_client_ip(request)
-
+        
+        logger.info(f"Security middleware initialized with rate limit: {rate_limit_requests}/{rate_limit_window}s")
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """Process request through security checks."""
         try:
-            # Security threat analysis
-            threat_analysis = await self._analyze_security_threats(request, client_ip)
-
-            # Block high-risk requests
-            if threat_analysis["risk_level"] == "CRITICAL":
-                return await self._block_request(request, threat_analysis, client_ip)
-
-            # Rate limiting protection
-            if not self._check_rate_limit(client_ip):
-                logger.warning(f"🚫 Rate limit exceeded for {client_ip}")
-                return await self._rate_limit_response(client_ip)
-
-            # Content length validation
-            content_length = request.headers.get("content-length")
-            if content_length and int(content_length) > self.max_content_length:
-                logger.warning(f"📦 Content too large from {client_ip}: {content_length} bytes")
-                return await self._content_too_large_response()
-
+            # Get client identifier
+            client_ip = self._get_client_ip(request)
+            client_id = self._get_client_identifier(request)
+            
+            # Security checks
+            security_check = await self._perform_security_checks(request, client_ip, client_id)
+            if security_check:
+                return security_check
+            
             # Process request
             response = await call_next(request)
-
-            # Add Netflix-grade security headers
-            for header, value in self.security_headers.items():
-                response.headers[header] = value
-
-            # Add performance metrics
-            processing_time = time.time() - start_time
-            response.headers["X-Security-Processing-Time"] = f"{processing_time:.4f}s"
-            response.headers["X-Threat-Level"] = threat_analysis["risk_level"]
-
+            
+            # Add security headers
+            self._add_security_headers(response)
+            
             return response
-
+            
         except Exception as e:
-            logger.error(f"💥 Security middleware error: {e}")
+            logger.error(f"Security middleware error: {e}")
             return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "security_middleware_error",
-                    "message": "Security processing encountered an issue",
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                {"error": "Security check failed"},
+                status_code=500
             )
-
-    async def _analyze_security_threats(self, request: Request, client_ip: str) -> Dict[str, str]:
-        """Netflix-grade security threat analysis"""
-        try:
-            risk_score = 0
-            threats = []
-
-            # Check for malicious patterns in URL
-            url_str = str(request.url)
-            for pattern in self.suspicious_patterns:
-                if re.search(pattern, url_str):
-                    risk_score += 25
-                    threats.append(f"Suspicious pattern in URL: {pattern}")
-
-            # Check User-Agent
-            user_agent = request.headers.get("User-Agent", "")
-            if not user_agent or len(user_agent) < 10:
-                risk_score += 20
-                threats.append("Missing or suspicious User-Agent")
-
-            # Check for known attack patterns
-            malicious_agents = ["sqlmap", "nmap", "nikto", "burp"]
-            if any(agent in user_agent.lower() for agent in malicious_agents):
-                risk_score += 50
-                threats.append("Known attack tool detected")
-
-            # Determine risk level
-            if risk_score >= 70:
-                risk_level = "CRITICAL"
-            elif risk_score >= 40:
-                risk_level = "HIGH"
-            elif risk_score >= 20:
-                risk_level = "MEDIUM"
-            else:
-                risk_level = "LOW"
-
-            return {
-                "risk_level": risk_level,
-                "risk_score": risk_score,
-                "threats": threats
-            }
-
-        except Exception as e:
-            logger.error(f"Security analysis failed: {e}")
-            return {"risk_level": "UNKNOWN", "risk_score": 0, "threats": []}
-
+    
+    async def _perform_security_checks(
+        self, 
+        request: Request, 
+        client_ip: str, 
+        client_id: str
+    ) -> Optional[JSONResponse]:
+        """Perform comprehensive security checks."""
+        
+        # Check if IP is blocked
+        if self._is_ip_blocked(client_ip):
+            logger.warning(f"Blocked IP attempted access: {client_ip}")
+            return JSONResponse(
+                {"error": "Access denied"},
+                status_code=403
+            )
+        
+        # HTTPS enforcement
+        if self.require_https and request.url.scheme != "https":
+            logger.warning(f"HTTP request rejected from {client_ip}")
+            return JSONResponse(
+                {"error": "HTTPS required"},
+                status_code=403
+            )
+        
+        # Rate limiting
+        if not self.rate_limiter.is_allowed(client_id):
+            reset_time = self.rate_limiter.get_reset_time(client_id)
+            logger.warning(f"Rate limit exceeded for {client_id}")
+            
+            # Track as violation
+            self._record_violation(client_ip, "rate_limit")
+            
+            return JSONResponse(
+                {
+                    "error": "Rate limit exceeded",
+                    "reset_in_seconds": reset_time
+                },
+                status_code=429,
+                headers={"Retry-After": str(reset_time)}
+            )
+        
+        # Content length check
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_content_length:
+            logger.warning(f"Content length exceeded from {client_ip}: {content_length}")
+            self._record_violation(client_ip, "content_length")
+            
+            return JSONResponse(
+                {"error": "Request too large"},
+                status_code=413
+            )
+        
+        # User agent check
+        user_agent = request.headers.get("user-agent", "").lower()
+        if any(blocked in user_agent for blocked in self.blocked_user_agents):
+            logger.warning(f"Blocked user agent from {client_ip}: {user_agent}")
+            self._record_violation(client_ip, "user_agent")
+            
+            return JSONResponse(
+                {"error": "Access denied"},
+                status_code=403
+            )
+        
+        # Path traversal check
+        if self._has_path_traversal(str(request.url.path)):
+            logger.warning(f"Path traversal attempt from {client_ip}: {request.url.path}")
+            self._record_violation(client_ip, "path_traversal")
+            
+            return JSONResponse(
+                {"error": "Invalid request"},
+                status_code=400
+            )
+        
+        # SQL injection basic check
+        if self._has_sql_injection_patterns(request):
+            logger.warning(f"SQL injection attempt from {client_ip}")
+            self._record_violation(client_ip, "sql_injection")
+            
+            return JSONResponse(
+                {"error": "Invalid request"},
+                status_code=400
+            )
+        
+        return None
+    
     def _get_client_ip(self, request: Request) -> str:
-        """Get client IP with proxy support"""
-        # Check for forwarded headers (for reverse proxies)
-        forwarded_for = request.headers.get("X-Forwarded-For")
+        """Extract client IP address."""
+        # Check forwarded headers (for proxy/load balancer scenarios)
+        forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
             return forwarded_for.split(",")[0].strip()
-
-        real_ip = request.headers.get("X-Real-IP")
+        
+        real_ip = request.headers.get("x-real-ip")
         if real_ip:
             return real_ip
-
-        return request.client.host if request.client else "unknown"
-
-    def _check_rate_limit(self, client_ip: str) -> bool:
-        """Netflix-grade rate limiting with sliding window"""
-        now = time.time()
-        window_start = now - self.rate_limit_window
-
-        # Clean old requests
-        while self.request_counts[client_ip] and self.request_counts[client_ip][0] < window_start:
-            self.request_counts[client_ip].popleft()
-
-        # Check current count
-        if len(self.request_counts[client_ip]) >= self.rate_limit_requests:
-            return False
-
-        # Add current request
-        self.request_counts[client_ip].append(now)
-        return True
-
-    async def _block_request(self, request: Request, threat_analysis: Dict, client_ip: str) -> JSONResponse:
-        """Block malicious requests with detailed logging"""
-        logger.critical(f"🚫 BLOCKING malicious request from {client_ip}: {threat_analysis}")
-
-        return JSONResponse(
-            status_code=403,
-            content={
-                "error": "request_blocked",
-                "message": "Request blocked due to security policy violation",
-                "risk_level": threat_analysis["risk_level"],
-                "block_reason": "security_threat_detected",
-                "contact": "Contact support with reference ID for assistance",
-                "reference_id": hashlib.md5(f"{client_ip}{time.time()}".encode()).hexdigest()[:8],
-                "timestamp": datetime.utcnow().isoformat()
-            }
+        
+        # Fallback to direct connection
+        if hasattr(request.client, 'host'):
+            return request.client.host
+        
+        return "unknown"
+    
+    def _get_client_identifier(self, request: Request) -> str:
+        """Generate unique client identifier for rate limiting."""
+        client_ip = self._get_client_ip(request)
+        user_agent = request.headers.get("user-agent", "")
+        
+        # Create hash-based identifier
+        identifier_string = f"{client_ip}:{user_agent}"
+        return hashlib.md5(identifier_string.encode()).hexdigest()[:16]
+    
+    def _is_ip_blocked(self, client_ip: str) -> bool:
+        """Check if IP is currently blocked."""
+        ip_data = self.suspicious_ips[client_ip]
+        
+        # Check if still blocked
+        if ip_data["blocked_until"] > time.time():
+            return True
+        
+        # Auto-unblock if block period expired
+        if ip_data["blocked_until"] > 0 and ip_data["blocked_until"] <= time.time():
+            ip_data["blocked_until"] = 0
+            ip_data["violations"] = max(0, ip_data["violations"] - 1)
+        
+        return False
+    
+    def _record_violation(self, client_ip: str, violation_type: str):
+        """Record security violation and potentially block IP."""
+        ip_data = self.suspicious_ips[client_ip]
+        ip_data["violations"] += 1
+        ip_data["last_violation"] = time.time()
+        
+        # Block IP if too many violations
+        if ip_data["violations"] >= 5:
+            block_duration = min(3600, 60 * (2 ** (ip_data["violations"] - 5)))  # Exponential backoff, max 1 hour
+            ip_data["blocked_until"] = time.time() + block_duration
+            
+            logger.warning(
+                f"IP {client_ip} blocked for {block_duration}s after {ip_data['violations']} violations"
+            )
+    
+    def _has_path_traversal(self, path: str) -> bool:
+        """Check for path traversal attempts."""
+        suspicious_patterns = ["../", "..\\", "%2e%2e", "....//", "..;/"]
+        path_lower = path.lower()
+        
+        return any(pattern in path_lower for pattern in suspicious_patterns)
+    
+    def _has_sql_injection_patterns(self, request: Request) -> bool:
+        """Basic SQL injection pattern detection."""
+        sql_patterns = [
+            "union select", "drop table", "insert into", "delete from",
+            "update set", "exec xp_", "sp_executesql", "'; --", "' or '1'='1"
+        ]
+        
+        # Check URL parameters
+        query_string = str(request.url.query).lower()
+        if any(pattern in query_string for pattern in sql_patterns):
+            return True
+        
+        # Check headers for injection attempts
+        for header_value in request.headers.values():
+            if any(pattern in header_value.lower() for pattern in sql_patterns):
+                return True
+        
+        return False
+    
+    def _add_security_headers(self, response: Response):
+        """Add security headers to response."""
+        for header, value in self.security_headers.items():
+            response.headers[header] = value
+    
+    def get_security_stats(self) -> Dict:
+        """Get security middleware statistics."""
+        total_violations = sum(
+            data["violations"] for data in self.suspicious_ips.values()
         )
-
-    async def _rate_limit_response(self, client_ip: str) -> JSONResponse:
-        """Rate limit exceeded response"""
-        return JSONResponse(
-            status_code=429,
-            content={
-                "error": "rate_limit_exceeded",
-                "message": "Too many requests - please slow down",
-                "limit": self.rate_limit_requests,
-                "window_seconds": self.rate_limit_window,
-                "retry_after": 60,
-                "timestamp": datetime.utcnow().isoformat()
-            },
-            headers={"Retry-After": "60"}
+        
+        blocked_ips = sum(
+            1 for data in self.suspicious_ips.values()
+            if data["blocked_until"] > time.time()
         )
-
-    async def _content_too_large_response(self) -> JSONResponse:
-        """Content too large response"""
-        return JSONResponse(
-            status_code=413,
-            content={
-                "error": "content_too_large",
-                "message": "Request content exceeds maximum allowed size",
-                "max_size_mb": self.max_content_length // (1024 * 1024),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        )
-
-    def block_ip(self, ip: str):
-        """Block an IP address permanently"""
-        self.blocked_ips.add(ip)
-        logger.info(f"🚫 Permanently blocked IP: {ip}")
-
-    def unblock_ip(self, ip: str):
-        """Unblock an IP address"""
-        self.blocked_ips.discard(ip)
-        logger.info(f"✅ Unblocked IP: {ip}")
-
-    def get_security_status(self) -> Dict[str, Any]:
-        """Get comprehensive security status"""
+        
         return {
-            "blocked_ips": len(self.blocked_ips),
-            "active_rate_limits": len(self.request_counts),
-            "security_level": "Netflix-Enterprise",
-            "threat_protection": "Advanced",
-            "timestamp": datetime.utcnow().isoformat()
+            "total_ips_tracked": len(self.suspicious_ips),
+            "total_violations": total_violations,
+            "currently_blocked_ips": blocked_ips,
+            "rate_limiter_active": True,
+            "max_content_length_mb": self.max_content_length / (1024 * 1024)
         }
