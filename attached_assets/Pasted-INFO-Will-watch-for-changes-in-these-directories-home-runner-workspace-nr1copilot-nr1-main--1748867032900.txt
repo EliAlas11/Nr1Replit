@@ -1,0 +1,39 @@
+INFO:     Will watch for changes in these directories: ['/home/runner/workspace/nr1copilot/nr1-main']
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started reloader process [632] using WatchFiles
+2025-06-02 12:23:36,533 - app.config - INFO - <module>:229 - Netflix-grade configuration loaded for environment: production
+2025-06-02 12:23:36,872 - app.utils.cache - INFO - __init__:71 - 🚀 Netflix Cache Manager initialized (ready for async startup)
+2025-06-02 12:23:36,876 - app.utils - INFO - <module>:42 - ✅ PerformanceMonitor imported successfully
+2025-06-02 12:23:36,877 - app.utils - INFO - <module>:103 - 🚀 Netflix utilities loaded: ['cache', 'health', 'metrics', 'performance']
+2025-06-02 12:23:36,878 - app.main - INFO - __init__:58 - 🚀 ApplicationState created (async initialization pending)
+INFO:     Started server process [644]
+INFO:     Waiting for application startup.
+2025-06-02 12:23:36,884 - app.middleware.error_handler - INFO - __init__:33 - 🛡️ Netflix-grade Error Handler initialized
+2025-06-02 12:23:36,884 - app.middleware.performance - INFO - __init__:26 - 🚀 Netflix-grade Performance Middleware initialized
+2025-06-02 12:23:36,884 - app.middleware.security - INFO - __init__:59 - 🛡️ Netflix-grade Security Middleware initialized
+2025-06-02 12:23:36,884 - app.main - INFO - lifespan:237 - 🚀 Starting ViralClip Pro v10.0 - Netflix Enterprise Edition
+2025-06-02 12:23:36,884 - app.netflix_health_monitor - INFO - initialize:59 - 🏥 NetflixHealthMonitor initialized
+2025-06-02 12:23:36,884 - app.main - INFO - initialize:67 - 🔄 Initializing ApplicationState components...
+2025-06-02 12:23:36,885 - app.utils.metrics - INFO - __init__:33 - 📊 MetricsCollector initialized (ready for async startup)
+2025-06-02 12:23:36,885 - app.utils.metrics - INFO - initialize:46 - ✅ MetricsCollector async initialization completed
+2025-06-02 12:23:36,885 - app.main - INFO - initialize:74 - ✅ MetricsCollector initialized
+2025-06-02 12:23:36,885 - app.utils.performance_monitor - INFO - initialize:67 - 📊 PerformanceMonitor async initialization completed
+2025-06-02 12:23:36,885 - app.main - INFO - initialize:84 - ✅ PerformanceMonitor initialized
+2025-06-02 12:23:36,885 - app.utils.health - INFO - __init__:50 - 💚 HealthMonitor initialized (ready for async startup)
+2025-06-02 12:23:36,885 - app.utils.health - INFO - initialize:63 - ✅ HealthMonitor async initialization completed
+2025-06-02 12:23:36,885 - app.main - INFO - initialize:94 - ✅ HealthMonitor initialized
+2025-06-02 12:23:36,886 - app.main - INFO - initialize:100 - 🚀 ApplicationState async initialization completed
+2025-06-02 12:23:36,886 - app.main - INFO - initialize_core_services:142 - 🚀 Initializing Netflix-grade services...
+2025-06-02 12:23:36,886 - app.main - INFO - initialize_core_services:180 - ✅ Netflix-grade services initialized in 0.000s
+2025-06-02 12:23:36,886 - app.utils.cache - INFO - initialize:79 - 🔄 Initializing Netflix-grade cache async components...
+2025-06-02 12:23:36,886 - app.utils.cache - INFO - initialize:90 - ✅ Netflix cache async initialization completed
+2025-06-02 12:23:36,886 - app.utils.performance_monitor - INFO - start_monitoring:78 - 🔍 Starting Netflix-grade performance monitoring
+2025-06-02 12:23:36,886 - app.main - INFO - lifespan:260 - 📊 Performance monitoring started
+2025-06-02 12:23:36,887 - app.main - INFO - lifespan:277 - 🎯 Netflix-tier startup completed in 0.002s
+2025-06-02 12:23:36,887 - app.main - INFO - lifespan:278 - 📊 Services initialized: 3
+2025-06-02 12:23:36,887 - app.startup_validator - INFO - perform_complete_validation:30 - 🔍 Starting Netflix-grade startup validation...
+2025-06-02 12:23:36,992 - app.utils.health - ERROR - _check_system_resources:165 - System resource check failed: 'HealthMonitor' object has no attribute 'alert_thresholds'
+2025-06-02 12:23:36,992 - app.utils.health - ERROR - perform_health_check:129 - Health check failed: 'HealthMonitor' object has no attribute 'metrics'
+2025-06-02 12:23:36,992 - app.utils.cache - INFO - _cleanup_expired:539 - 🧹 Starting Netflix cache cleanup task
+INFO:     Application startup complete.
+INFO:     172.31.128.18:47852 - "GET / HTTP/1.1" 200 OK
