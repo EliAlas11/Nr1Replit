@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/main.py"]
 
 [workflows]
-runButton = "Perfect 10/10 Netflix Server"
+runButton = "Netflix Production v12.0"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -342,6 +342,23 @@ args = "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uv
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && python3 -c \"import gc; gc.collect(); print('🚀 Memory optimized for perfect 10/10 performance')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info --access-log --loop uvloop --http httptools"
+
+[[workflows.workflow]]
+name = "Netflix Production v12.0"
+author = 43406985
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --break-system-packages -r requirements.txt"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"import gc; gc.collect(); print('🚀 Memory optimized for Netflix-grade performance')\""
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
