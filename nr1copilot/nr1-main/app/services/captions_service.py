@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v6.0 - Netflix-Level AI Caption Generation Service
 Advanced speech-to-text with viral optimization and emotional intelligence

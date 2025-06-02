@@ -497,6 +497,403 @@ class NetflixLevelApplication:
             await websocket.accept()
             connection_id = f"conn_{time.time()}_{id(websocket)}"
 
+
+
+        # ================================
+        # Smart Captions API Endpoints
+        # ================================
+
+        @app.post("/api/v6/captions/generate")
+        async def generate_captions(
+            request: Request,
+            session_id: str = Form(...),
+            audio_file: UploadFile = File(...),
+            language: str = Form("en"),
+            speaker_personalization: bool = Form(True),
+            viral_optimization: str = Form("high"),
+            user=Depends(get_authenticated_user)
+        ):
+            """Generate AI captions with viral optimization"""
+            
+            try:
+                # Save uploaded audio file
+                audio_path = f"temp/audio_{session_id}_{audio_file.filename}"
+                async with aiofiles.open(audio_path, "wb") as f:
+                    content = await audio_file.read()
+                    await f.write(content)
+                
+                # Initialize caption service
+                caption_service = NetflixLevelCaptionService()
+                
+                # Generate captions with personalization
+                result = await caption_service.generate_captions(
+                    session_id=session_id,
+                    audio_file_path=audio_path,
+                    language=language,
+                    speaker_personalization=speaker_personalization,
+                    viral_optimization_level=viral_optimization
+                )
+                
+                return APIResponse(
+                    success=True,
+                    message="Captions generated successfully",
+                    data={
+                        "session_id": result.session_id,
+                        "viral_score": result.overall_viral_score,
+                        "processing_time": result.processing_time,
+                        "segments_count": len(result.segments),
+                        "speaker_count": result.speaker_count,
+                        "viral_keywords": result.viral_keywords,
+                        "optimization_suggestions": result.optimization_suggestions,
+                        "segments": [
+                            {
+                                "start_time": seg.start_time,
+                                "end_time": seg.end_time,
+                                "text": seg.text,
+                                "confidence": seg.confidence,
+                                "viral_score": seg.viral_score,
+                                "emotion": seg.emotion,
+                                "engagement_potential": seg.engagement_potential
+                            }
+                            for seg in result.segments[:10]  # Limit for response size
+                        ]
+                    },
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Caption generation failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/v6/captions/export")
+        async def export_captions(
+            request: Request,
+            session_id: str = Form(...),
+            format_type: str = Form("srt"),
+            user=Depends(get_authenticated_user)
+        ):
+            """Export captions in various formats"""
+            
+            try:
+                caption_service = NetflixLevelCaptionService()
+                
+                # Get caption result (mock for demo)
+                result = await caption_service.get_caption_result(session_id)
+                
+                if not result:
+                    raise HTTPException(status_code=404, detail="Caption session not found")
+                
+                # Export captions
+                export_result = await caption_service.export_captions(
+                    result, format_type, platform_specific=True
+                )
+                
+                return APIResponse(
+                    success=export_result["success"],
+                    message="Captions exported successfully",
+                    data=export_result,
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Caption export failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        # ================================
+        # Viral Templates API Endpoints
+        # ================================
+
+        @app.get("/api/v6/templates/library")
+        async def get_template_library(
+            category: Optional[str] = None,
+            platform: Optional[str] = None,
+            viral_score_min: Optional[float] = None,
+            user=Depends(get_authenticated_user)
+        ):
+            """Get viral template library with filtering"""
+            
+            try:
+                template_service = NetflixLevelTemplateService()
+                
+                # Get templates with filtering
+                templates = await template_service.get_templates(
+                    category=category,
+                    platform=platform,
+                    viral_score_min=viral_score_min
+                )
+                
+                return APIResponse(
+                    success=True,
+                    message="Template library retrieved",
+                    data={
+                        "templates": [
+                            {
+                                "template_id": t.template_id,
+                                "name": t.name,
+                                "category": t.category.value,
+                                "description": t.description,
+                                "viral_score": t.viral_score,
+                                "platform_optimized": [p.value for p in t.platform_optimized],
+                                "duration_range": t.duration_range,
+                                "engagement_predictors": t.engagement_predictors,
+                                "trending_elements": t.trending_elements,
+                                "usage_count": t.usage_count,
+                                "customizable_elements": t.customizable_elements
+                            }
+                            for t in templates
+                        ],
+                        "total_templates": len(templates)
+                    },
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Template library retrieval failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/v6/templates/brand-kit")
+        async def create_brand_kit(
+            request: Request,
+            brand_config: dict,
+            user=Depends(get_authenticated_user)
+        ):
+            """Create brand kit for template customization"""
+            
+            try:
+                template_service = NetflixLevelTemplateService()
+                
+                brand_kit = await template_service.create_brand_kit(
+                    user_id=user.get("user_id", "anonymous"),
+                    name=brand_config.get("name", "New Brand Kit"),
+                    brand_config=brand_config
+                )
+                
+                return APIResponse(
+                    success=True,
+                    message="Brand kit created successfully",
+                    data={
+                        "brand_kit_id": brand_kit.kit_id,
+                        "name": brand_kit.name,
+                        "colors": {
+                            "primary": brand_kit.primary_color,
+                            "secondary": brand_kit.secondary_color,
+                            "accent": brand_kit.accent_color,
+                            "background": brand_kit.background_color,
+                            "text": brand_kit.text_color
+                        },
+                        "typography": {
+                            "primary_font": brand_kit.primary_font,
+                            "secondary_font": brand_kit.secondary_font,
+                            "heading_font": brand_kit.heading_font
+                        }
+                    },
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Brand kit creation failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/v6/templates/apply")
+        async def apply_template(
+            request: Request,
+            template_id: str = Form(...),
+            brand_kit_id: Optional[str] = Form(None),
+            customizations: str = Form("{}"),
+            session_id: str = Form(...),
+            user=Depends(get_authenticated_user)
+        ):
+            """Apply viral template to video session"""
+            
+            try:
+                template_service = NetflixLevelTemplateService()
+                
+                # Parse customizations
+                custom_data = json.loads(customizations)
+                
+                # Apply template
+                if brand_kit_id:
+                    result = await template_service.apply_brand_kit_to_template(
+                        template_id, brand_kit_id
+                    )
+                else:
+                    result = await template_service.apply_template(
+                        template_id, session_id, custom_data
+                    )
+                
+                return APIResponse(
+                    success=True,
+                    message="Template applied successfully",
+                    data=result,
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Template application failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/v6/templates/analytics")
+        async def get_template_analytics(
+            template_id: Optional[str] = None,
+            user=Depends(get_authenticated_user)
+        ):
+            """Get template analytics dashboard data"""
+            
+            try:
+                template_service = NetflixLevelTemplateService()
+                
+                if template_id:
+                    analytics = await template_service.get_template_analytics(template_id)
+                    return APIResponse(
+                        success=True,
+                        message="Template analytics retrieved",
+                        data=analytics.__dict__,
+                        timestamp=datetime.utcnow().isoformat()
+                    )
+                else:
+                    dashboard_data = await template_service.get_analytics_dashboard_data()
+                    return APIResponse(
+                        success=True,
+                        message="Analytics dashboard data retrieved",
+                        data=dashboard_data,
+                        timestamp=datetime.utcnow().isoformat()
+                    )
+                
+            except Exception as e:
+                logger.error(f"Template analytics retrieval failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        # ================================
+        # Enhanced Batch Processing API
+        # ================================
+
+        @app.post("/api/v6/batch/submit")
+        async def submit_batch_job(
+            request: Request,
+            job_request: dict,
+            priority: str = "normal",
+            dependencies: Optional[List[str]] = None,
+            retry_config: Optional[dict] = None,
+            user=Depends(get_authenticated_user)
+        ):
+            """Submit job to batch processing queue with advanced options"""
+            
+            try:
+                batch_processor = NetflixLevelBatchProcessor()
+                
+                # Convert priority string to enum
+                priority_map = {
+                    "critical": JobPriority.CRITICAL,
+                    "high": JobPriority.HIGH,
+                    "normal": JobPriority.NORMAL,
+                    "low": JobPriority.LOW,
+                    "background": JobPriority.BACKGROUND
+                }
+                
+                job_priority = priority_map.get(priority.lower(), JobPriority.NORMAL)
+                
+                # Add user context to job
+                job_request["user_id"] = user.get("user_id", "anonymous")
+                job_request["user_tier"] = user.get("tier", "standard")
+                
+                # Submit job
+                job_id = await batch_processor.submit_job(
+                    job_request=job_request,
+                    priority=job_priority,
+                    dependencies=dependencies,
+                    retry_config=retry_config
+                )
+                
+                return APIResponse(
+                    success=True,
+                    message="Job submitted successfully",
+                    data={
+                        "job_id": job_id,
+                        "priority": priority,
+                        "estimated_start": "Within 30 seconds",
+                        "queue_position": await batch_processor.get_queue_position(job_id)
+                    },
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Batch job submission failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/v6/batch/status/{job_id}")
+        async def get_batch_job_status(
+            job_id: str,
+            user=Depends(get_authenticated_user)
+        ):
+            """Get detailed batch job status"""
+            
+            try:
+                batch_processor = NetflixLevelBatchProcessor()
+                
+                status = await batch_processor.get_job_status(job_id)
+                
+                if not status:
+                    raise HTTPException(status_code=404, detail="Job not found")
+                
+                return APIResponse(
+                    success=True,
+                    message="Job status retrieved",
+                    data=status,
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Job status retrieval failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.get("/api/v6/batch/analytics")
+        async def get_batch_analytics(
+            user=Depends(get_authenticated_user)
+        ):
+            """Get advanced batch processing analytics"""
+            
+            try:
+                batch_processor = NetflixLevelBatchProcessor()
+                
+                analytics = await batch_processor.get_advanced_analytics()
+                
+                return APIResponse(
+                    success=True,
+                    message="Batch analytics retrieved",
+                    data=analytics,
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Batch analytics retrieval failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @app.post("/api/v6/batch/optimize")
+        async def optimize_batch_system(
+            request: Request,
+            optimization_config: dict = {},
+            user=Depends(get_authenticated_user)
+        ):
+            """Apply optimization recommendations to batch system"""
+            
+            try:
+                batch_processor = NetflixLevelBatchProcessor()
+                
+                # Apply optimizations
+                result = await batch_processor.apply_optimizations(optimization_config)
+                
+                return APIResponse(
+                    success=True,
+                    message="Batch system optimized",
+                    data=result,
+                    timestamp=datetime.utcnow().isoformat()
+                )
+                
+            except Exception as e:
+                logger.error(f"Batch optimization failed: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+
             try:
                 # Get session info from query params or headers
                 session_id = websocket.query_params.get("session_id", "default")

@@ -1997,6 +1997,967 @@ class NetflixUploadUI {
         const activeConnections = Object.keys(this.uploadManager.activeUploads).length;
         const hasRealtimeConnection = Object.values(this.uploadManager.activeUploads).some(
             upload => upload.realtimeConnected
+
+
+// ================================
+// Viral Insights & Template Preview
+// ================================
+
+class ViralInsightsManager {
+    constructor(uploadManager) {
+        this.uploadManager = uploadManager;
+        this.insightsSocket = null;
+        this.currentInsights = new Map();
+        this.templatePreview = null;
+        
+        this.initializeViralInsights();
+    }
+
+    async initializeViralInsights() {
+        // Setup viral insights WebSocket
+        await this.connectViralInsightsSocket();
+        
+        // Initialize template preview system
+        this.templatePreview = new TemplatePreviewSystem();
+        
+        // Setup viral dashboard
+        this.createViralDashboard();
+        
+        console.log("🎯 Viral insights manager initialized");
+    }
+
+    async connectViralInsightsSocket() {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v6/ws/enterprise/viral_insights`;
+            
+            this.insightsSocket = new WebSocket(wsUrl);
+            
+            this.insightsSocket.onopen = () => {
+                console.log("🎯 Viral insights WebSocket connected");
+                this.sendViralInsightsMessage({
+                    type: "subscribe",
+                    interests: ["viral_scores", "sentiment_analysis", "engagement_predictions"]
+                });
+            };
+            
+            this.insightsSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                this.handleViralInsightsMessage(data);
+            };
+            
+            this.insightsSocket.onclose = () => {
+                console.log("🎯 Viral insights WebSocket disconnected");
+                // Attempt reconnect after 3 seconds
+                setTimeout(() => this.connectViralInsightsSocket(), 3000);
+            };
+            
+        } catch (error) {
+            console.error("Failed to connect viral insights WebSocket:", error);
+        }
+    }
+
+    handleViralInsightsMessage(data) {
+        switch (data.type) {
+            case 'viral_insights':
+                this.updateViralInsights(data.session_id, data.data);
+                break;
+                
+            case 'sentiment_analysis':
+                this.updateSentimentMeter(data.data);
+                break;
+                
+            case 'engagement_prediction':
+                this.updateEngagementPredictions(data.data);
+                break;
+                
+            case 'smart_recommendations':
+                this.displaySmartRecommendations(data.data);
+                break;
+                
+            case 'timeline_update':
+                this.updateTimelineVisualization(data.data);
+                break;
+                
+            default:
+                console.log("Unknown viral insights message:", data);
+        }
+    }
+
+    updateViralInsights(sessionId, insights) {
+        this.currentInsights.set(sessionId, insights);
+        
+        // Update viral dashboard
+        const dashboard = document.getElementById('viralDashboard');
+        if (dashboard) {
+            this.renderViralInsights(dashboard, insights);
+        }
+        
+        // Update video preview overlay if available
+        if (this.uploadManager.ui && this.uploadManager.ui.viralScoreOverlay) {
+            this.uploadManager.ui.updateViralScoreOverlay(insights);
+        }
+    }
+
+    updateSentimentMeter(sentimentData) {
+        const meterElement = document.getElementById('sentimentMeter');
+        if (!meterElement) return;
+        
+        const { sentiment, trends, recommendations } = sentimentData;
+        
+        // Update sentiment visualization
+        meterElement.innerHTML = `
+            <div class="sentiment-display">
+                <div class="sentiment-emoji">${this.getSentimentEmoji(sentiment.emotion)}</div>
+                <div class="sentiment-details">
+                    <div class="emotion-label">${sentiment.emotion}</div>
+                    <div class="intensity-bar">
+                        <div class="intensity-fill" style="width: ${sentiment.intensity * 100}%"></div>
+                    </div>
+                    <div class="confidence">Confidence: ${Math.round(sentiment.confidence * 100)}%</div>
+                </div>
+            </div>
+            <div class="sentiment-trends">
+                <span class="trend-indicator ${trends.trend}">${this.getTrendIcon(trends.trend)}</span>
+                <span class="trend-text">${trends.trend} trend</span>
+            </div>
+        `;
+        
+        // Update recommendations
+        if (recommendations && recommendations.length > 0) {
+            this.displaySentimentRecommendations(recommendations);
+        }
+    }
+
+    updateEngagementPredictions(predictions) {
+        const predictionsElement = document.getElementById('engagementPredictions');
+        if (!predictionsElement) return;
+        
+        predictionsElement.innerHTML = `
+            <div class="predictions-grid">
+                <div class="prediction-item">
+                    <div class="prediction-icon">👀</div>
+                    <div class="prediction-value">${this.formatNumber(predictions.predicted_views)}</div>
+                    <div class="prediction-label">Predicted Views</div>
+                </div>
+                <div class="prediction-item">
+                    <div class="prediction-icon">❤️</div>
+                    <div class="prediction-value">${this.formatNumber(predictions.predicted_likes)}</div>
+                    <div class="prediction-label">Predicted Likes</div>
+                </div>
+                <div class="prediction-item">
+                    <div class="prediction-icon">🔄</div>
+                    <div class="prediction-value">${this.formatNumber(predictions.predicted_shares)}</div>
+                    <div class="prediction-label">Predicted Shares</div>
+                </div>
+                <div class="prediction-item">
+                    <div class="prediction-icon">📊</div>
+                    <div class="prediction-value">${(predictions.engagement_rate * 100).toFixed(1)}%</div>
+                    <div class="prediction-label">Engagement Rate</div>
+                </div>
+            </div>
+            <div class="platform-predictions">
+                ${predictions.platform_recommendations.map(platform => `
+                    <div class="platform-prediction">
+                        <span class="platform-name">${platform.platform}</span>
+                        <div class="platform-score">
+                            <div class="score-bar">
+                                <div class="score-fill" style="width: ${platform.score}%"></div>
+                            </div>
+                            <span class="score-value">${platform.score}%</span>
+                        </div>
+                        <div class="platform-optimization">${platform.optimization}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    displaySmartRecommendations(recommendations) {
+        const recommendationsElement = document.getElementById('smartRecommendations');
+        if (!recommendationsElement) return;
+        
+        recommendationsElement.innerHTML = `
+            <div class="recommendations-header">
+                <h3>🎯 Smart Recommendations</h3>
+                <div class="recommendations-count">${recommendations.recommendations.length} suggestions</div>
+            </div>
+            <div class="recommendations-list">
+                ${recommendations.recommendations.map((rec, index) => `
+                    <div class="recommendation-item" data-recommendation-id="${index}">
+                        <div class="recommendation-header">
+                            <span class="recommendation-type">${rec.type}</span>
+                            <span class="recommendation-confidence">${Math.round(rec.confidence * 100)}%</span>
+                        </div>
+                        <div class="recommendation-content">
+                            <div class="recommendation-text">${rec.message}</div>
+                            ${rec.start !== undefined ? `
+                                <div class="recommendation-timing">
+                                    📍 ${this.formatTime(rec.start)} - ${this.formatTime(rec.end)}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="recommendation-actions">
+                            <button class="apply-recommendation-btn" onclick="viralInsights.applyRecommendation(${index})">
+                                Apply
+                            </button>
+                            <button class="preview-recommendation-btn" onclick="viralInsights.previewRecommendation(${index})">
+                                Preview
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    createViralDashboard() {
+        // Check if dashboard already exists
+        if (document.getElementById('viralDashboard')) return;
+        
+        const dashboard = document.createElement('div');
+        dashboard.id = 'viralDashboard';
+        dashboard.className = 'viral-dashboard';
+        dashboard.innerHTML = `
+            <div class="dashboard-header">
+                <h2>🎯 Viral Insights Dashboard</h2>
+                <div class="dashboard-controls">
+                    <button class="dashboard-toggle-btn" onclick="viralInsights.toggleDashboard()">
+                        <span class="toggle-icon">👁️</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="dashboard-content">
+                <div class="insights-grid">
+                    <div class="insight-panel" id="viralScorePanel">
+                        <h3>Viral Score</h3>
+                        <div class="viral-score-display">
+                            <div class="score-circle">
+                                <span class="score-value" id="currentViralScore">--</span>
+                            </div>
+                            <div class="score-trend" id="scoreTrend">📊</div>
+                        </div>
+                    </div>
+                    
+                    <div class="insight-panel" id="sentimentPanel">
+                        <h3>Sentiment Analysis</h3>
+                        <div id="sentimentMeter">
+                            <div class="loading-indicator">Analyzing...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="insight-panel" id="engagementPanel">
+                        <h3>Engagement Predictions</h3>
+                        <div id="engagementPredictions">
+                            <div class="loading-indicator">Calculating...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="insight-panel" id="recommendationsPanel">
+                        <h3>Smart Recommendations</h3>
+                        <div id="smartRecommendations">
+                            <div class="loading-indicator">Generating...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="timeline-panel" id="timelinePanel">
+                    <h3>📈 Viral Timeline Analysis</h3>
+                    <div class="timeline-container" id="viralTimeline">
+                        <div class="timeline-loading">Processing video for insights...</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Insert dashboard into the page
+        const uploadSection = document.getElementById('netflix-upload-v7');
+        if (uploadSection) {
+            uploadSection.appendChild(dashboard);
+        } else {
+            document.body.appendChild(dashboard);
+        }
+        
+        // Make dashboard draggable
+        this.makeDashboardDraggable(dashboard);
+    }
+
+    makeDashboardDraggable(dashboard) {
+        const header = dashboard.querySelector('.dashboard-header');
+        let isDragging = false;
+        let offset = { x: 0, y: 0 };
+        
+        header.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            offset.x = e.clientX - dashboard.offsetLeft;
+            offset.y = e.clientY - dashboard.offsetTop;
+            dashboard.style.zIndex = '10000';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            dashboard.style.left = `${e.clientX - offset.x}px`;
+            dashboard.style.top = `${e.clientY - offset.y}px`;
+            dashboard.style.position = 'fixed';
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+    }
+
+    renderViralInsights(dashboard, insights) {
+        // Update viral score
+        const scoreElement = dashboard.querySelector('#currentViralScore');
+        if (scoreElement && insights.viral_score !== undefined) {
+            scoreElement.textContent = Math.round(insights.viral_score);
+            scoreElement.className = `score-value ${this.getScoreClass(insights.viral_score)}`;
+        }
+        
+        // Update insights display
+        if (insights.insights && insights.insights.length > 0) {
+            const insightsContainer = dashboard.querySelector('#smartRecommendations');
+            if (insightsContainer) {
+                insightsContainer.innerHTML = insights.insights.map(insight => `
+                    <div class="insight-item">
+                        <span class="insight-icon">${insight.icon}</span>
+                        <span class="insight-text">${insight.text}</span>
+                        <span class="insight-score">${insight.score}/10</span>
+                    </div>
+                `).join('');
+            }
+        }
+    }
+
+    getSentimentEmoji(emotion) {
+        const emojiMap = {
+            'joy': '😊',
+            'excitement': '🤩',
+            'surprise': '😮',
+            'love': '😍',
+            'calm': '😌',
+            'anticipation': '🤔',
+            'anger': '😤',
+            'sadness': '😢',
+            'fear': '😰',
+            'disgust': '🤢',
+            'neutral': '😐'
+        };
+        return emojiMap[emotion] || '😐';
+    }
+
+    getTrendIcon(trend) {
+        const iconMap = {
+            'improving': '📈',
+            'declining': '📉',
+            'stable': '➡️'
+        };
+        return iconMap[trend] || '➡️';
+    }
+
+    getScoreClass(score) {
+        if (score >= 80) return 'excellent';
+        if (score >= 60) return 'good';
+        if (score >= 40) return 'average';
+        return 'needs-improvement';
+    }
+
+    formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        }
+        if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
+    }
+
+    formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    toggleDashboard() {
+        const dashboard = document.getElementById('viralDashboard');
+        const content = dashboard.querySelector('.dashboard-content');
+        
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
+            dashboard.querySelector('.toggle-icon').textContent = '👁️';
+        } else {
+            content.style.display = 'none';
+            dashboard.querySelector('.toggle-icon').textContent = '👀';
+        }
+    }
+
+    sendViralInsightsMessage(message) {
+        if (this.insightsSocket && this.insightsSocket.readyState === WebSocket.OPEN) {
+            this.insightsSocket.send(JSON.stringify(message));
+        }
+    }
+
+    async applyRecommendation(index) {
+        // Implementation for applying recommendations
+        console.log(`Applying recommendation ${index}`);
+        // This would integrate with the video editing system
+    }
+
+    async previewRecommendation(index) {
+        // Implementation for previewing recommendations
+        console.log(`Previewing recommendation ${index}`);
+        // This would show a preview of the recommended changes
+    }
+}
+
+// ================================
+// Template Preview System
+// ================================
+
+class TemplatePreviewSystem {
+    constructor() {
+        this.templates = new Map();
+        this.currentPreview = null;
+        this.brandKits = new Map();
+        
+        this.initializeTemplateSystem();
+    }
+
+    async initializeTemplateSystem() {
+        // Load available templates
+        await this.loadTemplateLibrary();
+        
+        // Setup template preview interface
+        this.createTemplatePreviewInterface();
+        
+        console.log("🎨 Template preview system initialized");
+    }
+
+    async loadTemplateLibrary() {
+        try {
+            const response = await fetch('/api/v6/templates/library');
+            const templatesData = await response.json();
+            
+            if (templatesData.success) {
+                templatesData.templates.forEach(template => {
+                    this.templates.set(template.template_id, template);
+                });
+                
+                console.log(`📚 Loaded ${this.templates.size} viral templates`);
+            }
+        } catch (error) {
+            console.error("Failed to load template library:", error);
+        }
+    }
+
+    createTemplatePreviewInterface() {
+        const templateInterface = document.createElement('div');
+        templateInterface.id = 'templatePreviewInterface';
+        templateInterface.className = 'template-preview-interface';
+        templateInterface.innerHTML = `
+            <div class="template-header">
+                <h3>🎨 Viral Templates</h3>
+                <div class="template-controls">
+                    <select id="templateCategory">
+                        <option value="all">All Categories</option>
+                        <option value="transformation">Transformation</option>
+                        <option value="educational">Educational</option>
+                        <option value="entertainment">Entertainment</option>
+                        <option value="product_demo">Product Demo</option>
+                        <option value="behind_scenes">Behind the Scenes</option>
+                    </select>
+                    <button id="brandKitBtn" class="brand-kit-btn">Brand Kit</button>
+                </div>
+            </div>
+            
+            <div class="templates-grid" id="templatesGrid">
+                <div class="loading-templates">Loading viral templates...</div>
+            </div>
+            
+            <div class="template-preview-modal" id="templatePreviewModal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="previewTemplateName">Template Preview</h3>
+                        <button class="close-modal-btn" onclick="templatePreview.closePreviewModal()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="template-preview-area" id="templatePreviewArea">
+                            <div class="preview-placeholder">Template preview will appear here</div>
+                        </div>
+                        <div class="template-customization" id="templateCustomization">
+                            <h4>Customize Template</h4>
+                            <div class="customization-controls"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="apply-template-btn" onclick="templatePreview.applyTemplate()">Apply Template</button>
+                        <button class="save-template-btn" onclick="templatePreview.saveCustomTemplate()">Save Custom</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add to upload interface
+        const uploadManager = document.getElementById('uploadManager');
+        if (uploadManager) {
+            uploadManager.appendChild(templateInterface);
+        }
+        
+        // Setup event handlers
+        this.setupTemplateEventHandlers();
+        
+        // Render templates
+        this.renderTemplatesGrid();
+    }
+
+    setupTemplateEventHandlers() {
+        const categorySelect = document.getElementById('templateCategory');
+        if (categorySelect) {
+            categorySelect.addEventListener('change', () => {
+                this.filterTemplatesByCategory(categorySelect.value);
+            });
+        }
+        
+        const brandKitBtn = document.getElementById('brandKitBtn');
+        if (brandKitBtn) {
+            brandKitBtn.addEventListener('click', () => {
+                this.showBrandKitManager();
+            });
+        }
+    }
+
+    renderTemplatesGrid() {
+        const grid = document.getElementById('templatesGrid');
+        if (!grid) return;
+        
+        grid.innerHTML = Array.from(this.templates.values()).map(template => `
+            <div class="template-card" data-template-id="${template.template_id}">
+                <div class="template-thumbnail">
+                    <div class="template-preview-thumb">
+                        ${this.generateTemplateThumbnail(template)}
+                    </div>
+                    <div class="viral-score-badge">${Math.round(template.viral_score)}</div>
+                </div>
+                <div class="template-info">
+                    <h4 class="template-name">${template.name}</h4>
+                    <p class="template-description">${template.description}</p>
+                    <div class="template-platforms">
+                        ${template.platform_optimized.map(platform => 
+                            `<span class="platform-badge ${platform}">${platform}</span>`
+                        ).join('')}
+                    </div>
+                    <div class="template-engagement">
+                        ${template.engagement_predictors.map(predictor => 
+                            `<span class="engagement-tag">${predictor}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+                <div class="template-actions">
+                    <button class="preview-btn" onclick="templatePreview.previewTemplate('${template.template_id}')">
+                        Preview
+                    </button>
+                    <button class="use-template-btn" onclick="templatePreview.useTemplate('${template.template_id}')">
+                        Use Template
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    generateTemplateThumbnail(template) {
+        // Generate a visual representation of the template
+        const category = template.category;
+        const thumbnailIcons = {
+            'transformation': '🔄',
+            'educational': '📚',
+            'entertainment': '🎭',
+            'product_demo': '📱',
+            'behind_scenes': '🎬',
+            'lifestyle': '✨',
+            'reaction': '😮',
+            'comparison': '⚖️',
+            'storytelling': '📖',
+            'motivation': '💪'
+        };
+        
+        return `
+            <div class="template-thumb-content">
+                <div class="template-icon">${thumbnailIcons[category] || '🎨'}</div>
+                <div class="template-layout-preview">
+                    ${this.generateLayoutPreview(template.layout_structure)}
+                </div>
+            </div>
+        `;
+    }
+
+    generateLayoutPreview(layoutStructure) {
+        if (!layoutStructure || !layoutStructure.scenes) {
+            return '<div class="simple-layout">Simple Layout</div>';
+        }
+        
+        return layoutStructure.scenes.map(scene => 
+            `<div class="scene-preview ${scene.type}"></div>`
+        ).join('');
+    }
+
+    previewTemplate(templateId) {
+        const template = this.templates.get(templateId);
+        if (!template) return;
+        
+        this.currentPreview = template;
+        
+        // Show preview modal
+        const modal = document.getElementById('templatePreviewModal');
+        const modalName = document.getElementById('previewTemplateName');
+        const previewArea = document.getElementById('templatePreviewArea');
+        
+        modalName.textContent = template.name;
+        modal.style.display = 'flex';
+        
+        // Generate template preview
+        previewArea.innerHTML = this.generateDetailedPreview(template);
+        
+        // Setup customization controls
+        this.setupCustomizationControls(template);
+    }
+
+    generateDetailedPreview(template) {
+        return `
+            <div class="detailed-template-preview">
+                <div class="preview-header">
+                    <div class="template-stats">
+                        <div class="stat">
+                            <span class="stat-label">Viral Score</span>
+                            <span class="stat-value">${template.viral_score}/100</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Category</span>
+                            <span class="stat-value">${template.category}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Duration</span>
+                            <span class="stat-value">${template.duration_range.min}-${template.duration_range.max}s</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="preview-timeline">
+                    <h5>Timeline Structure</h5>
+                    <div class="timeline-visualization">
+                        ${template.layout_structure.scenes ? template.layout_structure.scenes.map((scene, index) => `
+                            <div class="timeline-scene" style="flex: ${scene.duration}">
+                                <div class="scene-type">${scene.type}</div>
+                                <div class="scene-duration">${scene.duration}s</div>
+                            </div>
+                        `).join('') : '<div class="no-timeline">No timeline data</div>'}
+                    </div>
+                </div>
+                
+                <div class="preview-elements">
+                    <h5>Template Elements</h5>
+                    <div class="elements-grid">
+                        <div class="element-category">
+                            <h6>Text Zones (${template.text_zones.length})</h6>
+                            ${template.text_zones.map(zone => `
+                                <div class="element-item">${zone.id}</div>
+                            `).join('')}
+                        </div>
+                        <div class="element-category">
+                            <h6>Media Zones (${template.media_zones.length})</h6>
+                            ${template.media_zones.map(zone => `
+                                <div class="element-item">${zone.id}</div>
+                            `).join('')}
+                        </div>
+                        <div class="element-category">
+                            <h6>Animations (${template.animation_timeline.length})</h6>
+                            ${template.animation_timeline.map(anim => `
+                                <div class="element-item">${anim.action}</div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="preview-viral-factors">
+                    <h5>Viral Success Factors</h5>
+                    <div class="viral-factors-list">
+                        ${template.engagement_predictors.map(factor => `
+                            <span class="viral-factor">${factor}</span>
+                        `).join('')}
+                    </div>
+                    <div class="trending-elements">
+                        <h6>Trending Elements</h6>
+                        ${template.trending_elements.map(element => `
+                            <span class="trending-element">${element}</span>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    setupCustomizationControls(template) {
+        const customizationArea = document.getElementById('templateCustomization');
+        const controls = customizationArea.querySelector('.customization-controls');
+        
+        controls.innerHTML = `
+            <div class="customization-section">
+                <h5>Colors</h5>
+                <div class="color-controls">
+                    <div class="color-picker">
+                        <label>Primary Color</label>
+                        <input type="color" id="primaryColor" value="#2563EB">
+                    </div>
+                    <div class="color-picker">
+                        <label>Accent Color</label>
+                        <input type="color" id="accentColor" value="#EF4444">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="customization-section">
+                <h5>Text Style</h5>
+                <div class="text-controls">
+                    <select id="fontFamily">
+                        <option value="Inter">Inter</option>
+                        <option value="Roboto">Roboto</option>
+                        <option value="Montserrat">Montserrat</option>
+                        <option value="Poppins">Poppins</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="customization-section">
+                <h5>Animation Speed</h5>
+                <div class="animation-controls">
+                    <input type="range" id="animationSpeed" min="0.5" max="2" step="0.1" value="1">
+                    <span id="speedValue">1x</span>
+                </div>
+            </div>
+            
+            ${template.customizable_elements.map(element => `
+                <div class="customization-section">
+                    <h5>${element.replace('_', ' ').toUpperCase()}</h5>
+                    <div class="custom-element-control">
+                        <input type="text" placeholder="Customize ${element}">
+                    </div>
+                </div>
+            `).join('')}
+        `;
+        
+        // Setup change handlers
+        controls.addEventListener('change', () => {
+            this.updatePreviewWithCustomizations();
+        });
+    }
+
+    updatePreviewWithCustomizations() {
+        // Update preview based on customization settings
+        console.log("Updating preview with customizations");
+    }
+
+    useTemplate(templateId) {
+        const template = this.templates.get(templateId);
+        if (!template) return;
+        
+        // Apply template to current upload
+        console.log(`Using template: ${template.name}`);
+        
+        // This would integrate with the video processing system
+        this.applyTemplateToCurrentUpload(template);
+    }
+
+    applyTemplate() {
+        if (!this.currentPreview) return;
+        
+        // Apply the currently previewed template
+        this.useTemplate(this.currentPreview.template_id);
+        this.closePreviewModal();
+    }
+
+    saveCustomTemplate() {
+        if (!this.currentPreview) return;
+        
+        // Save customized template
+        console.log("Saving custom template");
+        // Implementation would save the customized template
+    }
+
+    closePreviewModal() {
+        const modal = document.getElementById('templatePreviewModal');
+        modal.style.display = 'none';
+        this.currentPreview = null;
+    }
+
+    filterTemplatesByCategory(category) {
+        const templateCards = document.querySelectorAll('.template-card');
+        
+        templateCards.forEach(card => {
+            const templateId = card.dataset.templateId;
+            const template = this.templates.get(templateId);
+            
+            if (category === 'all' || template.category === category) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    showBrandKitManager() {
+        // Implementation for brand kit management interface
+        console.log("Opening brand kit manager");
+        
+        // This would open a interface for managing brand kits
+        this.createBrandKitModal();
+    }
+
+    createBrandKitModal() {
+        const modal = document.createElement('div');
+        modal.className = 'brand-kit-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🎨 Brand Kit Manager</h3>
+                    <button class="close-modal-btn" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="brand-kit-creator">
+                        <h4>Create New Brand Kit</h4>
+                        <div class="brand-kit-form">
+                            <input type="text" placeholder="Brand Kit Name" id="brandKitName">
+                            <div class="color-inputs">
+                                <input type="color" id="brandPrimary" value="#2563EB">
+                                <input type="color" id="brandSecondary" value="#EF4444">
+                                <input type="color" id="brandAccent" value="#10B981">
+                            </div>
+                            <button onclick="templatePreview.createBrandKit()">Create Brand Kit</button>
+                        </div>
+                    </div>
+                    <div class="existing-brand-kits">
+                        <h4>Existing Brand Kits</h4>
+                        <div id="brandKitsList">
+                            <div class="no-brand-kits">No brand kits created yet</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    createBrandKit() {
+        const name = document.getElementById('brandKitName').value;
+        const primary = document.getElementById('brandPrimary').value;
+        const secondary = document.getElementById('brandSecondary').value;
+        const accent = document.getElementById('brandAccent').value;
+        
+        if (!name) {
+            alert('Please enter a brand kit name');
+            return;
+        }
+        
+        const brandKit = {
+            id: `brand_${Date.now()}`,
+            name: name,
+            colors: {
+                primary: primary,
+                secondary: secondary,
+                accent: accent
+            },
+            created_at: new Date().toISOString()
+        };
+        
+        this.brandKits.set(brandKit.id, brandKit);
+        console.log(`Created brand kit: ${name}`);
+        
+        // Update UI
+        this.updateBrandKitsList();
+    }
+
+    updateBrandKitsList() {
+        const list = document.getElementById('brandKitsList');
+        if (!list) return;
+        
+        if (this.brandKits.size === 0) {
+            list.innerHTML = '<div class="no-brand-kits">No brand kits created yet</div>';
+            return;
+        }
+        
+        list.innerHTML = Array.from(this.brandKits.values()).map(kit => `
+            <div class="brand-kit-item">
+                <div class="brand-kit-info">
+                    <h5>${kit.name}</h5>
+                    <div class="brand-kit-colors">
+                        <div class="color-swatch" style="background-color: ${kit.colors.primary}"></div>
+                        <div class="color-swatch" style="background-color: ${kit.colors.secondary}"></div>
+                        <div class="color-swatch" style="background-color: ${kit.colors.accent}"></div>
+                    </div>
+                </div>
+                <div class="brand-kit-actions">
+                    <button onclick="templatePreview.applyBrandKit('${kit.id}')">Apply</button>
+                    <button onclick="templatePreview.editBrandKit('${kit.id}')">Edit</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    applyBrandKit(brandKitId) {
+        const brandKit = this.brandKits.get(brandKitId);
+        if (!brandKit) return;
+        
+        console.log(`Applying brand kit: ${brandKit.name}`);
+        // Implementation would apply brand kit to current template
+    }
+
+    editBrandKit(brandKitId) {
+        console.log(`Editing brand kit: ${brandKitId}`);
+        // Implementation would open edit interface for brand kit
+    }
+
+    applyTemplateToCurrentUpload(template) {
+        // This would integrate with the upload system to apply the template
+        console.log(`Applying template ${template.name} to current upload`);
+        
+        // Example integration with upload manager
+        if (this.uploadManager && this.uploadManager.activeUploads.size > 0) {
+            const activeUpload = Array.from(this.uploadManager.activeUploads.values())[0];
+            
+            // Add template information to upload session
+            activeUpload.selectedTemplate = {
+                template_id: template.template_id,
+                name: template.name,
+                category: template.category,
+                viral_score: template.viral_score
+            };
+            
+            console.log(`Template applied to upload: ${activeUpload.id}`);
+        }
+    }
+}
+
+// Initialize global viral insights system
+let viralInsights;
+let templatePreview;
+
+// Add to global initialization
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait for upload system to be initialized
+    setTimeout(() => {
+        if (uploadSystem && uploadSystem.manager) {
+            viralInsights = new ViralInsightsManager(uploadSystem.manager);
+            templatePreview = new TemplatePreviewSystem();
+            
+            // Make globally accessible
+            window.viralInsights = viralInsights;
+            window.templatePreview = templatePreview;
+        }
+    }, 2000);
+});
+
+
         );
 
         if (activeConnections === 0) {
