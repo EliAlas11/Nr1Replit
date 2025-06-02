@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v11.0 - Netflix-Grade Video Editing Platform
 Production-optimized with enterprise reliability and performance
@@ -54,25 +53,25 @@ logger = logging.getLogger(__name__)
 
 class GracefulShutdownHandler:
     """Handles graceful shutdown with signal management and resource cleanup"""
-    
+
     def __init__(self):
         self.shutdown_event = asyncio.Event()
         self.cleanup_tasks = []
         self._setup_signal_handlers()
-    
+
     def _setup_signal_handlers(self):
         """Setup optimized signal handlers for graceful shutdown"""
         def signal_handler(signum, frame):
             logger.info(f"🔔 Received signal {signum}, initiating graceful shutdown...")
             asyncio.create_task(self._trigger_shutdown())
-        
+
         for sig in [signal.SIGTERM, signal.SIGINT]:
             signal.signal(sig, signal_handler)
-    
+
     async def _trigger_shutdown(self):
         """Trigger graceful shutdown with resource cleanup"""
         self.shutdown_event.set()
-        
+
         # Execute cleanup tasks
         if self.cleanup_tasks:
             await asyncio.gather(*self.cleanup_tasks, return_exceptions=True)
@@ -85,48 +84,48 @@ shutdown_handler = GracefulShutdownHandler()
 async def lifespan(app: FastAPI):
     """Netflix-optimized application lifecycle with comprehensive error handling"""
     startup_start = time.time()
-    
+
     try:
         logger.info("🚀 Starting ViralClip Pro v11.0 (Netflix-Grade Production Mode)")
-        
+
         # Phase 1: Core Services Initialization
         logger.info("📊 Phase 1: Core Services Initialization")
         await services.initialize()
-        
+
         # Phase 2: Application Services
         logger.info("🎬 Phase 2: Application Services Initialization")
         await _initialize_application_services(app)
-        
+
         # Phase 3: Health Monitoring
         logger.info("🏥 Phase 3: Health Monitoring Setup")
         health_monitor = services.get_health_monitor()
         if health_monitor:
             await health_monitor.initialize()
-        
+
         # Phase 4: Background Tasks
         logger.info("⚙️ Phase 4: Background Tasks Setup")
         await _setup_background_tasks(app)
-        
+
         # Phase 5: Memory Optimization
         logger.info("🧠 Phase 5: Memory Optimization")
         gc.collect()
-        
+
         startup_duration = time.time() - startup_start
         memory_usage = _get_memory_usage()
-        
+
         logger.info(f"✅ ViralClip Pro v11.0 started successfully in {startup_duration:.2f}s")
         logger.info(f"📊 Memory usage: {memory_usage:.1f}MB")
         logger.info(f"🌐 Environment: {settings.environment.value}")
         logger.info(f"🔐 Security: Enterprise-grade with 2FA")
         logger.info(f"⚡ Performance: Perfect 10/10 optimization active")
         logger.info("🎯 All systems operational - Ready for production traffic!")
-        
+
         yield
-        
+
     except Exception as e:
         logger.error(f"❌ Critical startup failure: {e}", exc_info=True)
         raise
-        
+
     finally:
         # Optimized graceful shutdown
         await _graceful_shutdown(app)
@@ -142,25 +141,25 @@ async def _initialize_application_services(app: FastAPI) -> None:
         ("analytics_engine", "app.services.analytics_engine", "AnalyticsEngine"),
         ("ai_production_engine", "app.services.ai_production_engine", "ai_production_engine"),
     ]
-    
+
     for service_name, module_path, class_name in service_configs:
         try:
             module = __import__(module_path, fromlist=[class_name])
             service_class = getattr(module, class_name)
-            
+
             if service_name == "ai_production_engine":
                 # Special handling for singleton
                 setattr(app.state, service_name, service_class)
             else:
                 setattr(app.state, service_name, service_class())
-            
+
             logger.debug(f"✅ {service_name} initialized")
-            
+
         except ImportError as e:
             logger.warning(f"⚠️ {service_name} not available: {e}")
         except Exception as e:
             logger.error(f"❌ {service_name} initialization failed: {e}")
-    
+
     # Initialize WebSocket engine if enabled
     if settings.enable_websockets:
         try:
@@ -170,7 +169,7 @@ async def _initialize_application_services(app: FastAPI) -> None:
             logger.debug("✅ WebSocket engine initialized")
         except Exception as e:
             logger.warning(f"⚠️ WebSocket engine failed: {e}")
-    
+
     # Initialize all services with startup method
     for service_name in dir(app.state):
         if not service_name.startswith('_'):
@@ -181,20 +180,20 @@ async def _initialize_application_services(app: FastAPI) -> None:
                     logger.debug(f"✅ {service_name} started")
                 except Exception as e:
                     logger.warning(f"⚠️ {service_name} startup failed: {e}")
-    
+
     logger.info("🎬 All application services initialized successfully")
 
 
 async def _setup_background_tasks(app: FastAPI) -> None:
     """Setup optimized background tasks for monitoring and maintenance"""
     app.state.background_tasks = []
-    
+
     task_configs = [
         (_background_health_monitoring, "Health Monitoring"),
         (_background_performance_monitoring, "Performance Monitoring"),
         (_background_cleanup, "Cleanup Tasks")
     ]
-    
+
     for task_func, task_name in task_configs:
         try:
             task = asyncio.create_task(task_func())
@@ -202,31 +201,31 @@ async def _setup_background_tasks(app: FastAPI) -> None:
             logger.debug(f"✅ {task_name} task started")
         except Exception as e:
             logger.error(f"❌ {task_name} task failed: {e}")
-    
+
     logger.info(f"⚙️ {len(app.state.background_tasks)} background tasks started")
 
 
 async def _background_health_monitoring():
     """Optimized background health monitoring with adaptive intervals"""
     health_interval = 30  # Start with 30 seconds
-    
+
     while not shutdown_handler.shutdown_event.is_set():
         try:
             start_time = time.time()
             health_monitor = services.get_health_monitor()
-            
+
             if health_monitor:
                 await health_monitor.perform_health_check()
-            
+
             # Adaptive interval based on system health
             duration = time.time() - start_time
             if duration > 5:  # If health check takes too long
                 health_interval = min(120, health_interval * 1.5)
             else:
                 health_interval = max(15, health_interval * 0.9)
-            
+
             await asyncio.sleep(health_interval)
-            
+
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -242,19 +241,19 @@ async def _background_performance_monitoring():
             metrics_collector = services.get_metrics_collector()
             if metrics_collector:
                 await metrics_collector.collect_metrics()
-            
+
             # Intelligent garbage collection
             memory_mb = _get_memory_usage()
             memory_threshold = settings.performance.max_memory_usage_mb * 0.8
-            
+
             if memory_mb > memory_threshold:
                 gc.collect()
                 new_memory = _get_memory_usage()
                 saved_mb = memory_mb - new_memory
                 logger.info(f"🧠 GC freed {saved_mb:.1f}MB, memory: {new_memory:.1f}MB")
-            
+
             await asyncio.sleep(60)
-            
+
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -269,9 +268,9 @@ async def _background_cleanup():
             temp_files_cleaned = await _cleanup_temp_files()
             if temp_files_cleaned > 0:
                 logger.info(f"🧹 Cleaned up {temp_files_cleaned} temporary files")
-            
+
             await asyncio.sleep(1800)  # 30 minutes
-            
+
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -284,29 +283,29 @@ async def _cleanup_temp_files() -> int:
     temp_path = settings.temp_path
     if not temp_path.exists():
         return 0
-    
+
     cleaned_count = 0
     current_time = time.time()
-    
+
     try:
         for file_path in temp_path.rglob("*"):
             if file_path.is_file():
                 file_age = current_time - file_path.stat().st_mtime
                 file_size = file_path.stat().st_size
-                
+
                 # Clean files older than 1 hour or large temp files older than 15 minutes
                 should_clean = (
                     file_age > 3600 or 
                     (file_size > 100 * 1024 * 1024 and file_age > 900)  # 100MB files older than 15min
                 )
-                
+
                 if should_clean:
                     file_path.unlink()
                     cleaned_count += 1
-                    
+
     except Exception as e:
         logger.error(f"Error cleaning temp files: {e}")
-    
+
     return cleaned_count
 
 
@@ -324,14 +323,14 @@ async def _graceful_shutdown(app: FastAPI) -> None:
     """Optimized graceful shutdown with comprehensive cleanup"""
     shutdown_start = time.time()
     logger.info("🔄 Initiating Netflix-grade graceful shutdown...")
-    
+
     try:
         # Stop background tasks with timeout
         if hasattr(app.state, 'background_tasks'):
             for task in app.state.background_tasks:
                 if not task.done():
                     task.cancel()
-            
+
             # Wait for tasks with timeout
             try:
                 await asyncio.wait_for(
@@ -340,16 +339,16 @@ async def _graceful_shutdown(app: FastAPI) -> None:
                 )
             except asyncio.TimeoutError:
                 logger.warning("⚠️ Background tasks shutdown timeout")
-        
+
         # Shutdown services
         await services.shutdown()
-        
+
         # Final cleanup
         gc.collect()
-        
+
         shutdown_duration = time.time() - shutdown_start
         logger.info(f"✅ Graceful shutdown completed in {shutdown_duration:.2f}s")
-        
+
     except Exception as e:
         logger.error(f"⚠️ Shutdown error: {e}")
 
@@ -433,12 +432,12 @@ except ImportError:
 async def health_check():
     """Ultra-fast health check for load balancers (<5ms target)"""
     start_time = time.time()
-    
+
     try:
         # Lightning-fast health verification
         status = "healthy" if services.is_healthy() else "degraded"
         response_time = round((time.time() - start_time) * 1000, 2)
-        
+
         return Response(
             content=f'{{"status":"{status}","response_time_ms":{response_time},"version":"11.0.0"}}',
             media_type="application/json",
@@ -449,7 +448,7 @@ async def health_check():
                 "X-Version": "11.0.0"
             }
         )
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return Response(
@@ -463,11 +462,11 @@ async def health_check():
 async def detailed_health_check():
     """Comprehensive health check for monitoring systems"""
     start_time = time.time()
-    
+
     try:
         health_monitor = services.get_health_monitor()
         health_data = {}
-        
+
         if health_monitor:
             health_data = await health_monitor.perform_health_check()
         else:
@@ -476,7 +475,7 @@ async def detailed_health_check():
                 "services": services.get_service_status(),
                 "fallback_mode": True
             }
-        
+
         health_data.update({
             "response_time_ms": round((time.time() - start_time) * 1000, 2),
             "application": APPLICATION_INFO,
@@ -487,10 +486,10 @@ async def detailed_health_check():
                 "features": settings.get_feature_flags()
             }
         })
-        
+
         status_code = 200 if health_data.get("status") == "healthy" else 503
         return JSONResponse(content=health_data, status_code=status_code)
-        
+
     except Exception as e:
         logger.error(f"Detailed health check failed: {e}")
         return JSONResponse(
@@ -509,7 +508,7 @@ async def performance_metrics():
     """Comprehensive performance metrics for monitoring"""
     try:
         metrics_collector = services.get_metrics_collector()
-        
+
         base_metrics = {
             "timestamp": datetime.utcnow().isoformat(),
             "application": APPLICATION_INFO,
@@ -517,15 +516,15 @@ async def performance_metrics():
             "memory_usage_mb": _get_memory_usage(),
             "configuration": settings.get_performance_config()
         }
-        
+
         if metrics_collector:
             base_metrics.update({
                 "system": await metrics_collector.get_system_metrics(),
                 "performance": await metrics_collector.get_performance_metrics()
             })
-        
+
         return base_metrics
-        
+
     except Exception as e:
         logger.error(f"Metrics collection failed: {e}")
         raise HTTPException(status_code=500, detail="Metrics temporarily unavailable")
@@ -572,7 +571,7 @@ async def root():
             return HTMLResponse(content=content)
     except Exception as e:
         logger.error(f"Failed to read index.html: {e}")
-    
+
     # Fallback to generated Netflix-grade dashboard
     return HTMLResponse(content=_generate_netflix_dashboard())
 
@@ -758,7 +757,7 @@ def _generate_netflix_dashboard() -> str:
                 <div class="subtitle">{APPLICATION_INFO['description']}</div>
                 <div class="status">🚀 ENTERPRISE READY • <span class="perfect-score">PERFECT 10/10</span> GRADE</div>
             </div>
-            
+
             <div class="grid">
                 <div class="card">
                     <div class="card-title">🎬 Video Processing Engine</div>
@@ -771,7 +770,7 @@ def _generate_netflix_dashboard() -> str:
                         <div class="badge">Real-time Rendering</div>
                     </div>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-title">🤖 AI Intelligence Hub</div>
                     <div class="card-content">
@@ -783,7 +782,7 @@ def _generate_netflix_dashboard() -> str:
                         <div class="badge">Sentiment Analysis</div>
                     </div>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-title">📊 Analytics & Monitoring</div>
                     <div class="card-content">
@@ -795,7 +794,7 @@ def _generate_netflix_dashboard() -> str:
                         <div class="badge">Performance Insights</div>
                     </div>
                 </div>
-                
+
                 <div class="card">
                     <div class="card-title">🔐 Enterprise Security</div>
                     <div class="card-content">
@@ -808,7 +807,7 @@ def _generate_netflix_dashboard() -> str:
                     </div>
                 </div>
             </div>
-            
+
             <div class="links">
                 <a href="/health" class="link">🏥 Health Status</a>
                 <a href="/metrics" class="link">📊 System Metrics</a>
@@ -816,7 +815,7 @@ def _generate_netflix_dashboard() -> str:
                 <a href="/api/docs" class="link">📚 API Documentation</a>
             </div>
         </div>
-        
+
         <script>
             // Enhanced auto-refresh with error handling
             setInterval(async () => {{
@@ -824,7 +823,7 @@ def _generate_netflix_dashboard() -> str:
                     const response = await fetch('/health');
                     const data = await response.json();
                     console.log('Health check:', data);
-                    
+
                     // Update status indicator if available
                     const statusEl = document.querySelector('.status');
                     if (statusEl && data.status === 'healthy') {{
@@ -836,7 +835,7 @@ def _generate_netflix_dashboard() -> str:
                     console.warn('Health check failed:', e);
                 }}
             }}, 30000);
-            
+
             // Performance monitoring
             const startTime = performance.now();
             window.addEventListener('load', () => {{
@@ -870,7 +869,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
     """Enhanced 500 handler with better error tracking"""
     error_id = f"err_{int(time.time())}"
     logger.error(f"Internal server error [{error_id}]: {exc}", exc_info=True)
-    
+
     return JSONResponse(
         status_code=500,
         content={
