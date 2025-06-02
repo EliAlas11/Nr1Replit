@@ -44,13 +44,29 @@ class ApplicationState:
     def __init__(self):
         self.startup_time: Optional[datetime] = None
         self.health_status = "starting"
-        self.metrics = MetricsCollector()
-        self.performance = PerformanceMonitor()
-        self.health_monitor = HealthMonitor()
         self.active_connections = 0
         self.total_requests = 0
         self.error_count = 0
         self._initialized = False
+        
+        # Safe initialization of components
+        try:
+            self.metrics = MetricsCollector()
+        except Exception as e:
+            logger.error(f"MetricsCollector initialization failed: {e}")
+            self.metrics = None
+            
+        try:
+            self.performance = PerformanceMonitor() if PerformanceMonitor else None
+        except Exception as e:
+            logger.error(f"PerformanceMonitor initialization failed: {e}")
+            self.performance = None
+            
+        try:
+            self.health_monitor = HealthMonitor()
+        except Exception as e:
+            logger.error(f"HealthMonitor initialization failed: {e}")
+            self.health_monitor = None
 
     async def initialize(self):
         """Initialize async components when event loop is available"""
@@ -58,22 +74,32 @@ class ApplicationState:
             return
             
         try:
-            # Initialize all async components
-            await self.metrics.initialize()
-            await self.performance.initialize()
-            await self.health_monitor.initialize()
+            # Initialize all async components safely
+            if self.metrics and hasattr(self.metrics, 'initialize'):
+                await self.metrics.initialize()
+                
+            if self.performance and hasattr(self.performance, 'initialize'):
+                await self.performance.initialize()
+                
+            if self.health_monitor and hasattr(self.health_monitor, 'initialize'):
+                await self.health_monitor.initialize()
             
             self._initialized = True
             logger.info("🚀 ApplicationState async initialization completed")
             
         except Exception as e:
             logger.error(f"ApplicationState async initialization failed: {e}")
-            raise
+            # Continue with degraded functionality instead of raising
+            self._initialized = True
 
     def update_health(self, status: str):
         """Update health status with timestamp"""
         self.health_status = status
-        self.health_monitor.update_status(status)
+        if self.health_monitor and hasattr(self.health_monitor, 'update_status'):
+            try:
+                self.health_monitor.update_status(status)
+            except Exception as e:
+                logger.error(f"Health status update failed: {e}")
 
     def increment_requests(self):
         """Thread-safe request counter increment"""
@@ -212,9 +238,13 @@ async def lifespan(app: FastAPI):
         if hasattr(cache, 'initialize'):
             await cache.initialize()
 
-        # Start performance monitoring (if it has this method)
-        if hasattr(app_state.performance, 'start_monitoring'):
-            await app_state.performance.start_monitoring()
+        # Start performance monitoring safely
+        if app_state.performance and hasattr(app_state.performance, 'start_monitoring'):
+            try:
+                await app_state.performance.start_monitoring()
+                logger.info("📊 Performance monitoring started")
+            except Exception as e:
+                logger.warning(f"Performance monitoring startup failed: {e}")
 
         # Calculate startup metrics
         startup_time = time.time() - startup_start
@@ -258,8 +288,12 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("🔄 Initiating Netflix-grade graceful shutdown")
 
-        # Stop monitoring
-        await app_state.performance.stop_monitoring()
+        # Stop monitoring safely
+        if app_state.performance and hasattr(app_state.performance, 'stop_monitoring'):
+            try:
+                await app_state.performance.stop_monitoring()
+            except Exception as e:
+                logger.error(f"Performance monitoring shutdown failed: {e}")
 
         # Shutdown cache
         if hasattr(cache, 'shutdown'):
@@ -325,36 +359,59 @@ except Exception as e:
 @app.middleware("http")
 async def request_monitoring_middleware(request: Request, call_next):
     """Request-level monitoring middleware"""
-    # Record request start
-    app_state.performance.record_request_start()
-    app_state.metrics.increment('requests.total', 1.0, {
-        "method": request.method,
-        "path": request.url.path
-    })
+    # Record request start safely
+    if app_state.performance and hasattr(app_state.performance, 'record_request_start'):
+        try:
+            app_state.performance.record_request_start()
+        except Exception as e:
+            logger.debug(f"Performance request start recording failed: {e}")
+            
+    if app_state.metrics and hasattr(app_state.metrics, 'increment'):
+        try:
+            app_state.metrics.increment('requests.total', 1.0, {
+                "method": request.method,
+                "path": request.url.path
+            })
+        except Exception as e:
+            logger.debug(f"Metrics increment failed: {e}")
 
     start_time = time.time()
 
     try:
         response = await call_next(request)
 
-        # Record success metrics
+        # Record success metrics safely
         duration = time.time() - start_time
-        app_state.metrics.timing('requests.duration', duration, {
-            "method": request.method,
-            "status": str(response.status_code)
-        })
-        app_state.metrics.increment('requests.success')
+        
+        if app_state.metrics:
+            try:
+                app_state.metrics.timing('requests.duration', duration, {
+                    "method": request.method,
+                    "status": str(response.status_code)
+                })
+                app_state.metrics.increment('requests.success')
+            except Exception as e:
+                logger.debug(f"Success metrics recording failed: {e}")
 
         return response
 
     except Exception as e:
-        # Record error metrics
-        app_state.metrics.increment('requests.error')
+        # Record error metrics safely
+        if app_state.metrics:
+            try:
+                app_state.metrics.increment('requests.error')
+            except Exception as metric_error:
+                logger.debug(f"Error metrics recording failed: {metric_error}")
         app_state.increment_errors()
         raise
     finally:
-        # Record request end
-        app_state.performance.record_request_end()
+        # Record request end safely
+        duration = time.time() - start_time
+        if app_state.performance and hasattr(app_state.performance, 'record_request_end'):
+            try:
+                app_state.performance.record_request_end(duration)
+            except Exception as e:
+                logger.debug(f"Performance request end recording failed: {e}")
 
 @app.get("/")
 async def root():
@@ -483,10 +540,21 @@ async def get_metrics():
 async def get_performance():
     """Netflix-grade performance metrics endpoint"""
     try:
+        if not app_state.performance:
+            return JSONResponse({
+                "error": "Performance monitoring unavailable",
+                "message": "Performance monitor not initialized",
+                "timestamp": datetime.utcnow().isoformat()
+            }, status_code=503)
+            
         performance_data = app_state.performance.get_performance_summary()
         historical_data = app_state.performance.get_historical_data(hours=1)
 
-        app_state.metrics.increment('performance.query')
+        if app_state.metrics:
+            try:
+                app_state.metrics.increment('performance.query')
+            except:
+                pass
 
         return JSONResponse({
             "current": performance_data,

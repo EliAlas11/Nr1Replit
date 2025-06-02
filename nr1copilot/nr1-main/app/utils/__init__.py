@@ -39,8 +39,9 @@ except Exception as e:
 try:
     from .performance_monitor import PerformanceMonitor
     performance_available = True
+    logger.info("✅ PerformanceMonitor imported successfully")
 except Exception as e:
-    logger.warning(f"Performance monitor import failed: {e}")
+    logger.error(f"Performance monitor import failed: {e}")
     PerformanceMonitor = None
     performance_available = False
 
