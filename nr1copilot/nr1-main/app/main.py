@@ -338,6 +338,86 @@ async def get_metrics(user=Depends(get_current_user)):
         }
 
 
+# Chunked upload endpoint for Netflix-level uploads
+@app.post("/api/v6/upload-chunk")
+async def upload_chunk(
+    request: Request,
+    chunk: UploadFile = File(...),
+    upload_id: str = Form(...),
+    chunk_index: int = Form(...),
+    total_chunks: int = Form(...),
+    filename: str = Form(...),
+    user=Depends(get_current_user),
+    _=Depends(check_rate_limit),
+    _health=Depends(check_health)
+):
+    """Netflix-level chunked upload with intelligent assembly"""
+    try:
+        # Create upload session directory
+        upload_dir = settings.temp_path / upload_id
+        upload_dir.mkdir(exist_ok=True)
+        
+        # Save chunk
+        chunk_path = upload_dir / f"chunk_{chunk_index:06d}"
+        async with aiofiles.open(chunk_path, "wb") as f:
+            content = await chunk.read()
+            await f.write(content)
+        
+        # Check if all chunks are received
+        existing_chunks = list(upload_dir.glob("chunk_*"))
+        
+        if len(existing_chunks) == total_chunks:
+            # Assemble final file
+            final_path = settings.upload_path / f"{upload_id}_{filename}"
+            
+            async with aiofiles.open(final_path, "wb") as final_file:
+                for i in range(total_chunks):
+                    chunk_path = upload_dir / f"chunk_{i:06d}"
+                    if chunk_path.exists():
+                        async with aiofiles.open(chunk_path, "rb") as chunk_file:
+                            chunk_data = await chunk_file.read()
+                            await final_file.write(chunk_data)
+            
+            # Cleanup chunks
+            for chunk_file in existing_chunks:
+                chunk_file.unlink()
+            upload_dir.rmdir()
+            
+            # Start processing
+            background_tasks.add_task(
+                container.realtime_engine.process_upload_pipeline,
+                upload_id,
+                str(final_path),
+                None,  # title
+                None,  # description
+                user
+            )
+            
+            return {
+                "success": True,
+                "upload_id": upload_id,
+                "status": "complete",
+                "final_path": str(final_path),
+                "message": "Upload complete, processing started"
+            }
+        else:
+            return {
+                "success": True,
+                "upload_id": upload_id,
+                "status": "chunk_received",
+                "chunks_received": len(existing_chunks),
+                "total_chunks": total_chunks,
+                "progress": (len(existing_chunks) / total_chunks) * 100
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Chunk upload failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Chunk upload failed"
+        )
+
+
 # Video upload endpoint with advanced features
 @app.post("/api/v6/upload-video", response_model=VideoUploadResponse)
 async def upload_video(

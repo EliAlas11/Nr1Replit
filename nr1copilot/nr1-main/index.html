@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,39 +6,39 @@
     <meta name="description" content="ViralClip Pro v5.0 - Netflix-Level AI Video Processing Platform">
     <meta name="keywords" content="video editing, AI analysis, viral content, social media optimization">
     <meta name="author" content="ViralClip Pro Team">
-    
+
     <!-- PWA Configuration -->
     <meta name="theme-color" content="#141414">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ViralClip Pro">
-    
+
     <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    
+
     <!-- PWA Manifest -->
     <link rel="manifest" href="/public/manifest.json">
-    
+
     <!-- Icons -->
     <link rel="icon" type="image/x-icon" href="/public/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/public/icon-180x180.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/public/icon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/public/icon-16x16.png">
-    
+
     <!-- Open Graph Tags -->
     <meta property="og:title" content="ViralClip Pro v5.0 - Netflix-Level AI Video Processing">
     <meta property="og:description" content="Transform your videos into viral content with AI-powered analysis and optimization">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://viralclip.pro">
     <meta property="og:image" content="/public/og-image.png">
-    
+
     <!-- Twitter Card Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="ViralClip Pro v5.0">
     <meta name="twitter:description" content="Netflix-Level AI Video Processing Platform">
     <meta name="twitter:image" content="/public/twitter-image.png">
-    
+
     <!-- Structured Data -->
     <script type="application/ld+json">
     {
@@ -57,9 +56,9 @@
         }
     }
     </script>
-    
+
     <title>ViralClip Pro v5.0 - Netflix-Level AI Video Processing</title>
-    
+
     <!-- Critical CSS (inlined for performance) -->
     <style>
         /* Critical above-the-fold styles */
@@ -68,7 +67,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
             background: #141414;
@@ -76,13 +75,13 @@
             line-height: 1.6;
             overflow-x: hidden;
         }
-        
+
         .netflix-app {
             min-height: 100vh;
             display: flex;
             flex-direction: column;
         }
-        
+
         .app-header {
             background: rgba(20, 20, 20, 0.95);
             backdrop-filter: blur(10px);
@@ -92,7 +91,7 @@
             top: 0;
             z-index: 1000;
         }
-        
+
         .header-content {
             display: flex;
             justify-content: space-between;
@@ -100,7 +99,7 @@
             max-width: 1400px;
             margin: 0 auto;
         }
-        
+
         .app-title {
             display: flex;
             align-items: center;
@@ -109,17 +108,17 @@
             font-weight: 700;
             color: #f5f5f5;
         }
-        
+
         .logo {
             font-size: 2rem;
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.1); }
         }
-        
+
         .version-badge {
             background: #e50914;
             color: white;
@@ -130,7 +129,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         .loading-screen {
             position: fixed;
             top: 0;
@@ -145,12 +144,12 @@
             z-index: 9999;
             transition: opacity 0.5s ease-out;
         }
-        
+
         .loading-screen.hidden {
             opacity: 0;
             pointer-events: none;
         }
-        
+
         .loading-spinner {
             width: 60px;
             height: 60px;
@@ -160,32 +159,32 @@
             animation: spin 1s linear infinite;
             margin-bottom: 2rem;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         .loading-text {
             font-size: 1.2rem;
             margin-bottom: 0.5rem;
         }
-        
+
         .loading-subtitle {
             font-size: 0.9rem;
             color: #808080;
         }
     </style>
-    
+
     <!-- Preload critical resources -->
     <link rel="preload" href="/public/styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="/public/styles.css"></noscript>
-    
+
     <!-- Performance monitoring -->
     <script>
         // Basic performance monitoring
         window.performance.mark('page-start');
-        
+
         // Critical performance metrics
         window.perfMetrics = {
             pageStart: performance.now(),
@@ -194,7 +193,7 @@
             firstContentfulPaint: 0,
             largestContentfulPaint: 0
         };
-        
+
         // Observe paint timings
         if ('PerformanceObserver' in window) {
             const observer = new PerformanceObserver((list) => {
@@ -207,7 +206,7 @@
                 }
             });
             observer.observe({ entryTypes: ['paint'] });
-            
+
             // Observe LCP
             const lcpObserver = new PerformanceObserver((list) => {
                 const entries = list.getEntries();
@@ -225,7 +224,7 @@
         <div class="loading-text">ViralClip Pro v5.0</div>
         <div class="loading-subtitle">Netflix-Level AI Video Processing</div>
     </div>
-    
+
     <!-- Main Application Container -->
     <div id="app-container" class="netflix-app" style="display: none;">
         <!-- Header -->
@@ -256,28 +255,34 @@
         <!-- Main Content -->
         <main class="app-main">
             <!-- Upload Section -->
-            <section class="upload-section">
-                <div class="upload-zone" id="uploadZone">
-                    <div class="upload-content">
-                        <div class="upload-icon">📤</div>
-                        <h2>Drop Your Video Here</h2>
-                        <p>Netflix-level AI will analyze for viral potential instantly</p>
-                        <input type="file" id="fileInput" accept="video/*" style="display: none;" aria-label="Choose video file">
-                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()" aria-label="Choose video file">
-                            Choose Video File
-                        </button>
-                        <div class="upload-info">
-                            <p>Supported formats: MP4, AVI, MOV, MKV, WebM</p>
-                            <p>Maximum size: 500MB | Maximum duration: 10 minutes</p>
-                        </div>
+            <section class="upload-section" id="uploadDropZone">
+                <h2>🎬 Upload Your Videos</h2>
+                <p>Drag & drop or click to upload multiple videos for AI analysis</p>
+
+                <div class="upload-controls">
+                    <input type="file" id="videoFile" accept="video/*,audio/*" style="display: none;">
+                    <button id="uploadButton" class="upload-btn">
+                        📁 Choose Video Files
+                    </button>
+                </div>
+
+                <div class="upload-info">
+                    <p>Supported formats: MP4, AVI, MOV, WebM, MKV, MP3, WAV • Max size: 2GB</p>
+                    <p>✨ Netflix-level chunked uploads with auto-retry</p>
+                </div>
+            </section>
+
+            <!-- Upload Queue -->
+            <section class="upload-queue-container" id="uploadQueueContainer" style="display: none;">
+                <div class="upload-queue-header">
+                    <h3>📤 Upload Queue</h3>
+                    <div class="queue-stats" id="queueStats">
+                        <span id="activeUploads">0</span> active • 
+                        <span id="queuedUploads">0</span> queued
                     </div>
-                    <div class="upload-progress" id="uploadProgress" style="display: none;">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progressFill"></div>
-                        </div>
-                        <div class="progress-text" id="progressText">Uploading...</div>
-                        <div class="upload-stats" id="uploadStats"></div>
-                    </div>
+                </div>
+                <div id="uploadQueue" class="upload-queue">
+                    <!-- Upload items will be inserted here -->
                 </div>
             </section>
 
@@ -445,25 +450,25 @@
 
     <!-- Main Application Script -->
     <script src="/static/app.js" defer></script>
-    
+
     <!-- Initialize app when DOM is ready -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // Mark DOM content loaded
             window.perfMetrics.domContentLoaded = performance.now();
             performance.mark('dom-content-loaded');
-            
+
             // Hide loading screen and show app
             const loadingScreen = document.getElementById('loadingScreen');
             const appContainer = document.getElementById('app-container');
-            
+
             setTimeout(() => {
                 loadingScreen.classList.add('hidden');
                 appContainer.style.display = 'flex';
-                
+
                 // Mark app visible
                 performance.mark('app-visible');
-                
+
                 // Initialize uptime counter
                 const startTime = Date.now();
                 const updateUptime = () => {
@@ -473,10 +478,10 @@
                         uptimeElement.textContent = `Uptime: ${uptime}s`;
                     }
                 };
-                
+
                 updateUptime();
                 setInterval(updateUptime, 1000);
-                
+
                 // Log performance metrics
                 setTimeout(() => {
                     const metrics = {
@@ -486,18 +491,18 @@
                         firstContentfulPaint: window.perfMetrics.firstContentfulPaint,
                         largestContentfulPaint: window.perfMetrics.largestContentfulPaint
                     };
-                    
+
                     console.log('Netflix-Level Performance Metrics:', metrics);
-                    
+
                     // Send metrics to analytics (if configured)
                     if (window.analytics && typeof window.analytics.track === 'function') {
                         window.analytics.track('Page Performance', metrics);
                     }
                 }, 1000);
-                
+
             }, 1500); // Show loading screen for 1.5 seconds minimum
         });
-        
+
         // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden') {
@@ -506,30 +511,30 @@
                 console.log('Page visible - resuming operations');
             }
         });
-        
+
         // Handle offline/online events
         window.addEventListener('online', () => {
             console.log('Connection restored');
             // Show notification or update UI
         });
-        
+
         window.addEventListener('offline', () => {
             console.log('Connection lost');
             // Show offline notification
         });
-        
+
         // Error handling for unhandled errors
         window.addEventListener('error', (event) => {
             console.error('Unhandled error:', event.error);
             // Log to error tracking service
         });
-        
+
         window.addEventListener('unhandledrejection', (event) => {
             console.error('Unhandled promise rejection:', event.reason);
             // Log to error tracking service
         });
     </script>
-    
+
     <!-- Critical inline styles for above-the-fold content -->
     <style>
         .upload-info {
@@ -538,23 +543,23 @@
             color: #808080;
             text-align: center;
         }
-        
+
         .upload-info p {
             margin: 0.25rem 0;
         }
-        
+
         /* Ensure proper loading experience */
         .netflix-app {
             opacity: 0;
             animation: fadeIn 0.5s ease-in-out forwards;
             animation-delay: 0.1s;
         }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        
+
         /* Accessibility improvements */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -563,13 +568,13 @@
                 transition-duration: 0.01ms !important;
             }
         }
-        
+
         /* High contrast mode support */
         @media (prefers-contrast: high) {
             .app-header {
                 border-bottom: 2px solid #ffffff;
             }
-            
+
             .upload-zone {
                 border: 3px solid #ffffff;
             }
