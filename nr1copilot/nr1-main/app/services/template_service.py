@@ -83,6 +83,49 @@ class BrandKit:
     usage_count: int = 0
 
 
+@dataclass
+class AnimationKeyframe:
+    """Advanced animation keyframe with easing and properties"""
+    time: float
+    properties: Dict[str, Any]
+    easing: str = "ease-in-out"
+    duration: float = 0.3
+    delay: float = 0.0
+    iteration_count: int = 1
+    direction: str = "normal"
+    fill_mode: str = "both"
+
+
+@dataclass
+class AnimationTrack:
+    """Animation track with multiple keyframes"""
+    track_id: str
+    element_id: str
+    property_name: str
+    keyframes: List[AnimationKeyframe]
+    blend_mode: str = "normal"
+    layer_order: int = 0
+    is_locked: bool = False
+    is_visible: bool = True
+
+
+@dataclass
+class AdvancedAnimationTimeline:
+    """Netflix-level animation timeline with professional features"""
+    timeline_id: str
+    duration: float
+    fps: int = 60
+    tracks: List[AnimationTrack] = field(default_factory=list)
+    markers: List[Dict[str, Any]] = field(default_factory=list)
+    global_effects: List[Dict[str, Any]] = field(default_factory=list)
+    audio_tracks: List[Dict[str, Any]] = field(default_factory=list)
+    curve_editor_data: Dict[str, Any] = field(default_factory=dict)
+    onion_skinning: bool = False
+    snap_to_frame: bool = True
+    zoom_level: float = 1.0
+    playhead_position: float = 0.0
+
+
 @dataclass 
 class ViralTemplate:
     """Advanced viral template with analytics"""
@@ -101,6 +144,9 @@ class ViralTemplate:
     text_zones: List[Dict[str, Any]]
     media_zones: List[Dict[str, Any]]
     animation_timeline: List[Dict[str, Any]]
+    
+    # Advanced animation system
+    advanced_timeline: Optional[AdvancedAnimationTimeline] = None
 
     # Viral factors
     viral_score: float
@@ -861,6 +907,229 @@ class NetflixLevelTemplateService:
                 {"category": "micro_tutorials", "potential": "high"},
                 {"category": "authentic_moments", "potential": "very_high"}
             ]
+        }
+
+    async def create_advanced_animation_timeline(
+        self,
+        template_id: str,
+        duration: float,
+        fps: int = 60
+    ) -> AdvancedAnimationTimeline:
+        """Create advanced animation timeline with professional features"""
+        
+        timeline_id = f"timeline_{uuid.uuid4().hex[:12]}"
+        
+        timeline = AdvancedAnimationTimeline(
+            timeline_id=timeline_id,
+            duration=duration,
+            fps=fps,
+            curve_editor_data={
+                "bezier_curves": {},
+                "custom_easings": {},
+                "motion_paths": {}
+            }
+        )
+        
+        # Add to template
+        template = self.templates.get(template_id)
+        if template:
+            template.advanced_timeline = timeline
+        
+        logger.info(f"🎬 Created advanced animation timeline: {timeline_id}")
+        return timeline
+
+    async def add_animation_track(
+        self,
+        timeline_id: str,
+        element_id: str,
+        property_name: str,
+        track_config: Dict[str, Any]
+    ) -> AnimationTrack:
+        """Add animation track to timeline"""
+        
+        track_id = f"track_{uuid.uuid4().hex[:8]}"
+        
+        track = AnimationTrack(
+            track_id=track_id,
+            element_id=element_id,
+            property_name=property_name,
+            keyframes=[],
+            blend_mode=track_config.get("blend_mode", "normal"),
+            layer_order=track_config.get("layer_order", 0),
+            is_locked=track_config.get("is_locked", False),
+            is_visible=track_config.get("is_visible", True)
+        )
+        
+        # Find timeline and add track
+        for template in self.templates.values():
+            if (template.advanced_timeline and 
+                template.advanced_timeline.timeline_id == timeline_id):
+                template.advanced_timeline.tracks.append(track)
+                break
+        
+        return track
+
+    async def add_keyframe(
+        self,
+        track_id: str,
+        time: float,
+        properties: Dict[str, Any],
+        easing: str = "ease-in-out",
+        duration: float = 0.3
+    ) -> AnimationKeyframe:
+        """Add keyframe to animation track"""
+        
+        keyframe = AnimationKeyframe(
+            time=time,
+            properties=properties,
+            easing=easing,
+            duration=duration
+        )
+        
+        # Find track and add keyframe
+        for template in self.templates.values():
+            if template.advanced_timeline:
+                for track in template.advanced_timeline.tracks:
+                    if track.track_id == track_id:
+                        track.keyframes.append(keyframe)
+                        # Sort keyframes by time
+                        track.keyframes.sort(key=lambda k: k.time)
+                        break
+        
+        return keyframe
+
+    async def create_curve_editor_path(
+        self,
+        timeline_id: str,
+        curve_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Create custom animation curve in curve editor"""
+        
+        curve_id = f"curve_{uuid.uuid4().hex[:8]}"
+        
+        curve_definition = {
+            "curve_id": curve_id,
+            "control_points": curve_data.get("control_points", []),
+            "interpolation": curve_data.get("interpolation", "bezier"),
+            "tangent_mode": curve_data.get("tangent_mode", "auto"),
+            "loop_mode": curve_data.get("loop_mode", "none"),
+            "pre_infinity": curve_data.get("pre_infinity", "constant"),
+            "post_infinity": curve_data.get("post_infinity", "constant")
+        }
+        
+        # Add to timeline curve editor data
+        for template in self.templates.values():
+            if (template.advanced_timeline and 
+                template.advanced_timeline.timeline_id == timeline_id):
+                template.advanced_timeline.curve_editor_data["bezier_curves"][curve_id] = curve_definition
+                break
+        
+        return curve_definition
+
+    async def add_timeline_marker(
+        self,
+        timeline_id: str,
+        time: float,
+        label: str,
+        marker_type: str = "standard"
+    ) -> Dict[str, Any]:
+        """Add marker to animation timeline"""
+        
+        marker = {
+            "marker_id": f"marker_{uuid.uuid4().hex[:8]}",
+            "time": time,
+            "label": label,
+            "type": marker_type,
+            "color": "#FF6B6B" if marker_type == "important" else "#4ECDC4"
+        }
+        
+        # Add to timeline
+        for template in self.templates.values():
+            if (template.advanced_timeline and 
+                template.advanced_timeline.timeline_id == timeline_id):
+                template.advanced_timeline.markers.append(marker)
+                template.advanced_timeline.markers.sort(key=lambda m: m["time"])
+                break
+        
+        return marker
+
+    async def apply_global_effect(
+        self,
+        timeline_id: str,
+        effect_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Apply global effect to entire timeline"""
+        
+        effect = {
+            "effect_id": f"effect_{uuid.uuid4().hex[:8]}",
+            "name": effect_config.get("name", "Global Effect"),
+            "type": effect_config.get("type", "color_correction"),
+            "parameters": effect_config.get("parameters", {}),
+            "enabled": effect_config.get("enabled", True),
+            "blend_mode": effect_config.get("blend_mode", "normal"),
+            "opacity": effect_config.get("opacity", 1.0)
+        }
+        
+        # Add to timeline
+        for template in self.templates.values():
+            if (template.advanced_timeline and 
+                template.advanced_timeline.timeline_id == timeline_id):
+                template.advanced_timeline.global_effects.append(effect)
+                break
+        
+        return effect
+
+    async def export_animation_timeline(
+        self,
+        timeline_id: str,
+        export_format: str = "json"
+    ) -> Dict[str, Any]:
+        """Export animation timeline for external use"""
+        
+        for template in self.templates.values():
+            if (template.advanced_timeline and 
+                template.advanced_timeline.timeline_id == timeline_id):
+                
+                timeline = template.advanced_timeline
+                
+                export_data = {
+                    "timeline_id": timeline.timeline_id,
+                    "duration": timeline.duration,
+                    "fps": timeline.fps,
+                    "tracks": [
+                        {
+                            "track_id": track.track_id,
+                            "element_id": track.element_id,
+                            "property_name": track.property_name,
+                            "keyframes": [
+                                {
+                                    "time": kf.time,
+                                    "properties": kf.properties,
+                                    "easing": kf.easing,
+                                    "duration": kf.duration
+                                }
+                                for kf in track.keyframes
+                            ],
+                            "blend_mode": track.blend_mode,
+                            "layer_order": track.layer_order
+                        }
+                        for track in timeline.tracks
+                    ],
+                    "markers": timeline.markers,
+                    "global_effects": timeline.global_effects,
+                    "curve_editor_data": timeline.curve_editor_data
+                }
+                
+                return {
+                    "success": True,
+                    "format": export_format,
+                    "data": export_data,
+                    "export_time": datetime.utcnow().isoformat()
+                }
+        
+        return {
+            "success": False,
+            "error": f"Timeline {timeline_id} not found"
         }
 
     async def export_brand_kit(self, brand_kit_id: str) -> Dict[str, Any]:

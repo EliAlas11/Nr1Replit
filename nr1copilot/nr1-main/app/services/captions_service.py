@@ -113,6 +113,124 @@ class NetflixLevelCaptionService:
 
         logger.info("🎬 Netflix-level caption service initialized")
 
+    async def generate_captions_realtime_streaming(
+        self,
+        audio_stream: asyncio.Queue,
+        session_id: str,
+        language: str = "en",
+        callback_func: Optional[Callable] = None,
+        streaming_mode: bool = True
+    ) -> AsyncGenerator[CaptionSegment, None]:
+        """Real-time streaming caption generation with live output"""
+        
+        try:
+            logger.info(f"🎯 Starting real-time streaming caption generation for {session_id}")
+            
+            # Initialize streaming models
+            streaming_processor = await self._initialize_streaming_processor(language)
+            buffer = []
+            segment_counter = 0
+            
+            while True:
+                try:
+                    # Get audio chunk from stream (with timeout)
+                    audio_chunk = await asyncio.wait_for(audio_stream.get(), timeout=0.1)
+                    
+                    if audio_chunk is None:  # End of stream signal
+                        break
+                    
+                    # Process audio chunk in real-time
+                    partial_result = await streaming_processor.process_chunk(audio_chunk)
+                    
+                    if partial_result and partial_result["confidence"] > 0.6:
+                        # Create streaming caption segment
+                        segment = CaptionSegment(
+                            start_time=partial_result["start_time"],
+                            end_time=partial_result["end_time"],
+                            text=partial_result["text"],
+                            confidence=partial_result["confidence"],
+                            viral_score=await self._calculate_viral_score_streaming(partial_result),
+                            emotion=await self._detect_emotion_streaming(partial_result),
+                            slang_detected=await self._detect_slang_streaming(partial_result["text"]),
+                            keywords=await self._extract_keywords_streaming(partial_result["text"]),
+                            engagement_potential=await self._calculate_engagement_streaming(partial_result)
+                        )
+                        
+                        # Yield segment immediately for real-time processing
+                        yield segment
+                        
+                        # Call callback for real-time updates
+                        if callback_func:
+                            await callback_func(segment)
+                        
+                        segment_counter += 1
+                        
+                        # Log real-time progress
+                        if segment_counter % 10 == 0:
+                            logger.info(f"📺 Processed {segment_counter} streaming segments")
+                    
+                except asyncio.TimeoutError:
+                    # No new audio data, continue waiting
+                    continue
+                except Exception as e:
+                    logger.error(f"Streaming processing error: {e}")
+                    continue
+            
+            logger.info(f"✅ Real-time streaming completed: {segment_counter} segments processed")
+            
+        except Exception as e:
+            logger.error(f"❌ Real-time streaming failed: {e}", exc_info=True)
+            raise
+
+    async def _initialize_streaming_processor(self, language: str):
+        """Initialize real-time streaming processor"""
+        return {
+            "language": language,
+            "buffer_size": 1024,
+            "chunk_duration": 0.5,
+            "overlap": 0.1
+        }
+
+    async def _calculate_viral_score_streaming(self, result: Dict[str, Any]) -> float:
+        """Calculate viral score for streaming segment"""
+        base_score = result.get("confidence", 0.5) * 0.8
+        text_length_bonus = min(0.2, len(result.get("text", "")) / 100)
+        return min(1.0, base_score + text_length_bonus)
+
+    async def _detect_emotion_streaming(self, result: Dict[str, Any]) -> Optional[str]:
+        """Detect emotion in streaming text"""
+        text = result.get("text", "").lower()
+        for emotion, patterns in self.emotion_patterns.items():
+            for pattern in patterns:
+                if pattern in text:
+                    return emotion
+        return None
+
+    async def _detect_slang_streaming(self, text: str) -> List[str]:
+        """Detect slang in streaming text"""
+        text_lower = text.lower()
+        detected = []
+        for slang in self.viral_keywords["trending_slang"]:
+            if slang in text_lower:
+                detected.append(slang)
+        return detected
+
+    async def _extract_keywords_streaming(self, text: str) -> List[str]:
+        """Extract viral keywords from streaming text"""
+        text_lower = text.lower()
+        keywords = []
+        for category, keyword_list in self.viral_keywords.items():
+            for keyword in keyword_list:
+                if keyword in text_lower:
+                    keywords.append(keyword)
+        return keywords
+
+    async def _calculate_engagement_streaming(self, result: Dict[str, Any]) -> float:
+        """Calculate engagement potential for streaming segment"""
+        confidence = result.get("confidence", 0.5)
+        text_quality = min(1.0, len(result.get("text", "")) / 50)
+        return (confidence + text_quality) / 2
+
     async def generate_captions_advanced(
         self,
         audio_path: str,

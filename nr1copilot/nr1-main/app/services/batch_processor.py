@@ -94,6 +94,28 @@ class BatchQueue:
 
 
 @dataclass
+class DistributedNode:
+    """Distributed processing node with advanced capabilities"""
+    node_id: str
+    node_type: str
+    location: str
+    max_concurrent_jobs: int
+    current_jobs: int = 0
+    cpu_cores: int = 8
+    memory_gb: int = 16
+    gpu_available: bool = False
+    gpu_memory_gb: int = 0
+    network_bandwidth_mbps: int = 1000
+    storage_type: str = "ssd"
+    capabilities: List[JobType] = field(default_factory=list)
+    health_metrics: Dict[str, float] = field(default_factory=dict)
+    last_heartbeat: datetime = field(default_factory=datetime.utcnow)
+    is_active: bool = True
+    load_balancer_weight: float = 1.0
+    geographic_region: str = "us-east-1"
+
+
+@dataclass
 class WorkerNode:
     """Processing worker node"""
     worker_id: str
@@ -668,6 +690,203 @@ class NetflixLevelBatchProcessor:
                 logger.error(f"Cleanup task error: {e}", exc_info=True)
                 await asyncio.sleep(3600)
 
+    async def initialize_distributed_cluster(self):
+        """Initialize distributed processing cluster"""
+        
+        # Initialize distributed nodes
+        distributed_nodes = [
+            DistributedNode(
+                node_id="node_primary_001",
+                node_type="high_performance",
+                location="primary_datacenter",
+                max_concurrent_jobs=50,
+                cpu_cores=32,
+                memory_gb=128,
+                gpu_available=True,
+                gpu_memory_gb=24,
+                capabilities=[JobType.VIDEO_ANALYSIS, JobType.AI_ENHANCEMENT, JobType.CAPTION_GENERATION],
+                geographic_region="us-east-1"
+            ),
+            DistributedNode(
+                node_id="node_worker_002",
+                node_type="standard",
+                location="secondary_datacenter",
+                max_concurrent_jobs=30,
+                cpu_cores=16,
+                memory_gb=64,
+                capabilities=[JobType.TEMPLATE_RENDERING, JobType.BATCH_EXPORT],
+                geographic_region="us-west-2"
+            ),
+            DistributedNode(
+                node_id="node_gpu_003",
+                node_type="gpu_optimized",
+                location="gpu_cluster",
+                max_concurrent_jobs=20,
+                cpu_cores=24,
+                memory_gb=96,
+                gpu_available=True,
+                gpu_memory_gb=48,
+                capabilities=[JobType.AI_ENHANCEMENT, JobType.VIRAL_OPTIMIZATION],
+                geographic_region="us-central-1"
+            )
+        ]
+        
+        # Add nodes to cluster
+        self.distributed_nodes = {node.node_id: node for node in distributed_nodes}
+        
+        # Start cluster monitoring
+        await self._start_cluster_monitoring()
+        
+        logger.info(f"🌐 Distributed cluster initialized with {len(distributed_nodes)} nodes")
+
+    async def _start_cluster_monitoring(self):
+        """Start monitoring distributed cluster health"""
+        
+        cluster_monitor_task = asyncio.create_task(self._monitor_cluster_health())
+        self.background_tasks.add(cluster_monitor_task)
+        
+        load_balancer_task = asyncio.create_task(self._dynamic_load_balancing())
+        self.background_tasks.add(load_balancer_task)
+
+    async def _monitor_cluster_health(self):
+        """Monitor health of distributed nodes"""
+        
+        while True:
+            try:
+                for node_id, node in self.distributed_nodes.items():
+                    # Simulate health check
+                    health_status = await self._check_node_health(node)
+                    
+                    node.health_metrics.update(health_status)
+                    node.last_heartbeat = datetime.utcnow()
+                    
+                    # Update node status based on health
+                    if health_status["overall_health"] < 0.5:
+                        node.is_active = False
+                        logger.warning(f"⚠️ Node {node_id} marked as unhealthy")
+                    else:
+                        node.is_active = True
+                
+                await asyncio.sleep(30)  # Check every 30 seconds
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Cluster health monitoring error: {e}")
+                await asyncio.sleep(60)
+
+    async def _check_node_health(self, node: DistributedNode) -> Dict[str, float]:
+        """Check health metrics for a distributed node"""
+        
+        import random
+        
+        # Simulate health metrics
+        cpu_usage = random.uniform(0.2, 0.8)
+        memory_usage = random.uniform(0.3, 0.7)
+        network_latency = random.uniform(10, 100)  # ms
+        
+        # Calculate overall health score
+        health_factors = [
+            1.0 - cpu_usage,  # Lower CPU usage is better
+            1.0 - memory_usage,  # Lower memory usage is better
+            max(0, 1.0 - (network_latency / 100))  # Lower latency is better
+        ]
+        
+        overall_health = sum(health_factors) / len(health_factors)
+        
+        return {
+            "cpu_usage": cpu_usage,
+            "memory_usage": memory_usage,
+            "network_latency": network_latency,
+            "disk_io": random.uniform(0.1, 0.6),
+            "network_throughput": random.uniform(500, 1000),  # Mbps
+            "overall_health": overall_health
+        }
+
+    async def _dynamic_load_balancing(self):
+        """Dynamic load balancing across distributed nodes"""
+        
+        while True:
+            try:
+                # Calculate load balancer weights based on node performance
+                for node in self.distributed_nodes.values():
+                    if node.is_active:
+                        # Calculate weight based on current load and health
+                        current_load = node.current_jobs / node.max_concurrent_jobs
+                        health_score = node.health_metrics.get("overall_health", 0.5)
+                        
+                        # Higher weight for nodes with lower load and better health
+                        node.load_balancer_weight = (1.0 - current_load) * health_score
+                    else:
+                        node.load_balancer_weight = 0.0
+                
+                await asyncio.sleep(10)  # Update weights every 10 seconds
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Load balancing error: {e}")
+                await asyncio.sleep(30)
+
+    async def distribute_job_to_optimal_node(self, job: BatchJob) -> Optional[str]:
+        """Distribute job to optimal node based on capabilities and load"""
+        
+        # Filter nodes by job type capability
+        capable_nodes = [
+            node for node in self.distributed_nodes.values()
+            if (job.job_type in node.capabilities and 
+                node.is_active and 
+                node.current_jobs < node.max_concurrent_jobs)
+        ]
+        
+        if not capable_nodes:
+            return None
+        
+        # Sort by load balancer weight (highest first)
+        capable_nodes.sort(key=lambda n: n.load_balancer_weight, reverse=True)
+        
+        # Select optimal node
+        optimal_node = capable_nodes[0]
+        
+        # Update node job count
+        optimal_node.current_jobs += 1
+        
+        logger.info(f"📡 Job {job.job_id} distributed to node {optimal_node.node_id}")
+        
+        return optimal_node.node_id
+
+    async def get_cluster_status(self) -> Dict[str, Any]:
+        """Get comprehensive distributed cluster status"""
+        
+        cluster_stats = {
+            "total_nodes": len(self.distributed_nodes),
+            "active_nodes": len([n for n in self.distributed_nodes.values() if n.is_active]),
+            "total_capacity": sum(n.max_concurrent_jobs for n in self.distributed_nodes.values()),
+            "current_utilization": sum(n.current_jobs for n in self.distributed_nodes.values()),
+            "nodes": {}
+        }
+        
+        for node_id, node in self.distributed_nodes.items():
+            cluster_stats["nodes"][node_id] = {
+                "node_type": node.node_type,
+                "location": node.location,
+                "is_active": node.is_active,
+                "current_jobs": node.current_jobs,
+                "max_jobs": node.max_concurrent_jobs,
+                "utilization": (node.current_jobs / node.max_concurrent_jobs) * 100,
+                "health_score": node.health_metrics.get("overall_health", 0.0) * 100,
+                "load_balancer_weight": node.load_balancer_weight,
+                "capabilities": [cap.value for cap in node.capabilities],
+                "hardware": {
+                    "cpu_cores": node.cpu_cores,
+                    "memory_gb": node.memory_gb,
+                    "gpu_available": node.gpu_available,
+                    "gpu_memory_gb": node.gpu_memory_gb
+                }
+            }
+        
+        return cluster_stats
+
     async def graceful_shutdown(self):
         """Gracefully shutdown the batch processor"""
 
@@ -676,6 +895,11 @@ class NetflixLevelBatchProcessor:
         # Pause all queues
         for queue in self.queues.values():
             queue.is_paused = True
+
+        # Notify distributed nodes of shutdown
+        if hasattr(self, 'distributed_nodes'):
+            for node in self.distributed_nodes.values():
+                node.is_active = False
 
         # Wait for active jobs to complete (with timeout)
         timeout = 300  # 5 minutes
