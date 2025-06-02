@@ -39,6 +39,7 @@ from .services.viral_optimizer import NetflixLevelViralOptimizer
 from .services.collaboration_engine import NetflixLevelCollaborationEngine
 from .services.captions_service import NetflixLevelCaptionService
 from .services.batch_processor import NetflixLevelBatchProcessor
+from .services.ai_intelligence_engine import NetflixLevelAIIntelligenceEngine
 
 # Enterprise middleware stack
 from .middleware.security import NetflixLevelSecurityMiddleware
@@ -64,6 +65,7 @@ viral_optimizer = NetflixLevelViralOptimizer()
 collaboration_engine = NetflixLevelCollaborationEngine()
 caption_service = NetflixLevelCaptionService()
 batch_processor = NetflixLevelBatchProcessor()
+ai_intelligence_engine = NetflixLevelAIIntelligenceEngine()
 performance_monitor = NetflixLevelPerformanceMonitor()
 enterprise_optimizer = EnterpriseOptimizer()
 enterprise_cache = EnterpriseCache()
@@ -98,6 +100,7 @@ async def lifespan(app: FastAPI):
             viral_optimizer.warm_up_ml_models(),
             caption_service.initialize_ai_models(),
             batch_processor.initialize_distributed_processing(),
+            ai_intelligence_engine.enterprise_warm_up(),
             performance_monitor.start_monitoring(),
             enterprise_cache.initialize_cache_clusters(),
             enterprise_optimizer.optimize_system_performance()
@@ -148,6 +151,7 @@ async def lifespan(app: FastAPI):
             analytics_engine.graceful_shutdown(),
             realtime_engine.graceful_shutdown(),
             collaboration_engine.graceful_shutdown(),
+            ai_intelligence_engine.graceful_shutdown(),
             performance_monitor.stop_monitoring(),
             enterprise_cache.shutdown_cache_clusters()
         ]
@@ -243,6 +247,14 @@ async def _collect_health_metrics() -> Dict[str, Any]:
 # Create FastAPI application with enterprise configuration
 app = FastAPI(
     title="ViralClip Pro v10.0 - Netflix Enterprise Edition",
+
+
+@app.get("/ai-intelligence")
+async def ai_intelligence_hub():
+    """AI Intelligence & Automation interface"""
+    return FileResponse("nr1copilot/nr1-main/static/ai-intelligence-hub.html")
+
+
     description="Production-ready AI video platform with enterprise architecture",
     version="10.0.0",
     docs_url="/api/docs" if settings.debug else None,
@@ -293,6 +305,163 @@ async def health_check():
             "metrics": health_metrics,
             "services": {
                 "analytics": "healthy",
+
+
+# AI Intelligence & Automation endpoints
+@app.post("/api/v10/ai/train-custom-model")
+async def train_custom_model(request: dict):
+    """Train custom AI model for brand"""
+    try:
+        result = await ai_intelligence_engine.create_custom_brand_model(
+            brand_id=request["brand_id"],
+            model_type=request["model_type"],
+            training_data=request["training_data"],
+            model_config=request.get("model_config", {})
+        )
+        return {"success": True, "model": result}
+    except Exception as e:
+        logger.error(f"Custom model training failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v10/ai/generate-content")
+async def generate_predictive_content(request: dict):
+    """Generate predictive viral content"""
+    try:
+        result = await ai_intelligence_engine.generate_predictive_content(
+            brand_id=request["brand_id"],
+            content_type=request["content_type"],
+            context=request["context"],
+            customization_level=request.get("customization_level", "high")
+        )
+        
+        return {
+            "success": True,
+            "content": {
+                "generated_content": result.generated_content,
+                "viral_prediction_score": result.viral_prediction_score,
+                "confidence": result.confidence,
+                "metadata": result.metadata
+            }
+        }
+    except Exception as e:
+        logger.error(f"Content generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v10/ai/create-voice-profile")
+async def create_voice_profile(request: dict):
+    """Create voice cloning profile"""
+    try:
+        result = await ai_intelligence_engine.create_voice_profile(
+            brand_id=request["brand_id"],
+            voice_name=request["voice_name"],
+            sample_audio_files=request["sample_audio_files"],
+            voice_config=request.get("voice_config", {})
+        )
+        return {"success": True, "voice_profile": result}
+    except Exception as e:
+        logger.error(f"Voice profile creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v10/ai/generate-voiceover")
+async def generate_voiceover(request: dict):
+    """Generate automated voiceover"""
+    try:
+        result = await ai_intelligence_engine.generate_automated_voiceover(
+            voice_profile_id=request["voice_profile_id"],
+            script=request["script"],
+            voice_settings=request.get("voice_settings", {})
+        )
+        return {"success": True, "voiceover": result}
+    except Exception as e:
+        logger.error(f"Voiceover generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v10/ai/create-ab-test")
+async def create_ab_test(request: dict):
+    """Create automated A/B testing workflow"""
+    try:
+        result = await ai_intelligence_engine.create_ab_test_workflow(
+            brand_id=request["brand_id"],
+            test_name=request["test_name"],
+            variants=request["variants"],
+            target_metrics=request["target_metrics"],
+            audience_segments=request["audience_segments"],
+            duration_days=request.get("duration_days", 7)
+        )
+        return {"success": True, "ab_test": result}
+    except Exception as e:
+        logger.error(f"A/B test creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v10/ai/trend-insights")
+async def get_trend_insights(
+    platform: str = "all",
+    time_range: str = "24h",
+    category: str = "all"
+):
+    """Get AI-powered content trend insights"""
+    try:
+        insights = await ai_intelligence_engine.get_content_trend_insights(
+            platform=platform,
+            time_range=time_range,
+            category=category
+        )
+        return {"success": True, "insights": insights}
+    except Exception as e:
+        logger.error(f"Trend insights failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v10/ai/enable-personalization")
+async def enable_personalization(request: dict):
+    """Enable reinforcement learning personalization"""
+    try:
+        result = await ai_intelligence_engine.enable_reinforcement_learning(
+            brand_id=request["brand_id"],
+            personalization_config=request["personalization_config"]
+        )
+        return {"success": True, "personalization": result}
+    except Exception as e:
+        logger.error(f"Personalization setup failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v10/ai/personalized-recommendations")
+async def get_personalized_recommendations(
+    user_id: str,
+    brand_id: str,
+    context: str = "{}"
+):
+    """Get AI-powered personalized recommendations"""
+    try:
+        context_data = json.loads(context) if context else {}
+        recommendations = await ai_intelligence_engine.get_personalized_recommendations(
+            user_id=user_id,
+            brand_id=brand_id,
+            context=context_data
+        )
+        return {"success": True, "recommendations": recommendations}
+    except Exception as e:
+        logger.error(f"Personalized recommendations failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v10/ai/upgrade-models")
+async def upgrade_ml_models():
+    """Upgrade ML models with latest data"""
+    try:
+        result = await ai_intelligence_engine.upgrade_ml_models()
+        return {"success": True, "upgrade_results": result}
+    except Exception as e:
+        logger.error(f"Model upgrade failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
                 "realtime": "healthy",
                 "collaboration": "healthy",
                 "ai_processing": "healthy"
