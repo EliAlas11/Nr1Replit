@@ -1,705 +1,1090 @@
 
-// Social Media Integration UI Components
-class SocialMediaManager {
+/*
+ViralClip Pro v6.0 - Netflix-Level Upload Experience
+Enterprise-grade upload system with real-time feedback and mobile optimization
+*/
+
+class NetflixLevelUploadManager {
     constructor() {
-        this.connectedPlatforms = new Map();
-        this.publishingJobs = new Map();
-        this.platformInsights = new Map();
+        this.uploadQueue = new Map();
+        this.activeUploads = new Map();
         this.socket = null;
+        this.maxConcurrentUploads = 3;
+        this.chunkSize = 5 * 1024 * 1024; // 5MB chunks
+        this.supportedFormats = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp', 'mp3', 'wav'];
+        this.maxFileSize = 500 * 1024 * 1024; // 500MB
         
-        this.initializeUI();
-        this.loadConnectedPlatforms();
+        // Performance monitoring
+        this.performanceMetrics = {
+            totalUploads: 0,
+            successfulUploads: 0,
+            averageUploadSpeed: 0,
+            currentConnections: 0
+        };
+        
+        this.initializeUploadSystem();
         this.setupWebSocketConnection();
+        this.initializeTouchOptimizations();
     }
 
-    initializeUI() {
-        // Add social media section to main interface
-        const socialSection = document.createElement('div');
-        socialSection.id = 'social-media-section';
-        socialSection.className = 'section social-section';
-        socialSection.innerHTML = `
-            <div class="section-header">
-                <h2>🚀 Social Media Publishing Hub</h2>
-                <div class="header-controls">
-                    <button id="refresh-platforms" class="btn btn-secondary">
-                        <i class="icon-refresh"></i> Refresh
-                    </button>
-                    <button id="connect-platform" class="btn btn-primary">
-                        <i class="icon-plus"></i> Connect Platform
-                    </button>
+    initializeUploadSystem() {
+        // Create enhanced upload interface
+        const uploadSection = document.createElement('div');
+        uploadSection.id = 'enhanced-upload-section';
+        uploadSection.className = 'netflix-upload-section';
+        uploadSection.innerHTML = `
+            <div class="upload-header">
+                <h1 class="upload-title">🎬 Netflix-Grade Upload Experience</h1>
+                <div class="upload-stats">
+                    <span class="stat-item">
+                        <span class="stat-icon">⚡</span>
+                        <span class="stat-label">Speed: <span id="upload-speed">0 MB/s</span></span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-icon">📊</span>
+                        <span class="stat-label">Queue: <span id="queue-count">0</span></span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-icon">✅</span>
+                        <span class="stat-label">Success: <span id="success-rate">100%</span></span>
+                    </span>
                 </div>
             </div>
+
+            <!-- Enhanced Drag & Drop Zone -->
+            <div class="netflix-drop-zone" id="mainDropZone">
+                <div class="drop-zone-content">
+                    <div class="drop-zone-icon" id="dropZoneIcon">
+                        <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                            <line x1="12" y1="18" x2="12" y2="12"/>
+                            <line x1="9" y1="15" x2="12" y2="12"/>
+                            <line x1="15" y1="15" x2="12" y2="12"/>
+                        </svg>
+                    </div>
+                    <div class="drop-zone-text">
+                        <h2 id="dropZoneTitle">Drop your video files here</h2>
+                        <p id="dropZoneSubtitle">or click to browse files</p>
+                        <div class="supported-formats">
+                            <span class="format-label">Supported formats:</span>
+                            <span class="format-list">${this.supportedFormats.join(', ').toUpperCase()}</span>
+                        </div>
+                        <div class="file-limits">
+                            <span class="limit-item">📐 Max size: 500MB</span>
+                            <span class="limit-item">🎯 Best quality: 1080p+</span>
+                            <span class="limit-item">⚡ Lightning fast processing</span>
+                        </div>
+                    </div>
+                    <div class="drop-zone-actions">
+                        <button class="netflix-btn primary-btn" id="browseFilesBtn">
+                            <span class="btn-icon">📁</span>
+                            <span class="btn-text">Browse Files</span>
+                        </button>
+                        <button class="netflix-btn secondary-btn" id="pasteUrlBtn">
+                            <span class="btn-icon">🔗</span>
+                            <span class="btn-text">Paste URL</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Upload Progress Overlay -->
+                <div class="upload-overlay" id="uploadOverlay" style="display: none;">
+                    <div class="upload-animation">
+                        <div class="upload-pulse"></div>
+                        <div class="upload-icon">📤</div>
+                    </div>
+                    <div class="upload-text">Processing your upload...</div>
+                </div>
+            </div>
+
+            <!-- File Preview Section -->
+            <div class="file-preview-section" id="filePreviewSection" style="display: none;">
+                <h3 class="preview-title">📋 Upload Queue</h3>
+                <div class="file-previews" id="filePreviews"></div>
+            </div>
+
+            <!-- Upload Queue Manager -->
+            <div class="queue-manager" id="queueManager" style="display: none;">
+                <div class="queue-header">
+                    <h3>🎬 Upload Manager</h3>
+                    <div class="queue-controls">
+                        <button class="queue-btn" id="pauseAllBtn">⏸️ Pause All</button>
+                        <button class="queue-btn" id="resumeAllBtn">▶️ Resume All</button>
+                        <button class="queue-btn danger" id="clearQueueBtn">🗑️ Clear Queue</button>
+                    </div>
+                </div>
+                <div class="upload-items" id="uploadItems"></div>
+            </div>
+
+            <!-- Real-time Analytics -->
+            <div class="upload-analytics" id="uploadAnalytics" style="display: none;">
+                <div class="analytics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">⚡</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="currentSpeed">0 MB/s</div>
+                            <div class="metric-label">Current Speed</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">⏱️</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="remainingTime">--:--</div>
+                            <div class="metric-label">Time Remaining</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">📊</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="throughput">0%</div>
+                            <div class="metric-label">Efficiency</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">🌐</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="connectionQuality">Excellent</div>
+                            <div class="metric-label">Connection</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hidden file input -->
+            <input type="file" id="fileInput" multiple accept="${this.getAcceptString()}" style="display: none;">
+        `;
+
+        // Insert into page
+        const mainContent = document.querySelector('main') || document.body;
+        const existingUpload = document.querySelector('#upload-section');
+        if (existingUpload) {
+            existingUpload.replaceWith(uploadSection);
+        } else {
+            mainContent.insertBefore(uploadSection, mainContent.firstChild);
+        }
+
+        this.setupUploadEventListeners();
+        this.initializeDragAndDrop();
+        this.setupMobileOptimizations();
+    }
+
+    setupUploadEventListeners() {
+        // File browser
+        document.getElementById('browseFilesBtn').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            this.handleFileSelection(Array.from(e.target.files));
+        });
+
+        // URL paste functionality
+        document.getElementById('pasteUrlBtn').addEventListener('click', () => {
+            this.showUrlPasteModal();
+        });
+
+        // Queue controls
+        document.getElementById('pauseAllBtn')?.addEventListener('click', () => {
+            this.pauseAllUploads();
+        });
+
+        document.getElementById('resumeAllBtn')?.addEventListener('click', () => {
+            this.resumeAllUploads();
+        });
+
+        document.getElementById('clearQueueBtn')?.addEventListener('click', () => {
+            this.clearUploadQueue();
+        });
+    }
+
+    initializeDragAndDrop() {
+        const dropZone = document.getElementById('mainDropZone');
+        let dragCounter = 0;
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, this.preventDefaults, false);
+            document.body.addEventListener(eventName, this.preventDefaults, false);
+        });
+
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dragCounter++;
+                this.highlightDropZone(true);
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => {
+                dragCounter--;
+                if (dragCounter === 0) {
+                    this.highlightDropZone(false);
+                }
+            }, false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', (e) => {
+            const files = Array.from(e.dataTransfer.files);
+            this.handleFileSelection(files);
+        }, false);
+
+        // Click to upload
+        dropZone.addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+    }
+
+    preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    highlightDropZone(highlight) {
+        const dropZone = document.getElementById('mainDropZone');
+        const icon = document.getElementById('dropZoneIcon');
+        const title = document.getElementById('dropZoneTitle');
+        const subtitle = document.getElementById('dropZoneSubtitle');
+
+        if (highlight) {
+            dropZone.classList.add('drag-active');
+            title.textContent = '🎯 Drop files to upload';
+            subtitle.textContent = 'Release to start uploading';
+            icon.style.transform = 'scale(1.1) rotate(5deg)';
+        } else {
+            dropZone.classList.remove('drag-active');
+            title.textContent = 'Drop your video files here';
+            subtitle.textContent = 'or click to browse files';
+            icon.style.transform = 'scale(1) rotate(0deg)';
+        }
+    }
+
+    async handleFileSelection(files) {
+        if (files.length === 0) return;
+
+        // Show file preview section
+        document.getElementById('filePreviewSection').style.display = 'block';
+        document.getElementById('queueManager').style.display = 'block';
+        document.getElementById('uploadAnalytics').style.display = 'block';
+
+        // Validate and process each file
+        for (const file of files) {
+            const validation = await this.validateFile(file);
             
-            <div class="social-content">
-                <!-- Connected Platforms -->
-                <div class="platforms-grid" id="platforms-grid">
-                    <div class="platform-placeholder">
-                        <div class="placeholder-icon">📱</div>
-                        <p>Connect your first social media platform to get started</p>
-                        <button class="btn btn-primary connect-first-platform">Connect Platform</button>
-                    </div>
-                </div>
+            if (validation.valid) {
+                await this.addFileToQueue(file, validation);
+            } else {
+                this.showFileError(file, validation.error);
+            }
+        }
+
+        // Start processing queue
+        this.processUploadQueue();
+    }
+
+    async validateFile(file) {
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        
+        // Format validation
+        if (!this.supportedFormats.includes(fileExtension)) {
+            return {
+                valid: false,
+                error: `Unsupported format: ${fileExtension}. Supported: ${this.supportedFormats.join(', ')}`
+            };
+        }
+
+        // Size validation
+        if (file.size > this.maxFileSize) {
+            return {
+                valid: false,
+                error: `File too large: ${this.formatFileSize(file.size)}. Maximum: ${this.formatFileSize(this.maxFileSize)}`
+            };
+        }
+
+        if (file.size === 0) {
+            return {
+                valid: false,
+                error: 'File is empty'
+            };
+        }
+
+        // Generate thumbnail for video files
+        let thumbnail = null;
+        if (file.type.startsWith('video/')) {
+            thumbnail = await this.generateVideoThumbnail(file);
+        }
+
+        return {
+            valid: true,
+            thumbnail,
+            estimatedTime: this.estimateUploadTime(file.size),
+            chunks: Math.ceil(file.size / this.chunkSize)
+        };
+    }
+
+    async generateVideoThumbnail(file) {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            video.addEventListener('loadedmetadata', () => {
+                canvas.width = 160;
+                canvas.height = 90;
                 
-                <!-- Publishing Interface -->
-                <div class="publishing-interface" id="publishing-interface" style="display: none;">
-                    <div class="publish-form">
-                        <h3>📋 Create Publishing Job</h3>
-                        
-                        <div class="form-group">
-                            <label for="publish-title">Title</label>
-                            <input type="text" id="publish-title" class="form-control" 
-                                   placeholder="Enter your content title">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="publish-description">Description</label>
-                            <textarea id="publish-description" class="form-control" rows="4" 
-                                      placeholder="Write your caption here..."></textarea>
-                            <div class="character-count">
-                                <span id="char-count">0</span> / <span id="char-limit">280</span>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="publish-hashtags">Hashtags</label>
-                            <input type="text" id="publish-hashtags" class="form-control" 
-                                   placeholder="#viral #trending #content">
-                            <small class="form-text">Separate hashtags with spaces</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Target Platforms</label>
-                            <div class="platform-selector" id="platform-selector">
-                                <!-- Platform checkboxes will be populated dynamically -->
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="optimization-level">Optimization Level</label>
-                            <select id="optimization-level" class="form-control">
-                                <option value="netflix_grade">Netflix Grade (Recommended)</option>
-                                <option value="enterprise">Enterprise</option>
-                                <option value="advanced">Advanced</option>
-                                <option value="standard">Standard</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="auto-schedule"> 
-                                Auto-schedule for optimal timing
-                            </label>
-                        </div>
-                        
-                        <div class="form-group" id="schedule-group" style="display: none;">
-                            <label for="scheduled-time">Schedule Time</label>
-                            <input type="datetime-local" id="scheduled-time" class="form-control">
-                        </div>
-                        
-                        <div class="publish-actions">
-                            <button id="predict-performance" class="btn btn-secondary">
-                                🎯 Predict Performance
-                            </button>
-                            <button id="submit-publish" class="btn btn-primary">
-                                🚀 Publish Now
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Performance Prediction -->
-                    <div class="performance-prediction" id="performance-prediction" style="display: none;">
-                        <h4>📊 Performance Prediction</h4>
-                        <div class="prediction-grid" id="prediction-grid"></div>
-                    </div>
-                </div>
+                video.currentTime = Math.min(2, video.duration / 4); // Seek to 25% or 2s
+            });
+
+            video.addEventListener('seeked', () => {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+                resolve(thumbnailUrl);
                 
-                <!-- Publishing Jobs -->
-                <div class="jobs-section" id="jobs-section">
-                    <h3>📋 Publishing Jobs</h3>
-                    <div class="jobs-list" id="jobs-list">
-                        <div class="no-jobs">
-                            <p>No publishing jobs yet. Create your first job above!</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Analytics Dashboard -->
-                <div class="analytics-section" id="analytics-section">
-                    <h3>📈 Analytics Dashboard</h3>
-                    <div class="analytics-grid" id="analytics-grid"></div>
+                // Cleanup
+                URL.revokeObjectURL(video.src);
+            });
+
+            video.addEventListener('error', () => {
+                resolve(null);
+            });
+
+            video.src = URL.createObjectURL(file);
+            video.load();
+        });
+    }
+
+    async addFileToQueue(file, validation) {
+        const uploadId = this.generateUploadId();
+        const uploadItem = {
+            id: uploadId,
+            file,
+            validation,
+            status: 'queued',
+            progress: 0,
+            speed: 0,
+            remainingTime: validation.estimatedTime,
+            uploadedChunks: 0,
+            totalChunks: validation.chunks,
+            retryCount: 0,
+            maxRetries: 3,
+            startTime: null,
+            pauseOffset: 0
+        };
+
+        this.uploadQueue.set(uploadId, uploadItem);
+        this.renderFilePreview(uploadItem);
+        this.updateQueueStats();
+    }
+
+    renderFilePreview(uploadItem) {
+        const previewsContainer = document.getElementById('filePreviews');
+        const uploadItemsContainer = document.getElementById('uploadItems');
+
+        // File preview card
+        const previewCard = document.createElement('div');
+        previewCard.className = 'file-preview-card';
+        previewCard.innerHTML = `
+            <div class="preview-thumbnail">
+                ${uploadItem.validation.thumbnail ? 
+                    `<img src="${uploadItem.validation.thumbnail}" alt="Video thumbnail">` :
+                    `<div class="thumbnail-placeholder">
+                        <span class="file-icon">${this.getFileIcon(uploadItem.file.type)}</span>
+                    </div>`
+                }
+                <div class="file-format">.${uploadItem.file.name.split('.').pop().toUpperCase()}</div>
+            </div>
+            <div class="preview-info">
+                <div class="file-name" title="${uploadItem.file.name}">${uploadItem.file.name}</div>
+                <div class="file-details">
+                    <span class="file-size">${this.formatFileSize(uploadItem.file.size)}</span>
+                    <span class="file-duration">~${uploadItem.validation.estimatedTime}s</span>
+                    <span class="file-chunks">${uploadItem.totalChunks} chunks</span>
                 </div>
             </div>
         `;
 
-        // Insert after video processing section
-        const videoSection = document.querySelector('#video-processing');
-        if (videoSection) {
-            videoSection.parentNode.insertBefore(socialSection, videoSection.nextSibling);
-        } else {
-            document.querySelector('main').appendChild(socialSection);
-        }
+        previewsContainer.appendChild(previewCard);
 
-        this.setupEventListeners();
-    }
-
-    setupEventListeners() {
-        // Platform connection
-        document.getElementById('connect-platform').addEventListener('click', () => {
-            this.showPlatformConnectionModal();
-        });
-
-        document.querySelector('.connect-first-platform')?.addEventListener('click', () => {
-            this.showPlatformConnectionModal();
-        });
-
-        // Publishing form
-        document.getElementById('publish-description').addEventListener('input', (e) => {
-            this.updateCharacterCount(e.target.value);
-        });
-
-        document.getElementById('auto-schedule').addEventListener('change', (e) => {
-            const scheduleGroup = document.getElementById('schedule-group');
-            scheduleGroup.style.display = e.target.checked ? 'none' : 'block';
-        });
-
-        document.getElementById('predict-performance').addEventListener('click', () => {
-            this.predictPerformance();
-        });
-
-        document.getElementById('submit-publish').addEventListener('click', () => {
-            this.submitPublishingJob();
-        });
-
-        // Refresh platforms
-        document.getElementById('refresh-platforms').addEventListener('click', () => {
-            this.loadConnectedPlatforms();
-        });
-    }
-
-    async loadConnectedPlatforms() {
-        try {
-            showLoadingState('Loading connected platforms...');
-            
-            const response = await fetch('/api/v6/social/platforms', {
-                headers: getAuthHeaders()
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.renderConnectedPlatforms(data.connected_platforms);
-                this.updatePlatformSelector(data.connected_platforms);
-                
-                if (data.connected_platforms.length > 0) {
-                    document.getElementById('publishing-interface').style.display = 'block';
-                    document.querySelector('.platform-placeholder').style.display = 'none';
-                }
-            } else {
-                throw new Error(data.error || 'Failed to load platforms');
-            }
-            
-        } catch (error) {
-            console.error('Failed to load platforms:', error);
-            showNotification('Failed to load connected platforms', 'error');
-        } finally {
-            hideLoadingState();
-        }
-    }
-
-    renderConnectedPlatforms(platforms) {
-        const grid = document.getElementById('platforms-grid');
-        
-        if (platforms.length === 0) {
-            grid.innerHTML = `
-                <div class="platform-placeholder">
-                    <div class="placeholder-icon">📱</div>
-                    <p>Connect your first social media platform to get started</p>
-                    <button class="btn btn-primary connect-first-platform">Connect Platform</button>
-                </div>
-            `;
-            return;
-        }
-
-        grid.innerHTML = platforms.map(platform => `
-            <div class="platform-card ${platform.needs_refresh ? 'needs-refresh' : ''}">
-                <div class="platform-header">
-                    <div class="platform-icon">${this.getPlatformIcon(platform.platform)}</div>
-                    <div class="platform-info">
-                        <h4>${this.getPlatformDisplayName(platform.platform)}</h4>
-                        <p class="platform-username">${platform.account_username}</p>
-                    </div>
-                    <div class="platform-status">
-                        ${platform.needs_refresh ? 
-                            '<span class="status-badge refresh">Needs Refresh</span>' :
-                            '<span class="status-badge connected">Connected</span>'
-                        }
-                    </div>
-                </div>
-                
-                <div class="platform-stats">
-                    <div class="stat">
-                        <span class="stat-label">Account Type</span>
-                        <span class="stat-value">${platform.is_business_account ? 'Business' : 'Personal'}</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Connected</span>
-                        <span class="stat-value">${this.formatDate(platform.connected_at)}</span>
-                    </div>
-                </div>
-                
-                <div class="platform-actions">
-                    ${platform.needs_refresh ? 
-                        `<button class="btn btn-warning refresh-tokens" data-platform="${platform.platform}">
-                            <i class="icon-refresh"></i> Refresh
-                        </button>` : ''
+        // Upload manager item
+        const uploadManagerItem = document.createElement('div');
+        uploadManagerItem.className = 'upload-item';
+        uploadManagerItem.id = `upload-${uploadItem.id}`;
+        uploadManagerItem.innerHTML = `
+            <div class="upload-item-header">
+                <div class="item-thumbnail">
+                    ${uploadItem.validation.thumbnail ? 
+                        `<img src="${uploadItem.validation.thumbnail}" alt="Thumbnail">` :
+                        `<div class="placeholder-thumb">${this.getFileIcon(uploadItem.file.type)}</div>`
                     }
-                    <button class="btn btn-secondary view-insights" data-platform="${platform.platform}">
-                        <i class="icon-chart"></i> Insights
-                    </button>
-                    <button class="btn btn-danger disconnect-platform" data-platform="${platform.platform}">
-                        <i class="icon-trash"></i> Disconnect
-                    </button>
+                </div>
+                <div class="item-info">
+                    <div class="item-name">${uploadItem.file.name}</div>
+                    <div class="item-meta">
+                        <span class="item-size">${this.formatFileSize(uploadItem.file.size)}</span>
+                        <span class="item-status" id="status-${uploadItem.id}">Queued</span>
+                    </div>
+                </div>
+                <div class="item-controls">
+                    <button class="control-btn pause-btn" id="pause-${uploadItem.id}" title="Pause">⏸️</button>
+                    <button class="control-btn retry-btn" id="retry-${uploadItem.id}" title="Retry" style="display: none;">🔄</button>
+                    <button class="control-btn remove-btn" id="remove-${uploadItem.id}" title="Remove">🗑️</button>
                 </div>
             </div>
-        `).join('');
+            
+            <div class="upload-progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-${uploadItem.id}" style="width: 0%"></div>
+                    <div class="progress-text" id="progress-text-${uploadItem.id}">0%</div>
+                </div>
+                <div class="upload-stats">
+                    <span class="upload-speed" id="speed-${uploadItem.id}">0 MB/s</span>
+                    <span class="upload-eta" id="eta-${uploadItem.id}">--:--</span>
+                    <span class="upload-chunks" id="chunks-${uploadItem.id}">0/${uploadItem.totalChunks}</span>
+                </div>
+            </div>
 
-        // Add event listeners to platform cards
-        grid.querySelectorAll('.view-insights').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.showPlatformInsights(e.target.dataset.platform);
-            });
+            <div class="chunk-progress" id="chunk-progress-${uploadItem.id}">
+                ${Array(Math.min(uploadItem.totalChunks, 20)).fill(0).map((_, i) => 
+                    `<div class="chunk-indicator" id="chunk-${uploadItem.id}-${i}"></div>`
+                ).join('')}
+                ${uploadItem.totalChunks > 20 ? '<span class="chunk-more">...</span>' : ''}
+            </div>
+        `;
+
+        uploadItemsContainer.appendChild(uploadManagerItem);
+
+        // Add event listeners
+        this.setupUploadItemControls(uploadItem);
+    }
+
+    setupUploadItemControls(uploadItem) {
+        const pauseBtn = document.getElementById(`pause-${uploadItem.id}`);
+        const retryBtn = document.getElementById(`retry-${uploadItem.id}`);
+        const removeBtn = document.getElementById(`remove-${uploadItem.id}`);
+
+        pauseBtn?.addEventListener('click', () => {
+            this.toggleUploadPause(uploadItem.id);
         });
 
-        grid.querySelectorAll('.disconnect-platform').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.disconnectPlatform(e.target.dataset.platform);
-            });
+        retryBtn?.addEventListener('click', () => {
+            this.retryUpload(uploadItem.id);
+        });
+
+        removeBtn?.addEventListener('click', () => {
+            this.removeUpload(uploadItem.id);
         });
     }
 
-    updatePlatformSelector(platforms) {
-        const selector = document.getElementById('platform-selector');
+    async processUploadQueue() {
+        const queuedUploads = Array.from(this.uploadQueue.values())
+            .filter(item => item.status === 'queued')
+            .slice(0, this.maxConcurrentUploads - this.activeUploads.size);
+
+        for (const uploadItem of queuedUploads) {
+            if (this.activeUploads.size >= this.maxConcurrentUploads) break;
+            
+            this.startUpload(uploadItem);
+        }
+    }
+
+    async startUpload(uploadItem) {
+        try {
+            uploadItem.status = 'initializing';
+            uploadItem.startTime = Date.now();
+            this.activeUploads.set(uploadItem.id, uploadItem);
+            
+            this.updateUploadStatus(uploadItem.id, 'Initializing upload...');
+
+            // Initialize upload session
+            const sessionResponse = await fetch('/api/v6/upload/init', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({
+                    filename: uploadItem.file.name,
+                    file_size: uploadItem.file.size,
+                    total_chunks: uploadItem.totalChunks,
+                    upload_id: uploadItem.id
+                })
+            });
+
+            const sessionData = await sessionResponse.json();
+            
+            if (!sessionData.success) {
+                throw new Error(sessionData.error || 'Failed to initialize upload');
+            }
+
+            uploadItem.status = 'uploading';
+            this.updateUploadStatus(uploadItem.id, 'Uploading...');
+
+            // Start chunked upload
+            await this.uploadFileInChunks(uploadItem);
+
+        } catch (error) {
+            console.error('Upload failed:', error);
+            this.handleUploadError(uploadItem, error.message);
+        }
+    }
+
+    async uploadFileInChunks(uploadItem) {
+        const file = uploadItem.file;
+        const totalChunks = uploadItem.totalChunks;
+
+        for (let chunkIndex = uploadItem.uploadedChunks; chunkIndex < totalChunks; chunkIndex++) {
+            // Check if upload is paused
+            if (uploadItem.status === 'paused') {
+                return;
+            }
+
+            const start = chunkIndex * this.chunkSize;
+            const end = Math.min(start + this.chunkSize, file.size);
+            const chunk = file.slice(start, end);
+
+            await this.uploadChunk(uploadItem, chunk, chunkIndex);
+            
+            uploadItem.uploadedChunks = chunkIndex + 1;
+            this.updateUploadProgress(uploadItem);
+        }
+
+        // Upload complete
+        uploadItem.status = 'completed';
+        this.updateUploadStatus(uploadItem.id, 'Upload complete!');
+        this.activeUploads.delete(uploadItem.id);
         
-        selector.innerHTML = platforms.map(platform => `
-            <label class="platform-checkbox">
-                <input type="checkbox" value="${platform.platform}" 
-                       ${!platform.needs_refresh ? 'checked' : 'disabled'}>
-                <span class="platform-label">
-                    ${this.getPlatformIcon(platform.platform)} 
-                    ${this.getPlatformDisplayName(platform.platform)}
-                    ${platform.needs_refresh ? ' (Refresh Required)' : ''}
-                </span>
-            </label>
-        `).join('');
+        // Continue processing queue
+        this.processUploadQueue();
     }
 
-    showPlatformConnectionModal() {
+    async uploadChunk(uploadItem, chunk, chunkIndex) {
+        const maxRetries = 3;
+        let attempt = 0;
+
+        while (attempt < maxRetries) {
+            try {
+                const formData = new FormData();
+                formData.append('file', chunk, `chunk_${chunkIndex}`);
+                formData.append('upload_id', uploadItem.id);
+                formData.append('chunk_index', chunkIndex);
+                formData.append('total_chunks', uploadItem.totalChunks);
+
+                const startTime = Date.now();
+                
+                const response = await fetch('/api/v6/upload/chunk', {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Chunk upload failed');
+                }
+
+                // Update speed calculation
+                const uploadTime = (Date.now() - startTime) / 1000;
+                const speed = chunk.size / uploadTime; // bytes per second
+                uploadItem.speed = speed;
+
+                // Update chunk indicator
+                this.updateChunkIndicator(uploadItem.id, chunkIndex, 'completed');
+
+                return result;
+
+            } catch (error) {
+                attempt++;
+                this.updateChunkIndicator(uploadItem.id, chunkIndex, 'error');
+                
+                if (attempt >= maxRetries) {
+                    throw error;
+                }
+                
+                // Exponential backoff
+                await this.delay(Math.pow(2, attempt) * 1000);
+                this.updateChunkIndicator(uploadItem.id, chunkIndex, 'retrying');
+            }
+        }
+    }
+
+    updateUploadProgress(uploadItem) {
+        const progress = (uploadItem.uploadedChunks / uploadItem.totalChunks) * 100;
+        uploadItem.progress = progress;
+
+        // Update progress bar
+        const progressFill = document.getElementById(`progress-${uploadItem.id}`);
+        const progressText = document.getElementById(`progress-text-${uploadItem.id}`);
+        const speedElement = document.getElementById(`speed-${uploadItem.id}`);
+        const etaElement = document.getElementById(`eta-${uploadItem.id}`);
+        const chunksElement = document.getElementById(`chunks-${uploadItem.id}`);
+
+        if (progressFill) progressFill.style.width = `${progress}%`;
+        if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+        if (speedElement) speedElement.textContent = this.formatSpeed(uploadItem.speed);
+        if (chunksElement) chunksElement.textContent = `${uploadItem.uploadedChunks}/${uploadItem.totalChunks}`;
+
+        // Calculate ETA
+        if (uploadItem.speed > 0) {
+            const remainingBytes = (uploadItem.totalChunks - uploadItem.uploadedChunks) * this.chunkSize;
+            const remainingTime = remainingBytes / uploadItem.speed;
+            uploadItem.remainingTime = remainingTime;
+            
+            if (etaElement) etaElement.textContent = this.formatTime(remainingTime);
+        }
+
+        // Update global stats
+        this.updateGlobalStats();
+    }
+
+    updateChunkIndicator(uploadId, chunkIndex, status) {
+        const indicator = document.getElementById(`chunk-${uploadId}-${chunkIndex}`);
+        if (indicator) {
+            indicator.className = `chunk-indicator ${status}`;
+        }
+    }
+
+    updateUploadStatus(uploadId, status) {
+        const statusElement = document.getElementById(`status-${uploadId}`);
+        if (statusElement) {
+            statusElement.textContent = status;
+        }
+    }
+
+    handleUploadError(uploadItem, errorMessage) {
+        uploadItem.status = 'error';
+        uploadItem.retryCount++;
+        
+        this.updateUploadStatus(uploadItem.id, `Error: ${errorMessage}`);
+        this.activeUploads.delete(uploadItem.id);
+
+        // Show retry button if under max retries
+        if (uploadItem.retryCount < uploadItem.maxRetries) {
+            const retryBtn = document.getElementById(`retry-${uploadItem.id}`);
+            if (retryBtn) {
+                retryBtn.style.display = 'block';
+            }
+        }
+
+        // Continue processing queue
+        this.processUploadQueue();
+    }
+
+    // Queue management methods
+    toggleUploadPause(uploadId) {
+        const uploadItem = this.uploadQueue.get(uploadId);
+        if (!uploadItem) return;
+
+        const pauseBtn = document.getElementById(`pause-${uploadId}`);
+        
+        if (uploadItem.status === 'uploading') {
+            uploadItem.status = 'paused';
+            this.updateUploadStatus(uploadId, 'Paused');
+            if (pauseBtn) {
+                pauseBtn.innerHTML = '▶️';
+                pauseBtn.title = 'Resume';
+            }
+            this.activeUploads.delete(uploadId);
+        } else if (uploadItem.status === 'paused') {
+            uploadItem.status = 'queued';
+            this.updateUploadStatus(uploadId, 'Resuming...');
+            if (pauseBtn) {
+                pauseBtn.innerHTML = '⏸️';
+                pauseBtn.title = 'Pause';
+            }
+            this.processUploadQueue();
+        }
+    }
+
+    retryUpload(uploadId) {
+        const uploadItem = this.uploadQueue.get(uploadId);
+        if (!uploadItem) return;
+
+        uploadItem.status = 'queued';
+        uploadItem.uploadedChunks = 0;
+        uploadItem.progress = 0;
+        
+        this.updateUploadStatus(uploadId, 'Retrying...');
+        this.updateUploadProgress(uploadItem);
+        
+        // Hide retry button
+        const retryBtn = document.getElementById(`retry-${uploadId}`);
+        if (retryBtn) {
+            retryBtn.style.display = 'none';
+        }
+
+        this.processUploadQueue();
+    }
+
+    removeUpload(uploadId) {
+        const uploadItem = this.uploadQueue.get(uploadId);
+        if (!uploadItem) return;
+
+        // Remove from active uploads if necessary
+        this.activeUploads.delete(uploadId);
+        
+        // Remove from queue
+        this.uploadQueue.delete(uploadId);
+
+        // Remove from UI
+        const uploadElement = document.getElementById(`upload-${uploadId}`);
+        if (uploadElement) {
+            uploadElement.remove();
+        }
+
+        this.updateQueueStats();
+        this.processUploadQueue();
+    }
+
+    pauseAllUploads() {
+        this.activeUploads.forEach((uploadItem) => {
+            if (uploadItem.status === 'uploading') {
+                this.toggleUploadPause(uploadItem.id);
+            }
+        });
+    }
+
+    resumeAllUploads() {
+        this.uploadQueue.forEach((uploadItem) => {
+            if (uploadItem.status === 'paused') {
+                this.toggleUploadPause(uploadItem.id);
+            }
+        });
+    }
+
+    clearUploadQueue() {
+        if (confirm('Are you sure you want to clear the upload queue? This will cancel all uploads.')) {
+            // Cancel all active uploads
+            this.activeUploads.clear();
+            
+            // Clear queue
+            this.uploadQueue.clear();
+
+            // Clear UI
+            document.getElementById('filePreviews').innerHTML = '';
+            document.getElementById('uploadItems').innerHTML = '';
+            
+            // Hide sections
+            document.getElementById('filePreviewSection').style.display = 'none';
+            document.getElementById('queueManager').style.display = 'none';
+            document.getElementById('uploadAnalytics').style.display = 'none';
+
+            this.updateQueueStats();
+        }
+    }
+
+    // Mobile optimizations
+    setupMobileOptimizations() {
+        // Touch-friendly drag and drop
+        const dropZone = document.getElementById('mainDropZone');
+        
+        // Add touch events for mobile
+        dropZone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.highlightDropZone(true);
+        });
+
+        dropZone.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.highlightDropZone(false);
+            // On mobile, just trigger file browser
+            document.getElementById('fileInput').click();
+        });
+
+        // Optimize for small screens
+        this.setupResponsiveLayout();
+        
+        // Add haptic feedback if available
+        this.setupHapticFeedback();
+    }
+
+    setupResponsiveLayout() {
+        const mediaQuery = window.matchMedia('(max-width: 768px)');
+        
+        const handleMobileLayout = (e) => {
+            const dropZone = document.getElementById('mainDropZone');
+            const analytics = document.getElementById('uploadAnalytics');
+            
+            if (e.matches) {
+                // Mobile layout adjustments
+                dropZone.classList.add('mobile-layout');
+                analytics?.classList.add('mobile-analytics');
+                this.maxConcurrentUploads = 1; // Limit concurrent uploads on mobile
+            } else {
+                // Desktop layout
+                dropZone.classList.remove('mobile-layout');
+                analytics?.classList.remove('mobile-analytics');
+                this.maxConcurrentUploads = 3;
+            }
+        };
+
+        mediaQuery.addListener(handleMobileLayout);
+        handleMobileLayout(mediaQuery);
+    }
+
+    setupHapticFeedback() {
+        if ('vibrate' in navigator) {
+            this.hapticFeedback = {
+                success: () => navigator.vibrate([100]),
+                error: () => navigator.vibrate([200, 100, 200]),
+                progress: () => navigator.vibrate([50])
+            };
+        } else {
+            this.hapticFeedback = {
+                success: () => {},
+                error: () => {},
+                progress: () => {}
+            };
+        }
+    }
+
+    // WebSocket connection for real-time updates
+    setupWebSocketConnection() {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v6/ws/enterprise/upload_manager`;
+            
+            this.socket = new WebSocket(wsUrl);
+            
+            this.socket.onopen = () => {
+                console.log('📡 Upload WebSocket connected');
+                this.updateConnectionStatus('connected');
+            };
+            
+            this.socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                this.handleWebSocketMessage(data);
+            };
+            
+            this.socket.onclose = () => {
+                console.log('📡 Upload WebSocket disconnected');
+                this.updateConnectionStatus('disconnected');
+                // Attempt to reconnect
+                setTimeout(() => this.setupWebSocketConnection(), 5000);
+            };
+            
+            this.socket.onerror = (error) => {
+                console.error('📡 Upload WebSocket error:', error);
+                this.updateConnectionStatus('error');
+            };
+            
+        } catch (error) {
+            console.error('Failed to setup WebSocket:', error);
+        }
+    }
+
+    handleWebSocketMessage(data) {
+        switch (data.type) {
+            case 'upload_progress':
+                this.handleProgressUpdate(data.progress);
+                break;
+            case 'upload_complete':
+                this.handleUploadComplete(data);
+                break;
+            case 'upload_error':
+                this.handleUploadError(data);
+                break;
+            case 'system_stats':
+                this.updateSystemStats(data.stats);
+                break;
+        }
+    }
+
+    updateConnectionStatus(status) {
+        const statusElement = document.getElementById('connectionStatus');
+        if (statusElement) {
+            const statusMap = {
+                connected: '🟢 Connected',
+                disconnected: '🔴 Disconnected',
+                error: '🟡 Connection Error'
+            };
+            statusElement.textContent = statusMap[status] || status;
+        }
+    }
+
+    // Utility methods
+    generateUploadId() {
+        return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    getAcceptString() {
+        return this.supportedFormats.map(format => `.${format}`).join(',');
+    }
+
+    getFileIcon(mimeType) {
+        if (mimeType.startsWith('video/')) return '🎬';
+        if (mimeType.startsWith('audio/')) return '🎵';
+        return '📄';
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    formatSpeed(bytesPerSecond) {
+        if (bytesPerSecond === 0) return '0 MB/s';
+        const mbps = bytesPerSecond / (1024 * 1024);
+        return `${mbps.toFixed(1)} MB/s`;
+    }
+
+    formatTime(seconds) {
+        if (!seconds || seconds === Infinity) return '--:--';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    estimateUploadTime(fileSize) {
+        // Estimate based on average upload speed (assuming 5 MB/s)
+        const averageSpeed = 5 * 1024 * 1024; // 5 MB/s
+        return Math.ceil(fileSize / averageSpeed);
+    }
+
+    updateQueueStats() {
+        const queueCount = this.uploadQueue.size;
+        const queueElement = document.getElementById('queue-count');
+        if (queueElement) {
+            queueElement.textContent = queueCount;
+        }
+    }
+
+    updateGlobalStats() {
+        // Update global performance metrics
+        const totalSpeed = Array.from(this.activeUploads.values())
+            .reduce((sum, item) => sum + (item.speed || 0), 0);
+        
+        const speedElement = document.getElementById('upload-speed');
+        const currentSpeedElement = document.getElementById('currentSpeed');
+        
+        if (speedElement) speedElement.textContent = this.formatSpeed(totalSpeed);
+        if (currentSpeedElement) currentSpeedElement.textContent = this.formatSpeed(totalSpeed);
+
+        // Update success rate
+        const totalUploads = this.performanceMetrics.totalUploads;
+        const successfulUploads = this.performanceMetrics.successfulUploads;
+        const successRate = totalUploads > 0 ? (successfulUploads / totalUploads) * 100 : 100;
+        
+        const successElement = document.getElementById('success-rate');
+        if (successElement) successElement.textContent = `${successRate.toFixed(0)}%`;
+    }
+
+    getAuthHeaders() {
+        // Return authentication headers if needed
+        return {
+            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
+        };
+    }
+
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    showFileError(file, error) {
+        const notification = document.createElement('div');
+        notification.className = 'upload-notification error';
+        notification.innerHTML = `
+            <div class="notification-icon">❌</div>
+            <div class="notification-content">
+                <div class="notification-title">Upload Error</div>
+                <div class="notification-message">${file.name}: ${error}</div>
+            </div>
+            <button class="notification-close">×</button>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            notification.remove();
+        }, 5000);
+
+        // Close button
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.remove();
+        });
+    }
+
+    showUrlPasteModal() {
         const modal = document.createElement('div');
-        modal.className = 'modal social-modal';
+        modal.className = 'modal upload-modal';
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>🔗 Connect Social Media Platform</h3>
+                    <h3>🔗 Upload from URL</h3>
                     <button class="modal-close">&times;</button>
                 </div>
-                
                 <div class="modal-body">
-                    <p>Choose a platform to connect:</p>
-                    
-                    <div class="platform-options">
-                        <div class="platform-option" data-platform="tiktok">
-                            <div class="platform-icon">🎵</div>
-                            <div class="platform-name">TikTok</div>
-                            <div class="platform-description">Short viral videos</div>
-                        </div>
-                        
-                        <div class="platform-option" data-platform="instagram">
-                            <div class="platform-icon">📷</div>
-                            <div class="platform-name">Instagram</div>
-                            <div class="platform-description">Photos and Reels</div>
-                        </div>
-                        
-                        <div class="platform-option" data-platform="youtube_shorts">
-                            <div class="platform-icon">📺</div>
-                            <div class="platform-name">YouTube Shorts</div>
-                            <div class="platform-description">Short-form videos</div>
-                        </div>
-                        
-                        <div class="platform-option" data-platform="twitter">
-                            <div class="platform-icon">🐦</div>
-                            <div class="platform-name">Twitter/X</div>
-                            <div class="platform-description">Microblogging</div>
-                        </div>
+                    <div class="url-input-group">
+                        <input type="url" id="videoUrl" placeholder="https://example.com/video.mp4" class="url-input">
+                        <button class="url-fetch-btn" id="fetchUrlBtn">Fetch</button>
                     </div>
+                    <div class="url-info" id="urlInfo" style="display: none;">
+                        <div class="url-preview" id="urlPreview"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn secondary-btn" id="cancelUrlBtn">Cancel</button>
+                    <button class="btn primary-btn" id="downloadUrlBtn" disabled>Download & Upload</button>
                 </div>
             </div>
         `;
 
         document.body.appendChild(modal);
 
-        // Close modal
-        modal.querySelector('.modal-close').addEventListener('click', () => {
-            modal.remove();
-        });
-
-        // Platform selection
-        modal.querySelectorAll('.platform-option').forEach(option => {
-            option.addEventListener('click', () => {
-                this.initiateOAuthFlow(option.dataset.platform);
-                modal.remove();
-            });
+        // Event listeners
+        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
+        modal.querySelector('#cancelUrlBtn').addEventListener('click', () => modal.remove());
+        
+        // URL fetch functionality would go here
+        modal.querySelector('#fetchUrlBtn').addEventListener('click', () => {
+            // Implement URL fetching logic
+            console.log('URL fetch not implemented in demo');
         });
     }
 
-    async initiateOAuthFlow(platform) {
-        try {
-            showNotification(`Connecting to ${this.getPlatformDisplayName(platform)}...`, 'info');
-            
-            // Simulate OAuth flow - in production, this would redirect to actual OAuth
-            const authCode = `mock_auth_code_${Date.now()}`;
-            const redirectUri = `${window.location.origin}/oauth/callback`;
-            
-            const response = await fetch('/api/v6/social/authenticate', {
-                method: 'POST',
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    platform: platform,
-                    auth_code: authCode,
-                    redirect_uri: redirectUri
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                showNotification(`Successfully connected ${data.display_name}!`, 'success');
-                this.loadConnectedPlatforms(); // Refresh the platform list
-            } else {
-                throw new Error(data.error || 'Authentication failed');
-            }
-            
-        } catch (error) {
-            console.error('OAuth flow failed:', error);
-            showNotification(`Failed to connect ${this.getPlatformDisplayName(platform)}: ${error.message}`, 'error');
+    initializeTouchOptimizations() {
+        // Add touch-specific CSS classes
+        if ('ontouchstart' in window) {
+            document.body.classList.add('touch-device');
         }
-    }
 
-    updateCharacterCount(text) {
-        const selectedPlatforms = this.getSelectedPlatforms();
-        let maxLength = 280; // Default Twitter limit
-        
-        // Find the most restrictive platform
-        if (selectedPlatforms.includes('twitter')) {
-            maxLength = 280;
-        } else if (selectedPlatforms.includes('instagram') || selectedPlatforms.includes('tiktok')) {
-            maxLength = 2200;
-        } else if (selectedPlatforms.includes('youtube_shorts')) {
-            maxLength = 5000;
-        }
-        
-        document.getElementById('char-count').textContent = text.length;
-        document.getElementById('char-limit').textContent = maxLength;
-        
-        const countElement = document.getElementById('char-count');
-        if (text.length > maxLength) {
-            countElement.style.color = '#ff4444';
-        } else if (text.length > maxLength * 0.9) {
-            countElement.style.color = '#ff8800';
-        } else {
-            countElement.style.color = '#4CAF50';
-        }
-    }
-
-    getSelectedPlatforms() {
-        const checkboxes = document.querySelectorAll('#platform-selector input[type="checkbox"]:checked');
-        return Array.from(checkboxes).map(cb => cb.value);
-    }
-
-    async predictPerformance() {
-        try {
-            const platforms = this.getSelectedPlatforms();
-            const caption = document.getElementById('publish-description').value;
-            const hashtags = document.getElementById('publish-hashtags').value.split(' ').filter(h => h.trim());
-            
-            if (platforms.length === 0) {
-                showNotification('Please select at least one platform', 'warning');
-                return;
-            }
-            
-            showLoadingState('Predicting performance...');
-            
-            const response = await fetch('/api/v6/social/content/predict', {
-                method: 'POST',
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    video_path: getCurrentVideoPath(), // From main app state
-                    platforms: platforms,
-                    caption: caption,
-                    hashtags: hashtags
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.renderPerformancePrediction(data);
-                document.getElementById('performance-prediction').style.display = 'block';
-            } else {
-                throw new Error(data.error || 'Prediction failed');
-            }
-            
-        } catch (error) {
-            console.error('Performance prediction failed:', error);
-            showNotification('Performance prediction failed', 'error');
-        } finally {
-            hideLoadingState();
-        }
-    }
-
-    renderPerformancePrediction(data) {
-        const grid = document.getElementById('prediction-grid');
-        
-        grid.innerHTML = `
-            <div class="prediction-summary">
-                <h5>📊 Overall Prediction</h5>
-                <div class="overall-metrics">
-                    <div class="metric">
-                        <span class="metric-value">${data.overall_metrics.average_engagement.toFixed(1)}%</span>
-                        <span class="metric-label">Avg Engagement</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-value">${this.formatNumber(data.overall_metrics.total_predicted_views)}</span>
-                        <span class="metric-label">Total Views</span>
-                    </div>
-                    <div class="metric">
-                        <span class="metric-value">${(data.overall_metrics.confidence * 100).toFixed(0)}%</span>
-                        <span class="metric-label">Confidence</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="platform-predictions">
-                ${Object.entries(data.platform_predictions).map(([platform, prediction]) => {
-                    if (!prediction.success) return '';
-                    
-                    const pred = prediction.predictions;
-                    return `
-                        <div class="platform-prediction">
-                            <div class="platform-header">
-                                ${this.getPlatformIcon(platform)} 
-                                ${this.getPlatformDisplayName(platform)}
-                            </div>
-                            
-                            <div class="prediction-metrics">
-                                <div class="metric-row">
-                                    <span class="metric-label">👀 Views</span>
-                                    <span class="metric-value">${this.formatNumber(pred.predicted_views)}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">❤️ Likes</span>
-                                    <span class="metric-value">${this.formatNumber(pred.predicted_likes)}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">🔄 Shares</span>
-                                    <span class="metric-value">${this.formatNumber(pred.predicted_shares)}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">💬 Comments</span>
-                                    <span class="metric-value">${this.formatNumber(pred.predicted_comments)}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">🔥 Viral Score</span>
-                                    <span class="metric-value">${(pred.viral_probability * 100).toFixed(0)}%</span>
-                                </div>
-                            </div>
-                            
-                            ${pred.recommendations.length > 0 ? `
-                                <div class="recommendations">
-                                    <h6>💡 Recommendations</h6>
-                                    <ul>
-                                        ${pred.recommendations.map(rec => `<li>${rec}</li>`).join('')}
-                                    </ul>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        `;
-    }
-
-    async submitPublishingJob() {
-        try {
-            const platforms = this.getSelectedPlatforms();
-            const title = document.getElementById('publish-title').value;
-            const description = document.getElementById('publish-description').value;
-            const hashtags = document.getElementById('publish-hashtags').value.split(' ').filter(h => h.trim());
-            const optimizationLevel = document.getElementById('optimization-level').value;
-            const autoSchedule = document.getElementById('auto-schedule').checked;
-            const scheduledTime = document.getElementById('scheduled-time').value;
-            
-            // Validation
-            if (platforms.length === 0) {
-                showNotification('Please select at least one platform', 'warning');
-                return;
-            }
-            
-            if (!title.trim() || !description.trim()) {
-                showNotification('Please fill in title and description', 'warning');
-                return;
-            }
-            
-            showLoadingState('Submitting publishing job...');
-            
-            const jobData = {
-                session_id: getCurrentSessionId(),
-                platforms: platforms,
-                video_path: getCurrentVideoPath(),
-                title: title,
-                description: description,
-                hashtags: hashtags,
-                optimization_level: optimizationLevel
-            };
-            
-            if (!autoSchedule && scheduledTime) {
-                jobData.scheduled_time = new Date(scheduledTime).toISOString();
-            }
-            
-            const response = await fetch('/api/v6/social/publish', {
-                method: 'POST',
-                headers: {
-                    ...getAuthHeaders(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(jobData)
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                showNotification(`Publishing job submitted! Job ID: ${data.job_id}`, 'success');
-                this.trackPublishingJob(data.job_id);
-                this.clearPublishingForm();
-                this.loadPublishingJobs();
-            } else {
-                throw new Error(data.error || 'Job submission failed');
-            }
-            
-        } catch (error) {
-            console.error('Publishing job submission failed:', error);
-            showNotification(`Publishing failed: ${error.message}`, 'error');
-        } finally {
-            hideLoadingState();
-        }
-    }
-
-    trackPublishingJob(jobId) {
-        // Start tracking the job status
-        const trackingInterval = setInterval(async () => {
-            try {
-                const response = await fetch(`/api/v6/social/jobs/${jobId}`, {
-                    headers: getAuthHeaders()
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    const job = data.job;
-                    this.updateJobStatus(jobId, job);
-                    
-                    // Stop tracking if job is complete
-                    if (['published', 'failed', 'cancelled', 'partial_success'].includes(job.status)) {
-                        clearInterval(trackingInterval);
-                        
-                        if (job.status === 'published') {
-                            showNotification('Content published successfully! 🎉', 'success');
-                        } else if (job.status === 'partial_success') {
-                            showNotification('Content published to some platforms', 'warning');
-                        } else if (job.status === 'failed') {
-                            showNotification('Publishing failed', 'error');
-                        }
-                    }
+        // Optimize for touch interactions
+        const style = document.createElement('style');
+        style.textContent = `
+            @media (max-width: 768px) {
+                .netflix-btn {
+                    min-height: 44px;
+                    font-size: 16px;
                 }
-            } catch (error) {
-                console.error('Job tracking error:', error);
+                
+                .upload-item-header {
+                    padding: 16px;
+                }
+                
+                .control-btn {
+                    min-width: 44px;
+                    min-height: 44px;
+                }
             }
-        }, 2000); // Check every 2 seconds
-        
-        // Store interval for cleanup
-        this.publishingJobs.set(jobId, { interval: trackingInterval });
-    }
-
-    clearPublishingForm() {
-        document.getElementById('publish-title').value = '';
-        document.getElementById('publish-description').value = '';
-        document.getElementById('publish-hashtags').value = '';
-        document.getElementById('performance-prediction').style.display = 'none';
-        this.updateCharacterCount('');
-    }
-
-    // Utility methods
-    getPlatformIcon(platform) {
-        const icons = {
-            tiktok: '🎵',
-            instagram: '📷',
-            youtube_shorts: '📺',
-            twitter: '🐦',
-            facebook: '📘',
-            linkedin: '💼',
-            snapchat: '👻',
-            pinterest: '📌'
-        };
-        return icons[platform] || '📱';
-    }
-
-    getPlatformDisplayName(platform) {
-        const names = {
-            tiktok: 'TikTok',
-            instagram: 'Instagram',
-            youtube_shorts: 'YouTube Shorts',
-            twitter: 'Twitter/X',
-            facebook: 'Facebook',
-            linkedin: 'LinkedIn',
-            snapchat: 'Snapchat',
-            pinterest: 'Pinterest'
-        };
-        return names[platform] || platform.charAt(0).toUpperCase() + platform.slice(1);
-    }
-
-    formatNumber(num) {
-        if (num >= 1000000) {
-            return (num / 1000000).toFixed(1) + 'M';
-        } else if (num >= 1000) {
-            return (num / 1000).toFixed(1) + 'K';
-        }
-        return num.toString();
-    }
-
-    formatDate(dateString) {
-        return new Date(dateString).toLocaleDateString();
+        `;
+        document.head.appendChild(style);
     }
 }
 
-// Initialize social media manager when DOM is ready
+// Initialize upload manager when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    if (typeof window.socialMediaManager === 'undefined') {
-        window.socialMediaManager = new SocialMediaManager();
+    if (typeof window.uploadManager === 'undefined') {
+        window.uploadManager = new NetflixLevelUploadManager();
     }
 });
 
-// Helper functions to integrate with main app
-function getCurrentVideoPath() {
-    // Return current video path from main app state
-    return window.currentVideoPath || '/mock/video/path.mp4';
-}
-
-function getCurrentSessionId() {
-    // Return current session ID from main app state
-    return window.currentSessionId || 'session_' + Date.now();
+// Export for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = NetflixLevelUploadManager;
 }

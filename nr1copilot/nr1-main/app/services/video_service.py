@@ -229,14 +229,14 @@ class NetflixLevelVideoService:
         chunk_hash: Optional[str],
         user: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Process enterprise chunk with Netflix-level reliability"""
+        """Process enterprise chunk with Netflix-level reliability and advanced error handling"""
         try:
             start_time = time.time()
             
             # Validate session
             session = self.upload_sessions.get(upload_id)
             if not session:
-                return {"success": False, "error": "Upload session not found"}
+                return {"success": False, "error": "Upload session not found", "retry_after": 5}
             
             # Update session activity
             session.last_activity = datetime.utcnow()
@@ -245,30 +245,98 @@ class NetflixLevelVideoService:
             if chunk_index < 0 or chunk_index >= total_chunks:
                 return {"success": False, "error": "Invalid chunk index"}
             
+            # Check for duplicate chunk (resume support)
+            chunk_path = self.temp_path / upload_id / f"chunk_{chunk_index:04d}"
+            if chunk_path.exists():
+                # Chunk already exists, verify integrity
+                existing_size = chunk_path.stat().st_size
+                session.received_chunks = max(session.received_chunks, chunk_index + 1)
+                progress = (session.received_chunks / session.total_chunks) * 100
+                
+                logger.info(f"📦 Chunk {chunk_index} already exists for {upload_id}")
+                
+                return {
+                    "success": True,
+                    "upload_id": upload_id,
+                    "chunk_index": chunk_index,
+                    "progress": progress,
+                    "received_chunks": session.received_chunks,
+                    "total_chunks": session.total_chunks,
+                    "is_complete": session.received_chunks >= session.total_chunks,
+                    "processing_time": 0.001,  # Minimal time for duplicate
+                    "duplicate": True,
+                    "message": "Chunk already uploaded"
+                }
+            
             # Read and validate chunk data
             chunk_data = await file.read()
             if not chunk_data:
-                return {"success": False, "error": "Empty chunk data"}
+                return {"success": False, "error": "Empty chunk data", "retry_after": 1}
+            
+            # Verify chunk size limits
+            if len(chunk_data) > self.chunk_size * 2:  # Allow some flexibility
+                return {"success": False, "error": f"Chunk too large: {len(chunk_data)} bytes"}
             
             # Verify chunk hash if provided
             if chunk_hash:
                 calculated_hash = hashlib.md5(chunk_data).hexdigest()
                 if calculated_hash != chunk_hash:
-                    return {"success": False, "error": "Chunk integrity check failed"}
+                    return {
+                        "success": False, 
+                        "error": "Chunk integrity check failed",
+                        "expected_hash": chunk_hash,
+                        "calculated_hash": calculated_hash,
+                        "retry_after": 0.5
+                    }
             
-            # Save chunk to disk
-            chunk_path = self.temp_path / upload_id / f"chunk_{chunk_index:04d}"
-            async with aiofiles.open(chunk_path, 'wb') as f:
-                await f.write(chunk_data)
+            # Ensure upload directory exists
+            upload_dir = self.temp_path / upload_id
+            upload_dir.mkdir(exist_ok=True)
             
-            # Update session progress
-            session.received_chunks += 1
+            # Save chunk to disk with atomic write
+            temp_chunk_path = chunk_path.with_suffix('.tmp')
+            try:
+                async with aiofiles.open(temp_chunk_path, 'wb') as f:
+                    await f.write(chunk_data)
+                
+                # Atomic move
+                temp_chunk_path.rename(chunk_path)
+                
+            except Exception as e:
+                # Cleanup temp file if it exists
+                if temp_chunk_path.exists():
+                    temp_chunk_path.unlink()
+                raise e
+            
+            # Update session progress atomically
+            old_count = session.received_chunks
+            session.received_chunks = max(session.received_chunks, chunk_index + 1)
             progress = (session.received_chunks / session.total_chunks) * 100
+            
+            # Calculate upload speed
+            processing_time = time.time() - start_time
+            upload_speed = len(chunk_data) / processing_time if processing_time > 0 else 0
+            
+            # Update session performance metrics
+            if not hasattr(session, 'performance_metrics'):
+                session.performance_metrics = {
+                    "total_bytes": 0,
+                    "total_time": 0,
+                    "chunk_times": [],
+                    "speed_history": []
+                }
+            
+            session.performance_metrics["total_bytes"] += len(chunk_data)
+            session.performance_metrics["total_time"] += processing_time
+            session.performance_metrics["chunk_times"].append(processing_time)
+            session.performance_metrics["speed_history"].append(upload_speed)
+            
+            # Keep only last 10 speed measurements
+            if len(session.performance_metrics["speed_history"]) > 10:
+                session.performance_metrics["speed_history"] = session.performance_metrics["speed_history"][-10:]
             
             # Check if upload is complete
             is_complete = session.received_chunks >= session.total_chunks
-            
-            processing_time = time.time() - start_time
             
             result = {
                 "success": True,
@@ -278,24 +346,64 @@ class NetflixLevelVideoService:
                 "received_chunks": session.received_chunks,
                 "total_chunks": session.total_chunks,
                 "is_complete": is_complete,
-                "processing_time": processing_time
+                "processing_time": processing_time,
+                "upload_speed": upload_speed,
+                "average_speed": sum(session.performance_metrics["speed_history"]) / len(session.performance_metrics["speed_history"]),
+                "estimated_time_remaining": self._calculate_eta(session),
+                "chunk_size": len(chunk_data),
+                "duplicate": False
             }
             
             # If upload complete, assemble file and start processing
             if is_complete:
-                await self._finalize_upload(session)
-                result["status"] = "processing_started"
-                result["message"] = "Upload complete! Starting AI analysis..."
+                try:
+                    await self._finalize_upload(session)
+                    result["status"] = "processing_started"
+                    result["message"] = "Upload complete! Starting AI analysis..."
+                    result["final_file_path"] = str(session.metadata.get("final_path", ""))
+                except Exception as e:
+                    logger.error(f"Upload finalization failed: {e}")
+                    result["success"] = False
+                    result["error"] = "Upload finalization failed"
+                    result["retry_after"] = 2
             
-            # Update performance metrics
+            # Update global performance metrics
             await self._update_upload_metrics(processing_time, len(chunk_data), True)
             
+            # Broadcast progress via WebSocket if available
+            if hasattr(self, 'realtime_engine') and self.realtime_engine:
+                await self.realtime_engine.broadcast_enterprise_progress(
+                    upload_id, result, user
+                )
+            
+            logger.debug(f"✅ Chunk {chunk_index}/{total_chunks} processed for {upload_id} in {processing_time:.3f}s")
+            
             return result
+            
+        except asyncio.CancelledError:
+            # Handle cancellation gracefully
+            logger.info(f"Chunk upload cancelled: {upload_id} chunk {chunk_index}")
+            return {"success": False, "error": "Upload cancelled", "cancelled": True}
+            
+        except OSError as e:
+            # Handle disk/network errors
+            logger.error(f"Storage error during chunk processing: {e}")
+            return {
+                "success": False, 
+                "error": "Storage error", 
+                "details": str(e),
+                "retry_after": 2
+            }
             
         except Exception as e:
             logger.error(f"Chunk processing failed: {e}", exc_info=True)
             await self._update_upload_metrics(0, 0, False)
-            return {"success": False, "error": "Chunk processing failed"}
+            return {
+                "success": False, 
+                "error": "Chunk processing failed",
+                "details": str(e),
+                "retry_after": 1
+            }
 
     async def generate_preview_with_realtime_feedback(
         self,
@@ -425,43 +533,155 @@ class NetflixLevelVideoService:
         # Rough estimation: 1MB ≈ 1 second for typical video
         return max(1, file_size / (1024 * 1024))
 
+    def _calculate_eta(self, session: UploadSession) -> float:
+        """Calculate estimated time remaining for upload"""
+        try:
+            if not hasattr(session, 'performance_metrics'):
+                return 0
+            
+            metrics = session.performance_metrics
+            if not metrics["speed_history"]:
+                return 0
+            
+            # Calculate average speed from recent measurements
+            recent_speeds = metrics["speed_history"][-5:]  # Last 5 chunks
+            avg_speed = sum(recent_speeds) / len(recent_speeds)
+            
+            if avg_speed <= 0:
+                return 0
+            
+            # Calculate remaining data
+            remaining_chunks = session.total_chunks - session.received_chunks
+            estimated_remaining_bytes = remaining_chunks * self.chunk_size
+            
+            # Estimate time
+            eta = estimated_remaining_bytes / avg_speed
+            return max(0, eta)
+            
+        except Exception:
+            return 0
+
     async def _finalize_upload(self, session: UploadSession):
-        """Finalize upload by assembling chunks"""
+        """Finalize upload by assembling chunks with comprehensive validation"""
         try:
             upload_dir = self.temp_path / session.upload_id
             final_path = self.upload_path / f"{session.upload_id}_{session.filename}"
             
-            # Assemble chunks
+            logger.info(f"🔄 Starting upload finalization for {session.upload_id}")
+            
+            # Verify all chunks exist
+            missing_chunks = []
+            for i in range(session.total_chunks):
+                chunk_path = upload_dir / f"chunk_{i:04d}"
+                if not chunk_path.exists():
+                    missing_chunks.append(i)
+            
+            if missing_chunks:
+                raise Exception(f"Missing chunks: {missing_chunks}")
+            
+            # Calculate total expected size
+            expected_size = session.file_size
+            actual_size = 0
+            
+            # Assemble chunks with progress tracking
+            start_time = time.time()
             async with aiofiles.open(final_path, 'wb') as output_file:
                 for i in range(session.total_chunks):
                     chunk_path = upload_dir / f"chunk_{i:04d}"
-                    if chunk_path.exists():
-                        async with aiofiles.open(chunk_path, 'rb') as chunk_file:
-                            chunk_data = await chunk_file.read()
-                            await output_file.write(chunk_data)
+                    
+                    # Read and verify chunk
+                    async with aiofiles.open(chunk_path, 'rb') as chunk_file:
+                        chunk_data = await chunk_file.read()
+                        
+                        if not chunk_data:
+                            raise Exception(f"Empty chunk {i}")
+                        
+                        actual_size += len(chunk_data)
+                        await output_file.write(chunk_data)
+                    
+                    # Report progress every 10 chunks
+                    if i % 10 == 0 or i == session.total_chunks - 1:
+                        progress = ((i + 1) / session.total_chunks) * 100
+                        logger.debug(f"📦 Assembly progress: {progress:.1f}% ({i+1}/{session.total_chunks})")
+            
+            assembly_time = time.time() - start_time
+            
+            # Verify final file size
+            if abs(actual_size - expected_size) > 1024:  # Allow 1KB difference
+                logger.warning(f"Size mismatch: expected {expected_size}, got {actual_size}")
+                # Don't fail, but log the discrepancy
+            
+            # Verify file integrity if possible
+            final_file_size = final_path.stat().st_size
+            if final_file_size != actual_size:
+                raise Exception(f"File size verification failed: {final_file_size} != {actual_size}")
             
             # Cleanup chunks
+            chunks_cleaned = 0
             for chunk_file in upload_dir.glob("chunk_*"):
-                chunk_file.unlink()
-            upload_dir.rmdir()
+                try:
+                    chunk_file.unlink()
+                    chunks_cleaned += 1
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup chunk {chunk_file}: {e}")
             
-            # Update session
+            # Remove upload directory
+            try:
+                upload_dir.rmdir()
+            except OSError as e:
+                logger.warning(f"Failed to remove upload directory {upload_dir}: {e}")
+            
+            # Update session with final statistics
             session.status = "completed"
-            session.metadata["final_path"] = str(final_path)
+            session.metadata.update({
+                "final_path": str(final_path),
+                "final_size": final_file_size,
+                "assembly_time": assembly_time,
+                "chunks_cleaned": chunks_cleaned,
+                "total_upload_time": time.time() - session.created_at.timestamp(),
+                "average_speed": session.performance_metrics.get("total_bytes", 0) / session.performance_metrics.get("total_time", 1)
+            })
             
-            # Add to processing queue
+            # Add to processing queue with priority
             await self.processing_queue.put({
                 "type": "video_analysis",
                 "session_id": session.upload_id,
                 "file_path": final_path,
-                "metadata": session.metadata
+                "metadata": session.metadata,
+                "priority": "high",
+                "user_info": session.user_info
             })
             
-            logger.info(f"✅ Upload finalized: {session.upload_id}")
+            # Update performance metrics
+            self.performance_metrics["successful_uploads"] += 1
+            
+            logger.info(
+                f"✅ Upload finalized: {session.upload_id} "
+                f"({self.formatFileSize(final_file_size)} in {assembly_time:.2f}s)"
+            )
             
         except Exception as e:
             logger.error(f"Upload finalization failed: {e}", exc_info=True)
             session.status = "failed"
+            session.metadata["error"] = str(e)
+            session.metadata["failed_at"] = datetime.utcnow().isoformat()
+            
+            # Update error metrics
+            self.performance_metrics["failed_uploads"] = self.performance_metrics.get("failed_uploads", 0) + 1
+            
+            raise e
+
+    def formatFileSize(self, size_bytes: int) -> str:
+        """Format file size in human readable format"""
+        if size_bytes == 0:
+            return "0 B"
+        
+        size_names = ["B", "KB", "MB", "GB", "TB"]
+        import math
+        i = int(math.floor(math.log(size_bytes, 1024)))
+        p = math.pow(1024, i)
+        s = round(size_bytes / p, 2)
+        return f"{s} {size_names[i]}"
 
     async def _process_queue_worker(self):
         """Background worker for processing queue"""

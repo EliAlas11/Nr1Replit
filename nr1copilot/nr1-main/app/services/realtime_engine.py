@@ -1220,20 +1220,126 @@ class EnterpriseRealtimeEngine:
         progress_data: Dict[str, Any],
         user: Dict[str, Any]
     ):
-        """Broadcast upload progress to relevant connections"""
+        """Broadcast upload progress with enhanced real-time feedback"""
         try:
+            # Enhanced progress message with additional context
             message = {
                 "type": "upload_progress",
                 "upload_id": upload_id,
                 "progress": progress_data,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
+                "user_id": user.get("user_id", ""),
+                "enhanced_data": {
+                    "speed_mbps": progress_data.get("upload_speed", 0) / (1024 * 1024),
+                    "eta_formatted": self._format_time(progress_data.get("estimated_time_remaining", 0)),
+                    "progress_percentage": round(progress_data.get("progress", 0), 1),
+                    "status_indicator": self._get_status_indicator(progress_data),
+                    "throughput_efficiency": self._calculate_efficiency(progress_data)
+                }
             }
 
-            # Broadcast to all connections (in production, filter by user/session)
-            await self.broadcast_to_all(message)
+            # Add performance insights
+            if progress_data.get("average_speed", 0) > 0:
+                message["enhanced_data"]["performance_tier"] = self._get_performance_tier(
+                    progress_data["average_speed"]
+                )
+
+            # Broadcast to relevant connections
+            await self._broadcast_to_upload_connections(upload_id, message)
+
+            # Store progress for reconnection scenarios
+            self._store_upload_progress(upload_id, message)
 
         except Exception as e:
             logger.error(f"Failed to broadcast progress: {e}")
+
+    def _get_status_indicator(self, progress_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Get visual status indicator for upload progress"""
+        progress = progress_data.get("progress", 0)
+        speed = progress_data.get("upload_speed", 0)
+        
+        if progress >= 100:
+            return {"icon": "✅", "color": "#4CAF50", "text": "Complete"}
+        elif speed > 5 * 1024 * 1024:  # > 5 MB/s
+            return {"icon": "🚀", "color": "#2196F3", "text": "Fast"}
+        elif speed > 1 * 1024 * 1024:  # > 1 MB/s
+            return {"icon": "⚡", "color": "#FF9800", "text": "Good"}
+        elif speed > 0:
+            return {"icon": "📤", "color": "#FFC107", "text": "Uploading"}
+        else:
+            return {"icon": "⏸️", "color": "#9E9E9E", "text": "Paused"}
+
+    def _calculate_efficiency(self, progress_data: Dict[str, Any]) -> float:
+        """Calculate upload efficiency percentage"""
+        speed = progress_data.get("upload_speed", 0)
+        # Assume optimal speed is 10 MB/s for efficiency calculation
+        optimal_speed = 10 * 1024 * 1024
+        return min(100, (speed / optimal_speed) * 100)
+
+    def _get_performance_tier(self, speed: float) -> str:
+        """Get performance tier based on upload speed"""
+        speed_mbps = speed / (1024 * 1024)
+        
+        if speed_mbps >= 20:
+            return "enterprise"
+        elif speed_mbps >= 10:
+            return "premium"
+        elif speed_mbps >= 5:
+            return "standard"
+        elif speed_mbps >= 1:
+            return "basic"
+        else:
+            return "slow"
+
+    def _format_time(self, seconds: float) -> str:
+        """Format time in human readable format"""
+        if seconds <= 0 or seconds == float('inf'):
+            return "Calculating..."
+        
+        if seconds < 60:
+            return f"{int(seconds)}s"
+        elif seconds < 3600:
+            mins = int(seconds // 60)
+            secs = int(seconds % 60)
+            return f"{mins}m {secs}s"
+        else:
+            hours = int(seconds // 3600)
+            mins = int((seconds % 3600) // 60)
+            return f"{hours}h {mins}m"
+
+    async def _broadcast_to_upload_connections(self, upload_id: str, message: Dict[str, Any]):
+        """Broadcast specifically to connections interested in this upload"""
+        # Find connections for this upload session
+        relevant_connections = []
+        
+        for connection_id, metadata in self.connection_metadata.items():
+            session_id = metadata.get("session_id", "")
+            if session_id == upload_id or session_id == "upload_manager":
+                relevant_connections.append(connection_id)
+        
+        # Broadcast to relevant connections
+        for connection_id in relevant_connections:
+            await self.send_to_connection(connection_id, message)
+
+    def _store_upload_progress(self, upload_id: str, message: Dict[str, Any]):
+        """Store upload progress for reconnection scenarios"""
+        if not hasattr(self, 'upload_progress_cache'):
+            self.upload_progress_cache = {}
+        
+        self.upload_progress_cache[upload_id] = {
+            "last_update": datetime.utcnow(),
+            "progress_data": message,
+            "expires_at": datetime.utcnow() + timedelta(hours=1)
+        }
+        
+        # Cleanup expired entries
+        expired_uploads = [
+            uid for uid, data in self.upload_progress_cache.items()
+            if data["expires_at"] < datetime.utcnow()
+        ]
+        
+        for uid in expired_uploads:
+            del self.upload_progress_cache[uid]
 
     async def broadcast_viral_insights(
         self,
