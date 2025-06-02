@@ -120,12 +120,12 @@ async def lifespan(app: FastAPI):
         memory_usage = os.popen('ps -p %d -o %s' % (os.getpid(), 'rss')).read().split()[1]
 
         # Include authentication routes
-        # Assuming 'auth' is defined somewhere with authentication-related routes
         try:
-            from app import auth
-            app.include_router(auth.router)
-        except ImportError:
-            logger.warning("⚠️ Authentication router 'auth.router' not found. Ensure 'app/auth.py' exists with a router.")
+            from app.routes.auth import router as auth_router
+            app.include_router(auth_router)
+            logger.info("✅ Authentication routes loaded successfully")
+        except ImportError as e:
+            logger.warning(f"⚠️ Authentication router import failed: {e}")
 
         logger.info(f"🚀 ViralClip Pro v10.0 started in {time.time() - startup_start:.2f}s")
         logger.info(f"📊 Memory usage: {int(memory_usage) / 1024:.1f}MB")

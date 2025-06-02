@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info --access-log --loop uvloop"]
 
 [workflows]
-runButton = "Production Deploy"
+runButton = "Netflix Production Server"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -303,6 +303,19 @@ args = "cd nr1copilot/nr1-main && python3 test_imports.py"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info --access-log --loop uvloop"
+
+[[workflows.workflow]]
+name = "Netflix Production Server"
+author = 43403757
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uvicorn[standard] python-multipart websockets pydantic-settings psutil python-jose passlib aiofiles PyJWT bcrypt pyotp qrcode[pil]"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info --access-log --loop uvloop --http httptools"
 
 [[ports]]
 localPort = 5000

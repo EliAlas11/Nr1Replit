@@ -12,8 +12,8 @@ from functools import lru_cache
 from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 
-from pydantic import BaseSettings, Field, validator, SecretStr
-from pydantic_settings import BaseSettings as PydanticBaseSettings
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class LogLevel(str, Enum):
     CRITICAL = "CRITICAL"
 
 
-class SecuritySettings(PydanticBaseSettings):
+class SecuritySettings(BaseSettings):
     """Enterprise security configuration with best practices"""
     
     # Authentication & Encryption
@@ -60,7 +60,7 @@ class SecuritySettings(PydanticBaseSettings):
         env_file_encoding = "utf-8"
 
 
-class DatabaseSettings(PydanticBaseSettings):
+class DatabaseSettings(BaseSettings):
     """Enterprise database configuration with connection pooling"""
     
     # Connection settings
@@ -77,7 +77,8 @@ class DatabaseSettings(PydanticBaseSettings):
     # Health check settings
     health_check_interval: int = Field(default=30, ge=10, le=300, description="Health check interval")
     
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def validate_database_url(cls, v):
         """Validate and enhance database URL for Replit PostgreSQL"""
         if v and 'postgresql://' in v and '-pooler' not in v:
@@ -91,7 +92,7 @@ class DatabaseSettings(PydanticBaseSettings):
         env_file_encoding = "utf-8"
 
 
-class PerformanceSettings(PydanticBaseSettings):
+class PerformanceSettings(BaseSettings):
     """Enterprise performance and resource optimization"""
     
     # Worker configuration
@@ -118,7 +119,7 @@ class PerformanceSettings(PydanticBaseSettings):
         env_file_encoding = "utf-8"
 
 
-class MonitoringSettings(PydanticBaseSettings):
+class MonitoringSettings(BaseSettings):
     """Enterprise monitoring and observability configuration"""
     
     # Health monitoring
@@ -151,7 +152,7 @@ class MonitoringSettings(PydanticBaseSettings):
         env_file_encoding = "utf-8"
 
 
-class Settings(PydanticBaseSettings):
+class Settings(BaseSettings):
     """Main enterprise application configuration"""
     
     # Application identity
@@ -207,7 +208,8 @@ class Settings(PydanticBaseSettings):
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     
-    @validator('environment', pre=True)
+    @field_validator('environment', mode='before')
+    @classmethod
     def validate_environment(cls, v):
         """Validate and normalize environment setting"""
         if isinstance(v, str):
@@ -218,22 +220,26 @@ class Settings(PydanticBaseSettings):
                 return Environment.PRODUCTION
         return v
     
-    @validator('debug')
-    def validate_debug_mode(cls, v, values):
+    @field_validator('debug')
+    @classmethod
+    def validate_debug_mode(cls, v, info):
         """Ensure debug is disabled in production"""
-        environment = values.get('environment')
-        if environment == Environment.PRODUCTION and v:
-            logger.warning("Debug mode disabled in production environment")
-            return False
+        if hasattr(info, 'data') and info.data:
+            environment = info.data.get('environment')
+            if environment == Environment.PRODUCTION and v:
+                logger.warning("Debug mode disabled in production environment")
+                return False
         return v
     
-    @validator('cors_origins')
-    def validate_cors_origins(cls, v, values):
+    @field_validator('cors_origins')
+    @classmethod
+    def validate_cors_origins(cls, v, info):
         """Validate CORS origins based on environment"""
-        environment = values.get('environment')
-        if environment == Environment.PRODUCTION:
-            # Filter out localhost origins in production
-            return [origin for origin in v if 'localhost' not in origin]
+        if hasattr(info, 'data') and info.data:
+            environment = info.data.get('environment')
+            if environment == Environment.PRODUCTION:
+                # Filter out localhost origins in production
+                return [origin for origin in v if 'localhost' not in origin]
         return v
     
     def ensure_directories(self) -> None:
