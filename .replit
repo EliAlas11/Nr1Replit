@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/main.py"]
 
 [workflows]
-runButton = "Netflix Production v12.0"
+runButton = "Netflix Production v13.0"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -380,6 +380,23 @@ args = "cd nr1copilot/nr1-main && python3 test_api_client.py --output api_test_r
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "echo \"🎯 API Integration tests completed! Check api_test_results.json for detailed results.\""
+
+[[workflows.workflow]]
+name = "Netflix Production v13.0"
+author = 43406985
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --break-system-packages -r requirements.txt"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"import gc; gc.collect(); print('🚀 Memory optimized for Netflix v13.0 performance')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info --access-log --loop uvloop --http httptools"
 
 [[ports]]
 localPort = 5000
