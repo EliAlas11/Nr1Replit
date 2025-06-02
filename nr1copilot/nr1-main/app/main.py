@@ -164,9 +164,11 @@ async def _initialize_application_services(app: FastAPI) -> None:
         # AI and analytics services
         from app.services.ai_analyzer import AIVideoAnalyzer
         from app.services.analytics_engine import AnalyticsEngine
+        from app.services.ai_production_engine import ai_production_engine
         
         app.state.ai_analyzer = AIVideoAnalyzer()
         app.state.analytics_engine = AnalyticsEngine()
+        app.state.ai_production_engine = ai_production_engine
         
         # WebSocket engine
         if settings.enable_websockets:
@@ -365,6 +367,13 @@ app.add_middleware(ErrorHandlerMiddleware)
 app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])
 app.include_router(enterprise.router, prefix="/api/v1", tags=["Enterprise"])
 app.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
+
+# AI Production routes
+try:
+    from app.routes import ai_production
+    app.include_router(ai_production.router, prefix="/api/v1", tags=["AI Production"])
+except ImportError:
+    logger.warning("AI production routes not available")
 
 
 # Netflix-grade health endpoints

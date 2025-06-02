@@ -1,0 +1,710 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Production Dashboard - ViralClip Pro v11.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #4ecdc4;
+        }
+        
+        .model-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 0.8rem;
+        }
+        
+        .model-name {
+            font-weight: 500;
+        }
+        
+        .status {
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .status.ready {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            border: 1px solid #4CAF50;
+        }
+        
+        .status.loading {
+            background: rgba(255, 193, 7, 0.2);
+            color: #FFC107;
+            border: 1px solid #FFC107;
+        }
+        
+        .status.error {
+            background: rgba(244, 67, 54, 0.2);
+            color: #F44336;
+            border: 1px solid #F44336;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .metric:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: #4ecdc4;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #4ecdc4, #45b7d1);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(78, 205, 196, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #ff6b6b, #e74c3c);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #b0b0b0;
+        }
+        
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 0.95rem;
+        }
+        
+        .input-group input:focus,
+        .input-group select:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #4ecdc4;
+            box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.2);
+        }
+        
+        .log-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 1rem;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+        }
+        
+        .log-entry {
+            margin-bottom: 0.5rem;
+            color: #b0b0b0;
+        }
+        
+        .log-entry.success {
+            color: #4CAF50;
+        }
+        
+        .log-entry.error {
+            color: #F44336;
+        }
+        
+        .log-entry.warning {
+            color: #FFC107;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .tab {
+            padding: 0.8rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab.active {
+            border-bottom-color: #4ecdc4;
+            color: #4ecdc4;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top: 2px solid #4ecdc4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 AI Production Dashboard</h1>
+    </div>
+
+    <div class="container">
+        <!-- Overall Status -->
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">🚀 Engine Status</div>
+                <div id="engine-status">
+                    <div class="loading"></div> Loading...
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">📊 Performance Metrics</div>
+                <div id="performance-metrics">
+                    <div class="loading"></div> Loading...
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">🎯 Model Overview</div>
+                <div id="model-overview">
+                    <div class="loading"></div> Loading...
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('models')">🔧 Models</div>
+            <div class="tab" onclick="switchTab('inference')">🧠 Inference</div>
+            <div class="tab" onclick="switchTab('features')">🚩 Features</div>
+            <div class="tab" onclick="switchTab('logs')">📋 Logs</div>
+        </div>
+
+        <!-- Model Management Tab -->
+        <div id="models-tab" class="tab-content active">
+            <div class="card">
+                <div class="card-title">🤖 Model Management</div>
+                <div id="model-list">
+                    <div class="loading"></div> Loading models...
+                </div>
+            </div>
+        </div>
+
+        <!-- Inference Testing Tab -->
+        <div id="inference-tab" class="tab-content">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">🎬 Viral Prediction</div>
+                    <div class="input-group">
+                        <label>Title:</label>
+                        <input type="text" id="viral-title" placeholder="Enter content title">
+                    </div>
+                    <div class="input-group">
+                        <label>Description:</label>
+                        <textarea id="viral-description" rows="3" placeholder="Enter content description"></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Platform:</label>
+                        <select id="viral-platform">
+                            <option value="general">General</option>
+                            <option value="tiktok">TikTok</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="youtube">YouTube</option>
+                        </select>
+                    </div>
+                    <button class="btn" onclick="testViralPrediction()">Predict Viral Score</button>
+                    <div id="viral-result"></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">😊 Sentiment Analysis</div>
+                    <div class="input-group">
+                        <label>Text:</label>
+                        <textarea id="sentiment-text" rows="4" placeholder="Enter text to analyze"></textarea>
+                    </div>
+                    <button class="btn" onclick="testSentimentAnalysis()">Analyze Sentiment</button>
+                    <div id="sentiment-result"></div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">⭐ Quality Scoring</div>
+                    <div class="input-group">
+                        <label>Content Data (JSON):</label>
+                        <textarea id="quality-data" rows="4" placeholder='{"title": "My Video", "duration": 30}'></textarea>
+                    </div>
+                    <button class="btn" onclick="testQualityScoring()">Score Quality</button>
+                    <div id="quality-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Flags Tab -->
+        <div id="features-tab" class="tab-content">
+            <div class="card">
+                <div class="card-title">🚩 Feature Flags</div>
+                <div id="feature-flags">
+                    <div class="loading"></div> Loading features...
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div id="logs-tab" class="tab-content">
+            <div class="card">
+                <div class="card-title">📋 Real-time Logs</div>
+                <div class="log-container" id="log-container">
+                    <div class="log-entry">AI Production Dashboard initialized</div>
+                </div>
+                <button class="btn" onclick="clearLogs()">Clear Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('auth_token');
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        // Logging functions
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('log-container');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('log-container').innerHTML = '';
+            addLog('Logs cleared');
+        }
+        
+        // API helper
+        async function apiCall(endpoint, method = 'GET', data = null) {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
+            
+            const options = {
+                method,
+                headers
+            };
+            
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+            
+            try {
+                const response = await fetch(`/api/v1${endpoint}`, options);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                addLog(`API Error: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Load engine status
+        async function loadEngineStatus() {
+            try {
+                const health = await apiCall('/ai/health');
+                
+                const statusHtml = `
+                    <div class="metric">
+                        <span>Status:</span>
+                        <span class="metric-value status ${health.status}">${health.status.toUpperCase()}</span>
+                    </div>
+                    <div class="metric">
+                        <span>Running:</span>
+                        <span class="metric-value">${health.is_running ? '✅' : '❌'}</span>
+                    </div>
+                    <div class="metric">
+                        <span>Cache Size:</span>
+                        <span class="metric-value">${health.cache_size}</span>
+                    </div>
+                `;
+                
+                document.getElementById('engine-status').innerHTML = statusHtml;
+                addLog(`Engine status: ${health.status}`);
+                
+            } catch (error) {
+                document.getElementById('engine-status').innerHTML = '<div class="error">Failed to load engine status</div>';
+            }
+        }
+        
+        // Load performance metrics
+        async function loadPerformanceMetrics() {
+            try {
+                const metrics = await apiCall('/ai/metrics');
+                
+                const metricsHtml = `
+                    <div class="metric">
+                        <span>Total Requests:</span>
+                        <span class="metric-value">${metrics.performance.total_requests}</span>
+                    </div>
+                    <div class="metric">
+                        <span>Cache Hit Rate:</span>
+                        <span class="metric-value">${metrics.performance.cache_hit_percentage.toFixed(1)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span>Success Rate:</span>
+                        <span class="metric-value">${(100 - metrics.performance.error_percentage).toFixed(1)}%</span>
+                    </div>
+                    <div class="metric">
+                        <span>Fallback Usage:</span>
+                        <span class="metric-value">${metrics.performance.fallback_percentage.toFixed(1)}%</span>
+                    </div>
+                `;
+                
+                document.getElementById('performance-metrics').innerHTML = metricsHtml;
+                
+            } catch (error) {
+                document.getElementById('performance-metrics').innerHTML = '<div class="error">Failed to load metrics</div>';
+            }
+        }
+        
+        // Load model overview
+        async function loadModelOverview() {
+            try {
+                const status = await apiCall('/ai/models/status');
+                
+                const overviewHtml = `
+                    <div class="metric">
+                        <span>Total Models:</span>
+                        <span class="metric-value">${status.total_models}</span>
+                    </div>
+                    <div class="metric">
+                        <span>Loaded Models:</span>
+                        <span class="metric-value">${status.loaded_models}</span>
+                    </div>
+                    <div class="metric">
+                        <span>Failed Models:</span>
+                        <span class="metric-value">${status.failed_models}</span>
+                    </div>
+                `;
+                
+                document.getElementById('model-overview').innerHTML = overviewHtml;
+                
+            } catch (error) {
+                document.getElementById('model-overview').innerHTML = '<div class="error">Failed to load overview</div>';
+            }
+        }
+        
+        // Load model list
+        async function loadModelList() {
+            try {
+                const status = await apiCall('/ai/models/status');
+                
+                let modelsHtml = '';
+                for (const [modelName, modelData] of Object.entries(status.models)) {
+                    modelsHtml += `
+                        <div class="model-status">
+                            <div>
+                                <div class="model-name">${modelName}</div>
+                                <small>v${modelData.version} • ${modelData.total_inferences} inferences</small>
+                            </div>
+                            <div>
+                                <div class="status ${modelData.state}">${modelData.state.toUpperCase()}</div>
+                                <button class="btn btn-sm" onclick="loadModel('${modelName}')">Load</button>
+                                <button class="btn btn-warning btn-sm" onclick="toggleModel('${modelName}', ${!modelData.enabled})">
+                                    ${modelData.enabled ? 'Disable' : 'Enable'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                document.getElementById('model-list').innerHTML = modelsHtml;
+                
+            } catch (error) {
+                document.getElementById('model-list').innerHTML = '<div class="error">Failed to load models</div>';
+            }
+        }
+        
+        // Load model
+        async function loadModel(modelType) {
+            try {
+                await apiCall(`/ai/models/${modelType}/load`);
+                addLog(`Loading model: ${modelType}`, 'success');
+                setTimeout(loadModelList, 2000); // Refresh after 2 seconds
+            } catch (error) {
+                addLog(`Failed to load model: ${modelType}`, 'error');
+            }
+        }
+        
+        // Toggle model
+        async function toggleModel(modelType, enabled) {
+            try {
+                await apiCall(`/ai/models/${modelType}/toggle`, 'POST', { enabled });
+                addLog(`Model ${modelType} ${enabled ? 'enabled' : 'disabled'}`, 'success');
+                loadModelList();
+            } catch (error) {
+                addLog(`Failed to toggle model: ${modelType}`, 'error');
+            }
+        }
+        
+        // Test viral prediction
+        async function testViralPrediction() {
+            try {
+                const title = document.getElementById('viral-title').value;
+                const description = document.getElementById('viral-description').value;
+                const platform = document.getElementById('viral-platform').value;
+                
+                if (!title || !description) {
+                    addLog('Please enter title and description', 'warning');
+                    return;
+                }
+                
+                const result = await apiCall('/ai/predict-viral', 'POST', {
+                    title,
+                    description,
+                    platform
+                });
+                
+                const resultHtml = `
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(78, 205, 196, 0.1); border-radius: 8px;">
+                        <h4>Viral Score: ${result.viral_score}/100</h4>
+                        <p>Confidence: ${(result.confidence * 100).toFixed(1)}%</p>
+                        <p>Factors: ${result.factors.join(', ')}</p>
+                        <p>Latency: ${result.latency_ms.toFixed(1)}ms</p>
+                    </div>
+                `;
+                
+                document.getElementById('viral-result').innerHTML = resultHtml;
+                addLog(`Viral prediction completed: ${result.viral_score}/100`, 'success');
+                
+            } catch (error) {
+                addLog('Viral prediction failed', 'error');
+            }
+        }
+        
+        // Test sentiment analysis
+        async function testSentimentAnalysis() {
+            try {
+                const text = document.getElementById('sentiment-text').value;
+                
+                if (!text) {
+                    addLog('Please enter text to analyze', 'warning');
+                    return;
+                }
+                
+                const result = await apiCall('/ai/analyze-sentiment', 'POST', { text });
+                
+                const resultHtml = `
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(78, 205, 196, 0.1); border-radius: 8px;">
+                        <h4>Sentiment: ${result.sentiment}</h4>
+                        <p>Confidence: ${(result.confidence * 100).toFixed(1)}%</p>
+                        <p>Positive: ${(result.scores.positive * 100).toFixed(1)}%</p>
+                        <p>Negative: ${(result.scores.negative * 100).toFixed(1)}%</p>
+                        <p>Latency: ${result.latency_ms.toFixed(1)}ms</p>
+                    </div>
+                `;
+                
+                document.getElementById('sentiment-result').innerHTML = resultHtml;
+                addLog(`Sentiment analysis completed: ${result.sentiment}`, 'success');
+                
+            } catch (error) {
+                addLog('Sentiment analysis failed', 'error');
+            }
+        }
+        
+        // Test quality scoring
+        async function testQualityScoring() {
+            try {
+                const dataText = document.getElementById('quality-data').value;
+                
+                if (!dataText) {
+                    addLog('Please enter content data', 'warning');
+                    return;
+                }
+                
+                let contentData;
+                try {
+                    contentData = JSON.parse(dataText);
+                } catch (e) {
+                    addLog('Invalid JSON format', 'error');
+                    return;
+                }
+                
+                const result = await apiCall('/ai/score-quality', 'POST', { content_data: contentData });
+                
+                const resultHtml = `
+                    <div style="margin-top: 1rem; padding: 1rem; background: rgba(78, 205, 196, 0.1); border-radius: 8px;">
+                        <h4>Quality Score: ${result.quality_score}/100</h4>
+                        <p>Confidence: ${(result.confidence * 100).toFixed(1)}%</p>
+                        <p>Visual: ${(result.dimensions.visual * 100).toFixed(1)}%</p>
+                        <p>Audio: ${(result.dimensions.audio * 100).toFixed(1)}%</p>
+                        <p>Content: ${(result.dimensions.content * 100).toFixed(1)}%</p>
+                        <p>Latency: ${result.latency_ms.toFixed(1)}ms</p>
+                    </div>
+                `;
+                
+                document.getElementById('quality-result').innerHTML = resultHtml;
+                addLog(`Quality scoring completed: ${result.quality_score}/100`, 'success');
+                
+            } catch (error) {
+                addLog('Quality scoring failed', 'error');
+            }
+        }
+        
+        // Initialize dashboard
+        async function initDashboard() {
+            addLog('Initializing AI Production Dashboard...');
+            
+            await Promise.all([
+                loadEngineStatus(),
+                loadPerformanceMetrics(),
+                loadModelOverview(),
+                loadModelList()
+            ]);
+            
+            addLog('Dashboard initialized successfully', 'success');
+        }
+        
+        // Auto-refresh every 30 seconds
+        setInterval(async () => {
+            await Promise.all([
+                loadEngineStatus(),
+                loadPerformanceMetrics(),
+                loadModelOverview()
+            ]);
+        }, 30000);
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    </script>
+</body>
+</html>

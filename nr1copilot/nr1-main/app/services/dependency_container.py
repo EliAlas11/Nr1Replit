@@ -267,6 +267,19 @@ class ServiceContainer:
             )
         except ImportError:
             logger.warning("AI engine not available")
+        
+        # AI production engine
+        try:
+            from app.services.ai_production_engine import AIProductionEngine
+            self.register_service(
+                "ai_production_engine",
+                AIProductionEngine,
+                dependencies=["cache_manager"],
+                startup_order=12,
+                is_critical=True
+            )
+        except ImportError:
+            logger.warning("AI production engine not available")
     
     async def _initialize_services_in_order(self) -> None:
         """Initialize services in dependency order"""
@@ -426,6 +439,10 @@ class ServiceContainer:
     def get_ai_engine(self):
         """Get AI engine instance"""
         return self.singleton_instances.get('ai_engine') or self.services.get('ai_engine', {}).get('instance')
+    
+    def get_ai_production_engine(self):
+        """Get AI production engine instance"""
+        return self.singleton_instances.get('ai_production_engine') or self.services.get('ai_production_engine', {}).get('instance')
     
     def is_healthy(self) -> bool:
         """Check if all critical services are healthy"""
