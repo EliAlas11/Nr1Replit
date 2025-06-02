@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Dashboard - ViralClip Pro v10.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            margin-top: 0.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .auth-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .auth-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .login-icon { background: linear-gradient(135deg, #4CAF50, #45a049); }
+        .security-icon { background: linear-gradient(135deg, #f44336, #d32f2f); }
+        .session-icon { background: linear-gradient(135deg, #2196F3, #1976D2); }
+        .activity-icon { background: linear-gradient(135deg, #FF9800, #F57C00); }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .status-online { background: #e8f5e8; color: #4CAF50; }
+        .status-warning { background: #fff3e0; color: #FF9800; }
+        .status-error { background: #ffebee; color: #f44336; }
+
+        .auth-form {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 1rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+
+        .btn-secondary:hover {
+            background: #bdc3c7;
+        }
+
+        .activity-log {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .log-entry {
+            padding: 1rem;
+            border-left: 4px solid #667eea;
+            margin-bottom: 1rem;
+            background: #f8f9fa;
+            border-radius: 0 10px 10px 0;
+        }
+
+        .log-timestamp {
+            color: #7f8c8d;
+            font-size: 0.875rem;
+        }
+
+        .log-event {
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 0.25rem 0;
+        }
+
+        .log-details {
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background: #e8f5e8;
+            color: #4CAF50;
+            border: 1px solid #c8e6c9;
+        }
+
+        .alert-error {
+            background: #ffebee;
+            color: #f44336;
+            border: 1px solid #ffcdd2;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #7f8c8d;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .qr-code {
+            text-align: center;
+            margin: 1rem 0;
+        }
+
+        .qr-code img {
+            max-width: 200px;
+            border-radius: 10px;
+        }
+
+        .backup-codes {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+
+        .backup-code {
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 Authentication Dashboard</h1>
+        <div class="subtitle">Netflix-Level Security & Authentication Management</div>
+    </div>
+
+    <div class="container">
+        <!-- Authentication Form -->
+        <div class="auth-form" id="authForm">
+            <h2>Authentication System</h2>
+
+            <div id="loginSection">
+                <h3>Login</h3>
+                <div class="form-group">
+                    <label class="form-label">Email:</label>
+                    <input type="email" class="form-input" id="loginEmail" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password:</label>
+                    <input type="password" class="form-input" id="loginPassword" placeholder="Enter your password">
+                </div>
+                <div class="form-group" id="twoFactorSection" style="display: none;">
+                    <label class="form-label">Two-Factor Code:</label>
+                    <input type="text" class="form-input" id="twoFactorCode" placeholder="Enter 6-digit code">
+                </div>
+                <button class="btn btn-primary" onclick="performLogin()">Login</button>
+                <button class="btn btn-secondary" onclick="showRegister()">Register</button>
+            </div>
+
+            <div id="registerSection" style="display: none;">
+                <h3>Register New Account</h3>
+                <div class="form-group">
+                    <label class="form-label">Email:</label>
+                    <input type="email" class="form-input" id="registerEmail" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Username:</label>
+                    <input type="text" class="form-input" id="registerUsername" placeholder="Choose a username">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Full Name:</label>
+                    <input type="text" class="form-input" id="registerFullName" placeholder="Enter your full name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password:</label>
+                    <input type="password" class="form-input" id="registerPassword" placeholder="Create a strong password">
+                </div>
+                <button class="btn btn-primary" onclick="performRegister()">Register</button>
+                <button class="btn btn-secondary" onclick="showLogin()">Back to Login</button>
+            </div>
+
+            <div id="authenticatedSection" style="display: none;">
+                <h3>Welcome! You are authenticated.</h3>
+                <button class="btn btn-primary" onclick="setup2FA()">Setup 2FA</button>
+                <button class="btn btn-secondary" onclick="logout()">Logout</button>
+            </div>
+
+            <div id="alertContainer"></div>
+        </div>
+
+        <!-- Authentication Metrics -->
+        <div class="auth-grid">
+            <div class="auth-card">
+                <div class="card-header">
+                    <div class="card-icon login-icon">🔑</div>
+                    <div class="card-title">Authentication</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="status-badge status-online" id="authStatus">Online</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Logins Today</span>
+                    <span class="metric-value" id="loginCount">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Failed Attempts</span>
+                    <span class="metric-value" id="failedAttempts">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">2FA Enabled Users</span>
+                    <span class="metric-value" id="twoFactorUsers">-</span>
+                </div>
+            </div>
+
+            <div class="auth-card">
+                <div class="card-header">
+                    <div class="card-icon security-icon">🛡️</div>
+                    <div class="card-title">Security</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Blocked IPs</span>
+                    <span class="metric-value" id="blockedIPs">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Security Events (24h)</span>
+                    <span class="metric-value" id="securityEvents">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Rate Limit Hits</span>
+                    <span class="metric-value" id="rateLimitHits">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Threat Level</span>
+                    <span class="status-badge status-online" id="threatLevel">Low</span>
+                </div>
+            </div>
+
+            <div class="auth-card">
+                <div class="card-header">
+                    <div class="card-icon session-icon">💻</div>
+                    <div class="card-title">Sessions</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Active Sessions</span>
+                    <span class="metric-value" id="activeSessions">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Web Sessions</span>
+                    <span class="metric-value" id="webSessions">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">API Sessions</span>
+                    <span class="metric-value" id="apiSessions">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Average Session Duration</span>
+                    <span class="metric-value" id="avgSessionDuration">-</span>
+                </div>
+            </div>
+
+            <div class="auth-card">
+                <div class="card-header">
+                    <div class="card-icon activity-icon">📊</div>
+                    <div class="card-title">Activity</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Requests/min</span>
+                    <span class="metric-value" id="requestsPerMin">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Unique Users (24h)</span>
+                    <span class="metric-value" id="uniqueUsers">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Peak Concurrent Users</span>
+                    <span class="metric-value" id="peakUsers">-</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">System Load</span>
+                    <span class="status-badge status-online" id="systemLoad">Normal</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="activity-log">
+            <h3>🔍 Authentication Activity Log</h3>
+            <div id="activityLogContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading authentication activity...
+                </div>
+            </div>
+        </div>
+
+        <!-- 2FA Setup Modal -->
+        <div id="twoFactorModal" class="auth-form" style="display: none;">
+            <h3>🔐 Setup Two-Factor Authentication</h3>
+            <p>Scan this QR code with your authenticator app:</p>
+            <div class="qr-code" id="qrCodeContainer">
+                <!-- QR code will be inserted here -->
+            </div>
+            <div class="form-group">
+                <label class="form-label">Verification Code:</label>
+                <input type="text" class="form-input" id="verificationCode" placeholder="Enter 6-digit code from your app">
+            </div>
+            <div class="backup-codes" id="backupCodesContainer" style="display: none;">
+                <h4>Backup Codes</h4>
+                <p>Save these backup codes in a safe place:</p>
+                <div id="backupCodesList"></div>
+            </div>
+            <button class="btn btn-primary" onclick="verify2FA()">Verify & Enable</button>
+            <button class="btn btn-secondary" onclick="cancel2FA()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+        let twoFactorSetupData = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            if (authToken) {
+                checkAuthStatus();
+            }
+            loadAuthMetrics();
+            loadActivityLog();
+
+            // Refresh data every 30 seconds
+            setInterval(() => {
+                loadAuthMetrics();
+                loadActivityLog();
+            }, 30000);
+        });
+
+        function showAlert(message, type = 'success') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+
+            alertContainer.innerHTML = '';
+            alertContainer.appendChild(alertDiv);
+
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+
+        function showLogin() {
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('registerSection').style.display = 'none';
+            document.getElementById('authenticatedSection').style.display = 'none';
+        }
+
+        function showRegister() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('registerSection').style.display = 'block';
+            document.getElementById('authenticatedSection').style.display = 'none';
+        }
+
+        function showAuthenticated() {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('registerSection').style.display = 'none';
+            document.getElementById('authenticatedSection').style.display = 'block';
+        }
+
+        async function performLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const twoFactorCode = document.getElementById('twoFactorCode').value;
+
+            if (!email || !password) {
+                showAlert('Please enter email and password', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v10/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        two_factor_code: twoFactorCode || null,
+                        session_type: 'web'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.access_token;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('refreshToken', data.refresh_token);
+                    showAlert('Login successful!');
+                    showAuthenticated();
+                    loadAuthMetrics();
+                } else if (data.requires_2fa) {
+                    document.getElementById('twoFactorSection').style.display = 'block';
+                    showAlert('Please enter your two-factor authentication code', 'error');
+                } else {
+                    showAlert(data.error || 'Login failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Login failed: ' + error.message, 'error');
+            }
+        }
+
+        async function performRegister() {
+            const email = document.getElementById('registerEmail').value;
+            const username = document.getElementById('registerUsername').value;
+            const fullName = document.getElementById('registerFullName').value;
+            const password = document.getElementById('registerPassword').value;
+
+            if (!email || !username || !password) {
+                showAlert('Please fill in all required fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v10/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        username: username,
+                        full_name: fullName,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.access_token;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('refreshToken', data.refresh_token);
+                    showAlert('Registration successful!');
+                    showAuthenticated();
+                    loadAuthMetrics();
+                } else {
+                    showAlert(data.error || 'Registration failed', 'error');
+                }
+            } catch (error) {
+                showAlert('Registration failed: ' + error.message, 'error');
+            }
+        }
+
+        async function checkAuthStatus() {
+            if (!authToken) return;
+
+            try {
+                const response = await fetch('/api/v10/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data;
+                    showAuthenticated();
+                } else {
+                    authToken = null;
+                    localStorage.removeItem('authToken');
+                    showLogin();
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                showLogin();
+            }
+        }
+
+        async function logout() {
+            if (!authToken) return;
+
+            try {
+                await fetch('/api/v10/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            showAlert('Logged out successfully');
+            showLogin();
+        }
+
+        async function setup2FA() {
+            if (!authToken) return;
+
+            try {
+                const response = await fetch('/api/v10/auth/2fa/setup', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    twoFactorSetupData = data;
+                    document.getElementById('qrCodeContainer').innerHTML = `<img src="${data.qr_code}" alt="QR Code">`;
+
+                    const backupCodesList = document.getElementById('backupCodesList');
+                    backupCodesList.innerHTML = data.backup_codes.map(code => 
+                        `<div class="backup-code">${code}</div>`
+                    ).join('');
+
+                    document.getElementById('backupCodesContainer').style.display = 'block';
+                    document.getElementById('twoFactorModal').style.display = 'block';
+                } else {
+                    showAlert(data.error || '2FA setup failed', 'error');
+                }
+            } catch (error) {
+                showAlert('2FA setup failed: ' + error.message, 'error');
+            }
+        }
+
+        async function verify2FA() {
+            const code = document.getElementById('verificationCode').value;
+
+            if (!code) {
+                showAlert('Please enter verification code', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v10/auth/2fa/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        verification_code: code
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('Two-factor authentication enabled successfully!');
+                    document.getElementById('twoFactorModal').style.display = 'none';
+                } else {
+                    showAlert(data.error || '2FA verification failed', 'error');
+                }
+            } catch (error) {
+                showAlert('2FA verification failed: ' + error.message, 'error');
+            }
+        }
+
+        function cancel2FA() {
+            document.getElementById('twoFactorModal').style.display = 'none';
+            document.getElementById('verificationCode').value = '';
+        }
+
+        async function loadAuthMetrics() {
+            try {
+                // Simulate metrics (in production, fetch from actual endpoints)
+                const metrics = {
+                    authStatus: 'Online',
+                    loginCount: Math.floor(Math.random() * 1000) + 100,
+                    failedAttempts: Math.floor(Math.random() * 50),
+                    twoFactorUsers: Math.floor(Math.random() * 200) + 50,
+                    blockedIPs: Math.floor(Math.random() * 10),
+                    securityEvents: Math.floor(Math.random() * 25),
+                    rateLimitHits: Math.floor(Math.random() * 100),
+                    threatLevel: 'Low',
+                    activeSessions: Math.floor(Math.random() * 500) + 100,
+                    webSessions: Math.floor(Math.random() * 300) + 80,
+                    apiSessions: Math.floor(Math.random() * 200) + 20,
+                    avgSessionDuration: '24 min',
+                    requestsPerMin: Math.floor(Math.random() * 1000) + 200,
+                    uniqueUsers: Math.floor(Math.random() * 800) + 200,
+                    peakUsers: Math.floor(Math.random() * 150) + 50,
+                    systemLoad: 'Normal'
+                };
+
+                // Update UI
+                Object.keys(metrics).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element) {
+                        element.textContent = metrics[key];
+                    }
+                });
+
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+            }
+        }
+
+        async function loadActivityLog() {
+            try {
+                // Simulate activity log (in production, fetch from actual endpoint)
+                const activities = [
+                    {
+                        timestamp: new Date().toISOString(),
+                        event_type: 'user_login',
+                        success: true,
+                        details: { ip: '192.168.1.100', session_type: 'web' }
+                    },
+                    {
+                        timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
+                        event_type: 'failed_login',
+                        success: false,
+                        details: { ip: '10.0.0.50', reason: 'invalid_password' }
+                    },
+                    {
+                        timestamp: new Date(Date.now() - 10 * 60000).toISOString(),
+                        event_type: '2fa_enabled',
+                        success: true,
+                        details: { user_id: 'user123' }
+                    }
+                ];
+
+                const container = document.getElementById('activityLogContainer');
+                container.innerHTML = activities.map(activity => `
+                    <div class="log-entry">
+                        <div class="log-timestamp">${new Date(activity.timestamp).toLocaleString()}</div>
+                        <div class="log-event">${activity.event_type.replace(/_/g, ' ').toUpperCase()}</div>
+                        <div class="log-details">
+                            Status: ${activity.success ? 'Success' : 'Failed'} | 
+                            ${Object.entries(activity.details).map(([key, value]) => `${key}: ${value}`).join(' | ')}
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Failed to load activity log:', error);
+            }
+        }
+    </script>
+</body>
+</html>
