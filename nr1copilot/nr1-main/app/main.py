@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v13.0 - Netflix-Grade Video Editing Platform
 Enterprise-optimized with advanced performance patterns and reliability
@@ -52,7 +51,7 @@ class ApplicationMetrics:
 
 class NetflixGradeOptimizer:
     """Advanced optimization engine for Netflix-level performance"""
-    
+
     def __init__(self):
         self.optimization_rules = {
             'memory': {
@@ -81,7 +80,7 @@ class NetflixGradeOptimizer:
             self._performance_monitor(),
             self._reliability_checker()
         ]
-        
+
         for task_coro in tasks:
             task = asyncio.create_task(task_coro)
             self._optimization_tasks.add(task)
@@ -96,9 +95,9 @@ class NetflixGradeOptimizer:
                 process = psutil.Process()
                 memory_mb = process.memory_info().rss / 1024 / 1024
                 self.metrics.memory_usage_mb = memory_mb
-                
+
                 threshold = self.optimization_rules['memory']['gc_threshold'] * 1024  # MB
-                
+
                 if memory_mb > threshold:
                     # Aggressive garbage collection
                     collected = gc.collect()
@@ -106,14 +105,14 @@ class NetflixGradeOptimizer:
                     for obj in gc.get_objects():
                         if isinstance(obj, weakref.ref):
                             obj.clear()
-                    
+
                     new_memory = process.memory_info().rss / 1024 / 1024
                     freed = memory_mb - new_memory
-                    
+
                     logger.info(f"🧠 Memory optimization: freed {freed:.1f}MB, collected {collected} objects")
-                
+
                 await asyncio.sleep(self.optimization_rules['memory']['cleanup_interval'])
-                
+
             except Exception as e:
                 logger.error(f"Memory optimizer error: {e}")
                 await asyncio.sleep(60)
@@ -126,7 +125,7 @@ class NetflixGradeOptimizer:
                 import psutil
                 cpu_percent = psutil.cpu_percent(interval=1)
                 self.metrics.cpu_percent = cpu_percent
-                
+
                 # Dynamic optimization based on load
                 if cpu_percent > 80:
                     # Reduce background task frequency
@@ -136,7 +135,7 @@ class NetflixGradeOptimizer:
                     await asyncio.sleep(5)
                 else:
                     await asyncio.sleep(10)
-                    
+
             except Exception as e:
                 logger.error(f"Performance monitor error: {e}")
                 await asyncio.sleep(30)
@@ -147,13 +146,13 @@ class NetflixGradeOptimizer:
             try:
                 # Health check all critical components
                 health_status = await self._check_system_health()
-                
+
                 if not health_status:
                     logger.warning("🔥 System health degraded - initiating recovery")
                     await self._initiate_recovery()
-                
+
                 await asyncio.sleep(60)  # Check every minute
-                
+
             except Exception as e:
                 logger.error(f"Reliability checker error: {e}")
                 await asyncio.sleep(120)
@@ -164,29 +163,29 @@ class NetflixGradeOptimizer:
             # Check memory usage
             if self.metrics.memory_usage_mb > 2048:  # 2GB limit
                 return False
-            
+
             # Check CPU usage
             if self.metrics.cpu_percent > 90:
                 return False
-            
+
             # Check error rate
             if self.metrics.request_count > 0:
                 error_rate = self.metrics.error_count / self.metrics.request_count
                 if error_rate > 0.05:  # 5% error rate threshold
                     return False
-            
+
             return True
-            
+
         except Exception:
             return False
 
     async def _initiate_recovery(self):
         """Initiate system recovery procedures"""
         logger.info("🔄 Initiating Netflix-grade recovery procedures")
-        
+
         # Force garbage collection
         gc.collect()
-        
+
         # Clear caches if available
         try:
             from app.utils.cache import cache
@@ -199,7 +198,7 @@ class NetflixGradeOptimizer:
         """Graceful shutdown of optimization tasks"""
         for task in self._optimization_tasks:
             task.cancel()
-        
+
         if self._optimization_tasks:
             await asyncio.gather(*self._optimization_tasks, return_exceptions=True)
 
@@ -238,10 +237,10 @@ class GracefulShutdownHandler:
     async def _trigger_shutdown(self):
         """Enhanced shutdown procedure"""
         self.shutdown_event.set()
-        
+
         # Shutdown optimizer first
         await optimizer.shutdown()
-        
+
         if self.cleanup_tasks:
             await asyncio.gather(*self.cleanup_tasks, return_exceptions=True)
 
@@ -308,7 +307,7 @@ async def _initialize_application_services(app: FastAPI) -> None:
     ]
 
     initialized_services = []
-    
+
     for service_name, module_path, class_name in service_configs:
         try:
             module = __import__(module_path, fromlist=[class_name])
@@ -384,15 +383,15 @@ async def _background_health_monitoring():
     """Enhanced health monitoring with predictive analytics"""
     interval = 30
     consecutive_failures = 0
-    
+
     while not shutdown_handler.shutdown_event.is_set():
         try:
             start_time = time.time()
             health_monitor = services.get_health_monitor()
-            
+
             if health_monitor:
                 health_result = await health_monitor.perform_health_check()
-                
+
                 if health_result.get('status') == 'healthy':
                     consecutive_failures = 0
                     # Adaptive interval - increase when healthy
@@ -401,7 +400,7 @@ async def _background_health_monitoring():
                     consecutive_failures += 1
                     # Decrease interval when unhealthy
                     interval = max(10, interval * 0.8)
-                    
+
                     if consecutive_failures >= 3:
                         logger.warning("🔥 Multiple health check failures - initiating recovery")
                         await optimizer._initiate_recovery()
@@ -422,11 +421,11 @@ async def _background_performance_optimization():
         try:
             # Intelligent memory management
             memory_mb = _get_memory_usage()
-            
+
             if memory_mb > 1024:  # 1GB threshold
                 # Aggressive optimization
                 gc.collect()
-                
+
                 # Clear internal caches
                 try:
                     from app.utils.cache import cache
@@ -434,7 +433,7 @@ async def _background_performance_optimization():
                         await cache.optimize()
                 except Exception:
                     pass
-                
+
                 new_memory = _get_memory_usage()
                 if new_memory < memory_mb:
                     logger.info(f"🧠 Performance optimization: {memory_mb - new_memory:.1f}MB freed")
@@ -456,26 +455,26 @@ async def _background_intelligent_cleanup():
             if temp_path.exists():
                 cleaned = 0
                 current_time = time.time()
-                
+
                 for file_path in temp_path.rglob("*"):
                     if file_path.is_file():
                         file_age = current_time - file_path.stat().st_mtime
                         file_size = file_path.stat().st_size
-                        
+
                         # Smart cleanup logic
                         should_clean = (
                             file_age > 1800 or  # 30 minutes
                             (file_size > 50 * 1024 * 1024 and file_age > 600) or  # 50MB files older than 10 min
                             (file_size > 200 * 1024 * 1024 and file_age > 300)  # 200MB files older than 5 min
                         )
-                        
+
                         if should_clean:
                             try:
                                 file_path.unlink()
                                 cleaned += 1
                             except Exception:
                                 pass
-                
+
                 if cleaned > 0:
                     logger.info(f"🧹 Intelligent cleanup: removed {cleaned} files")
 
@@ -494,7 +493,7 @@ async def _background_metrics_collection():
             metrics_collector = services.get_metrics_collector()
             if metrics_collector:
                 await metrics_collector.collect_metrics()
-                
+
                 # Update optimizer metrics
                 optimizer.metrics.uptime_seconds = time.time() - optimizer.metrics.startup_time
 
@@ -513,16 +512,16 @@ async def _validate_performance_targets():
         'memory_usage': 512.0,  # MB
         'response_time': 0.1    # seconds
     }
-    
+
     startup_time = optimizer.metrics.startup_time
     memory_usage = _get_memory_usage()
-    
+
     if startup_time > targets['startup_time']:
         logger.warning(f"⚠️ Startup time {startup_time:.2f}s exceeds target {targets['startup_time']}s")
-    
+
     if memory_usage > targets['memory_usage']:
         logger.warning(f"⚠️ Memory usage {memory_usage:.1f}MB exceeds target {targets['memory_usage']}MB")
-    
+
     logger.info("🎯 Performance targets validated")
 
 def _get_memory_usage() -> float:
@@ -559,7 +558,7 @@ async def _graceful_shutdown(app: FastAPI) -> None:
 
         # Shutdown services
         await services.shutdown()
-        
+
         # Final garbage collection
         gc.collect()
 
@@ -633,9 +632,13 @@ app.add_middleware(ValidationMiddleware)
 app.add_middleware(ErrorHandlerMiddleware)
 
 # Include routers
+from app.routes import auth, enterprise, websocket, ai_production, storage
+
 app.include_router(auth.router, prefix="/api/v1", tags=["Auth"])
 app.include_router(enterprise.router, prefix="/api/v1", tags=["Enterprise"])
 app.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(ai_production.router, prefix="/api/v1", tags=["AI Production"])
+app.include_router(storage.router, prefix="/api/v1", tags=["Storage"])
 
 # Netflix-grade health endpoints
 @app.get("/health", tags=["Health"])
@@ -646,7 +649,7 @@ async def health_check():
     try:
         status = "healthy" if services.is_healthy() else "degraded"
         response_time = round((time.time() - start_time) * 1000, 2)
-        
+
         # Update metrics
         optimizer.metrics.request_count += 1
 
@@ -720,7 +723,7 @@ def _generate_netflix_dashboard() -> str:
     """Generate Netflix-grade optimized dashboard"""
     uptime = time.time() - optimizer.metrics.startup_time
     memory_usage = _get_memory_usage()
-    
+
     return f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -894,7 +897,8 @@ try:
             StaticFiles(directory=str(static_path), html=True),
             name="static"
         )
-        logger.info(f"📁 Static files mounted: {static_path}")
+        logger.info(f"📁 Static files mounted: {python
+static_path}")
 except Exception as e:
     logger.warning(f"Static files not available: {e}")
 
@@ -923,7 +927,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
     optimizer.metrics.error_count += 1
     error_id = f"err_{int(time.time())}"
     logger.error(f"Internal server error [{error_id}]: {exc}", exc_info=True)
-    
+
     # Trigger recovery if too many errors
     error_rate = optimizer.metrics.error_count / max(optimizer.metrics.request_count, 1)
     if error_rate > 0.05:  # 5% error rate
