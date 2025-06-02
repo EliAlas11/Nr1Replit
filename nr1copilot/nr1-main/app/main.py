@@ -32,6 +32,7 @@ from app.middleware.performance import PerformanceMiddleware
 from app.middleware.security import SecurityMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.validation import ValidationMiddleware
+from app.ultimate_perfection_system import ultimate_perfection_system
 
 # Routes
 from app.routes import auth, enterprise, websocket, ai_production, storage
@@ -265,6 +266,10 @@ async def lifespan(app: FastAPI):
         await optimizer.start_optimization()
         optimizer.metrics.startup_time = startup_start
 
+        # Initialize ultimate perfection system
+        perfection_result = await ultimate_perfection_system.initialize_perfection()
+        logger.info(f"🌟 {perfection_result.get('status', 'Perfection system initialized')}")
+
         # Initialize application services
         await _initialize_services(app)
 
@@ -435,6 +440,9 @@ async def _graceful_shutdown(app: FastAPI) -> None:
             except asyncio.TimeoutError:
                 logger.warning("⚠️ Background tasks shutdown timeout")
 
+        # Shutdown perfection system
+        await ultimate_perfection_system.shutdown()
+
         # Shutdown optimizer
         await optimizer.shutdown()
 
@@ -545,6 +553,24 @@ async def health_check():
             status_code=503
         )
 
+
+@app.get("/perfection", tags=["Perfection"])
+async def perfection_status():
+    """Ultimate perfection status endpoint"""
+    try:
+        return await ultimate_perfection_system.get_perfection_status()
+    except Exception as e:
+        logger.error(f"Perfection status failed: {e}")
+        raise HTTPException(status_code=500, detail="Perfection status temporarily unavailable")
+
+@app.post("/perfection/optimize", tags=["Perfection"])
+async def force_perfection():
+    """Force immediate perfection optimization"""
+    try:
+        return await ultimate_perfection_system.force_perfection_optimization()
+    except Exception as e:
+        logger.error(f"Forced optimization failed: {e}")
+        raise HTTPException(status_code=500, detail="Optimization failed")
 
 @app.get("/metrics", tags=["Analytics"])
 async def performance_metrics():
