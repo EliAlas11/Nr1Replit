@@ -1,11 +1,11 @@
-run = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000"
+run = "cd nr1copilot/nr1-main && python3 -m uvicorn nr1copilot/nr1-main/app/main.py"
 modules = ["python-3.12", "web", "nodejs-20"]
 [nix]
 channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 
 [deployment]
-run = ["sh", "-c", "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uvicorn python-multipart websockets pydantic-settings psutil && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info"]
+run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn nr1copilot/nr1-main/app/main.py"]
 
 [workflows]
 runButton = "Netflix Production Deploy"
