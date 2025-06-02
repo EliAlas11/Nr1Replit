@@ -392,8 +392,11 @@ class NetflixLevelVideoPipeline:
                 await asyncio.sleep(10)
     
     async def _process_pipeline_stage(self, pipeline: VideoPipeline):
-        """Process the current stage of a pipeline"""
+        """Process pipeline stage with production-grade error handling"""
         
+        if pipeline.status == "cancelled":
+            return
+            
         if pipeline.current_stage_index >= len(pipeline.stages):
             # Pipeline completed
             await self._complete_pipeline(pipeline)
@@ -402,40 +405,71 @@ class NetflixLevelVideoPipeline:
         current_stage = pipeline.stages[pipeline.current_stage_index]
         
         if current_stage.status == "pending":
-            # Start stage
+            # Start stage with timeout protection
             current_stage.status = "processing"
             current_stage.start_time = datetime.utcnow()
             pipeline.status = "processing"
             
-            logger.info(f"Starting stage {current_stage.name} for pipeline {pipeline.pipeline_id}")
+            logger.info(f"🚀 Starting stage {current_stage.name} for pipeline {pipeline.pipeline_id}")
             
             try:
-                # Execute stage processor
-                result = await current_stage.processor_func(pipeline, current_stage)
+                # Execute stage processor with timeout
+                stage_timeout = 1800  # 30 minutes per stage max
+                result = await asyncio.wait_for(
+                    current_stage.processor_func(pipeline, current_stage),
+                    timeout=stage_timeout
+                )
                 
                 if result.get("success", False):
                     current_stage.status = "completed"
                     current_stage.output_data = result.get("data", {})
                     pipeline.current_stage_index += 1
                     
-                    logger.info(f"Stage {current_stage.name} completed for pipeline {pipeline.pipeline_id}")
+                    # Log performance metrics
+                    stage_duration = current_stage.duration
+                    logger.info(
+                        f"✅ Stage {current_stage.name} completed for pipeline {pipeline.pipeline_id} "
+                        f"in {stage_duration:.2f}s"
+                    )
                 else:
-                    raise Exception(result.get("error", "Stage processing failed"))
+                    error_msg = result.get("error", "Stage processing failed")
+                    raise Exception(error_msg)
                 
-            except Exception as e:
+            except asyncio.TimeoutError:
+                error_msg = f"Stage {current_stage.name} timed out after {stage_timeout}s"
+                logger.error(error_msg)
                 current_stage.status = "failed"
-                current_stage.error_message = str(e)
+                current_stage.error_message = error_msg
                 pipeline.error_count += 1
                 
                 if current_stage.required:
-                    await self._handle_pipeline_error(pipeline, str(e))
+                    await self._handle_pipeline_error(pipeline, error_msg)
                 else:
-                    # Skip optional stage
-                    logger.warning(f"Optional stage {current_stage.name} failed, continuing: {e}")
+                    logger.warning(f"Optional stage {current_stage.name} timed out, continuing")
+                    pipeline.current_stage_index += 1
+                    
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"❌ Stage {current_stage.name} failed for pipeline {pipeline.pipeline_id}: {error_msg}")
+                
+                current_stage.status = "failed"
+                current_stage.error_message = error_msg
+                pipeline.error_count += 1
+                
+                if current_stage.required:
+                    await self._handle_pipeline_error(pipeline, error_msg)
+                else:
+                    # Skip optional stage with warning
+                    logger.warning(f"⚠️ Optional stage {current_stage.name} failed, continuing: {error_msg}")
                     pipeline.current_stage_index += 1
             
             finally:
                 current_stage.end_time = datetime.utcnow()
+                
+                # Force garbage collection after heavy processing stages
+                if current_stage.name in ["video_processing", "content_analysis"]:
+                    import gc
+                    gc.collect()
     
     async def _complete_pipeline(self, pipeline: VideoPipeline):
         """Complete a pipeline"""

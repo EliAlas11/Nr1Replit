@@ -1,11 +1,12 @@
 """
 ViralClip Pro v10.0 - Netflix-Grade Video Editing Platform
-Optimized architecture with enterprise performance and maintainability
+Enterprise-optimized for production deployment and scalability
 """
 
 import asyncio
 import logging
 import time
+import gc
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -13,11 +14,12 @@ from typing import Dict, Any, Optional
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-# Core imports
+# Core imports - optimized loading
 from app.config import get_settings
 from app.logging_config import setup_logging
 from app.services.dependency_container import ServiceContainer
@@ -61,66 +63,92 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Optimized application lifecycle with error recovery"""
+    """Netflix-optimized application lifecycle with lazy loading and error recovery"""
     startup_start = time.time()
 
     try:
-        logger.info("🚀 Initializing ViralClip Pro v10.0...")
+        logger.info("🚀 Initializing ViralClip Pro v10.0 (Production Mode)...")
 
-        # Initialize services
+        # Initialize core services first (critical path)
         await services.initialize()
+        
+        # Core services - initialize synchronously for reliability
         app.state.video_service = NetflixLevelVideoService()
-        app.state.ai_analyzer = AIVideoAnalyzer()
-        app.state.social_publisher = SocialMediaPublisher()
-        app.state.analytics_engine = AnalyticsEngine()
-        app.state.collaboration_engine = CollaborationEngine()
-        app.state.realtime_engine = RealtimeEngine()
-        app.state.template_service = TemplateService()
-        app.state.batch_processor = NetflixLevelBatchProcessor()
-        app.state.perfection_engine = UltimatePerfectionEngine()
-        app.state.enterprise_manager = EnterpriseManager()
         app.state.video_pipeline = NetflixLevelVideoPipeline()
         app.state.ffmpeg_processor = NetflixLevelFFmpegProcessor()
-
-        # Start health monitoring
-        health_monitor = services.get_health_monitor()
-        await health_monitor.start_monitoring()
-
+        
+        # Initialize critical services
         await app.state.video_service.startup()
-        await app.state.ai_analyzer.warm_up()
-        await app.state.social_publisher.startup()
-        await app.state.analytics_engine.startup()
-        await app.state.collaboration_engine.startup()
-        await app.state.realtime_engine.startup()
-        await app.state.template_service.startup()
-        await app.state.batch_processor.startup()
-        await app.state.perfection_engine.startup()
-        await app.state.enterprise_manager.startup()
         await app.state.video_pipeline.startup()
         await app.state.ffmpeg_processor.startup()
-
+        
+        # Secondary services - initialize in background
+        secondary_services = [
+            ("ai_analyzer", AIVideoAnalyzer()),
+            ("social_publisher", SocialMediaPublisher()),
+            ("analytics_engine", AnalyticsEngine()),
+            ("collaboration_engine", CollaborationEngine()),
+            ("realtime_engine", RealtimeEngine()),
+            ("template_service", TemplateService()),
+            ("batch_processor", NetflixLevelBatchProcessor()),
+            ("perfection_engine", UltimatePerfectionEngine()),
+            ("enterprise_manager", EnterpriseManager())
+        ]
+        
+        # Parallel initialization for faster startup
+        async def init_service(name, service):
+            try:
+                setattr(app.state, name, service)
+                if hasattr(service, 'startup'):
+                    await service.startup()
+                logger.debug(f"✅ {name} initialized")
+            except Exception as e:
+                logger.warning(f"⚠️ {name} initialization delayed: {e}")
+                # Continue without non-critical services
+        
+        await asyncio.gather(*[
+            init_service(name, service) for name, service in secondary_services
+        ], return_exceptions=True)
+        
+        # Start health monitoring last
+        health_monitor = services.get_health_monitor()
+        await health_monitor.start_monitoring()
+        
+        # Force garbage collection after initialization
+        gc.collect()
+        
         startup_duration = time.time() - startup_start
-        logger.info(f"✅ Startup completed in {startup_duration:.2f}s")
+        logger.info(f"✅ Production startup completed in {startup_duration:.2f}s")
 
         yield
 
     except Exception as e:
-        logger.error(f"❌ Startup failed: {e}", exc_info=True)
+        logger.error(f"❌ Critical startup failure: {e}", exc_info=True)
         raise
     finally:
-        await app.state.video_service.shutdown()
-        await app.state.social_publisher.shutdown()
-        await app.state.analytics_engine.shutdown()
-        await app.state.collaboration_engine.shutdown()
-        await app.state.realtime_engine.shutdown()
-        await app.state.template_service.shutdown()
-        await app.state.batch_processor.shutdown()
-        await app.state.perfection_engine.shutdown()
-        await app.state.enterprise_manager.shutdown()
-        await app.state.video_pipeline.shutdown()
-        await app.state.ffmpeg_processor.shutdown()
+        # Graceful shutdown with timeout
+        shutdown_start = time.time()
+        logger.info("🔄 Initiating graceful shutdown...")
+        
+        shutdown_tasks = []
+        for attr_name in dir(app.state):
+            if not attr_name.startswith('_'):
+                service = getattr(app.state, attr_name)
+                if hasattr(service, 'shutdown'):
+                    shutdown_tasks.append(service.shutdown())
+        
+        # Shutdown with timeout
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*shutdown_tasks, return_exceptions=True),
+                timeout=30.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("⚠️ Shutdown timeout reached, forcing exit")
+        
         await services.shutdown()
-        logger.info("✅ Graceful shutdown completed")
+        shutdown_duration = time.time() - shutdown_start
+        logger.info(f"✅ Graceful shutdown completed in {shutdown_duration:.2f}s")
 
 
 # Create FastAPI application
@@ -140,24 +168,80 @@ app = FastAPI(
     ]
 )
 
-# Middleware stack (order matters for performance)
+# Production-grade middleware stack (order optimized for performance)
+# 1. Trusted hosts (security boundary)
+if not settings.debug:
+    app.add_middleware(
+        TrustedHostMiddleware, 
+        allowed_hosts=["*.replit.dev", "*.replit.app", "*.replit.com", "localhost"]
+    )
+
+# 2. CORS (before compression)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else settings.cors_origins,
+    allow_origins=["*"] if settings.debug else getattr(settings, 'cors_origins', ["*.replit.dev"]),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    max_age=86400,  # Cache preflight for 24 hours
 )
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# 3. Compression (before content processing)
+app.add_middleware(
+    GZipMiddleware, 
+    minimum_size=500,  # Compress smaller responses too
+    compresslevel=6    # Balance between speed and compression
+)
+
+# 4. Performance monitoring (early in stack)
 app.add_middleware(PerformanceMiddleware)
+
+# 5. Security (after performance, before error handling)
 app.add_middleware(SecurityMiddleware)
+
+# 6. Error handling (last middleware)
 app.add_middleware(ErrorHandlerMiddleware)
 
 
-# Health endpoints
+# Production health endpoints
 @app.get("/health", tags=["Health"])
+async def health_check():
+    """Fast health check for load balancers (sub-10ms target)"""
+    start_time = time.time()
+    
+    try:
+        # Quick health check - just verify core services
+        health_status = "healthy"
+        
+        # Check if critical services are responsive
+        if hasattr(app.state, 'video_service') and app.state.video_service:
+            health_status = "healthy"
+        else:
+            health_status = "degraded"
+        
+        response_time = round((time.time() - start_time) * 1000, 2)
+        
+        return Response(
+            content=f'{{"status":"{health_status}","response_time_ms":{response_time}}}',
+            media_type="application/json",
+            status_code=200 if health_status == "healthy" else 503,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Health-Check": "fast"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return Response(
+            content='{"status":"error","error":"health_check_failed"}',
+            media_type="application/json",
+            status_code=503
+        )
+
+@app.get("/health/detailed", tags=["Health"])
 async def comprehensive_health_check():
-    """Netflix-level comprehensive health check"""
+    """Detailed health check for monitoring systems"""
     start_time = time.time()
 
     try:
@@ -171,7 +255,7 @@ async def comprehensive_health_check():
         return JSONResponse(content=health_data, status_code=status_code)
 
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error(f"Detailed health check failed: {e}")
         return JSONResponse(
             content={
                 "status": "critical",

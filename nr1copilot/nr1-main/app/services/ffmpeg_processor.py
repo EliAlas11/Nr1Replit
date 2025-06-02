@@ -657,44 +657,158 @@ class NetflixLevelFFmpegProcessor:
         command: List[str], 
         job: ProcessingJob
     ) -> bool:
-        """Execute FFmpeg with progress monitoring"""
+        """Execute FFmpeg with production-grade error handling and monitoring"""
+        process = None
+        temp_files = []
+        
         try:
             # For testing, simulate FFmpeg processing
             if self.performance_stats["ffmpeg_version"] == "simulated":
                 return await self._simulate_ffmpeg_processing(job)
             
-            # Create output directory
-            os.makedirs(os.path.dirname(job.output_path), exist_ok=True)
+            # Create output directory with proper permissions
+            output_dir = os.path.dirname(job.output_path)
+            os.makedirs(output_dir, exist_ok=True)
             
-            # Execute FFmpeg
+            # Create temporary progress file
+            progress_file = f"{job.output_path}.progress"
+            temp_files.append(progress_file)
+            
+            # Add resource limits to FFmpeg command
+            resource_limited_command = [
+                "timeout", "3600",  # 1 hour max execution time
+                "nice", "-n", "10"  # Lower priority
+            ] + command
+            
+            # Execute FFmpeg with resource limits
             process = await asyncio.create_subprocess_exec(
-                *command,
+                *resource_limited_command,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                preexec_fn=os.setsid if hasattr(os, 'setsid') else None
             )
             
-            # Monitor progress
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
+            # Monitor progress with timeout
+            progress_task = asyncio.create_task(
+                self._monitor_ffmpeg_progress(process, job, progress_file)
+            )
+            
+            try:
+                # Wait for completion with timeout
+                return_code = await asyncio.wait_for(
+                    process.wait(), 
+                    timeout=3600  # 1 hour timeout
+                )
                 
-                line_str = line.decode().strip()
-                if line_str.startswith("out_time_ms="):
-                    # Parse progress
-                    time_ms = int(line_str.split("=")[1])
-                    if job.estimated_duration and job.estimated_duration > 0:
-                        progress = min(100.0, (time_ms / 1000000) / job.estimated_duration * 100)
-                        job.progress = progress
-            
-            # Wait for completion
-            await process.wait()
-            
-            return process.returncode == 0
+                # Cancel progress monitoring
+                progress_task.cancel()
+                
+                # Check if process completed successfully
+                if return_code == 0:
+                    # Verify output file exists and has content
+                    if os.path.exists(job.output_path) and os.path.getsize(job.output_path) > 0:
+                        return True
+                    else:
+                        logger.error(f"FFmpeg completed but output file invalid: {job.output_path}")
+                        return False
+                else:
+                    logger.error(f"FFmpeg failed with return code: {return_code}")
+                    return False
+                    
+            except asyncio.TimeoutError:
+                logger.error(f"FFmpeg timeout for job {job.id}")
+                if process:
+                    try:
+                        # Terminate process group
+                        if hasattr(os, 'killpg'):
+                            os.killpg(os.getpgid(process.pid), 15)  # SIGTERM
+                        else:
+                            process.terminate()
+                        await asyncio.sleep(5)
+                        if process.returncode is None:
+                            process.kill()  # SIGKILL if still running
+                    except:
+                        pass
+                return False
             
         except Exception as e:
-            logger.error(f"FFmpeg execution error: {e}")
+            logger.error(f"FFmpeg execution error for job {job.id}: {e}")
             return False
+            
+        finally:
+            # Cleanup
+            if process and process.returncode is None:
+                try:
+                    process.terminate()
+                except:
+                    pass
+            
+            # Remove temporary files
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except:
+                    pass
+    
+    async def _monitor_ffmpeg_progress(
+        self, 
+        process: asyncio.subprocess.Process,
+        job: ProcessingJob,
+        progress_file: str
+    ):
+        """Monitor FFmpeg progress with enhanced error handling"""
+        try:
+            last_progress_time = time.time()
+            
+            while process.returncode is None:
+                try:
+                    # Read stderr for progress info
+                    line = await asyncio.wait_for(
+                        process.stderr.readline(),
+                        timeout=30.0  # 30 second timeout per line
+                    )
+                    
+                    if not line:
+                        break
+                    
+                    line_str = line.decode().strip()
+                    
+                    # Parse various FFmpeg progress formats
+                    if "time=" in line_str:
+                        # Extract time information
+                        time_match = line_str.split("time=")[1].split()[0]
+                        try:
+                            if ":" in time_match:
+                                # Parse HH:MM:SS.mmm format
+                                time_parts = time_match.split(":")
+                                seconds = float(time_parts[-1])
+                                if len(time_parts) > 1:
+                                    seconds += int(time_parts[-2]) * 60
+                                if len(time_parts) > 2:
+                                    seconds += int(time_parts[-3]) * 3600
+                                
+                                if job.estimated_duration and job.estimated_duration > 0:
+                                    progress = min(100.0, (seconds / job.estimated_duration) * 100)
+                                    job.progress = progress
+                                    last_progress_time = time.time()
+                        except:
+                            pass
+                    
+                    # Check for stalled processing
+                    if time.time() - last_progress_time > 300:  # 5 minutes without progress
+                        logger.warning(f"FFmpeg appears stalled for job {job.id}")
+                        break
+                        
+                except asyncio.TimeoutError:
+                    logger.warning(f"FFmpeg progress monitoring timeout for job {job.id}")
+                    break
+                except Exception as e:
+                    logger.error(f"Progress monitoring error for job {job.id}: {e}")
+                    break
+                    
+        except Exception as e:
+            logger.error(f"Progress monitor crashed for job {job.id}: {e}")
     
     async def _simulate_ffmpeg_processing(self, job: ProcessingJob) -> bool:
         """Simulate FFmpeg processing for testing"""
