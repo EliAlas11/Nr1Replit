@@ -70,7 +70,7 @@ class NetflixApplicationState:
 
             # Import and initialize components with error handling
             from .utils.metrics import NetflixEnterpriseMetricsCollector
-            
+
             self.metrics = await self._safe_init_component(
                 NetflixEnterpriseMetricsCollector, "MetricsCollector"
             )
@@ -426,7 +426,7 @@ async def root():
     try:
         # Pre-calculate static values for maximum performance
         current_time = time.perf_counter()
-        
+
         # Ultra-fast component health check with pre-cached states
         component_health = {}
         component_response_times = {}
@@ -442,13 +442,13 @@ async def root():
         # Parallel component checking for quantum-speed validation
         for name, component in components:
             check_start = time.perf_counter()
-            
+
             if component and getattr(component, '_initialized', True):
                 component_health[name] = "available"
             else:
                 missing_components.append(name)
                 component_health[name] = "unavailable"
-                
+
             component_response_times[f"{name}_check"] = round((time.perf_counter() - check_start) * 1000, 3)
 
         # Ultra-optimized uptime calculation
@@ -456,7 +456,7 @@ async def root():
             uptime_seconds = current_time - app_state.startup_time.timestamp()
         else:
             uptime_seconds = current_time - (getattr(app_state, 'fallback_start_time', current_time))
-        
+
         uptime = timedelta(seconds=uptime_seconds)
 
         # Quantum-level performance calculations with ultra-precision
@@ -497,7 +497,7 @@ async def root():
 
         # Quantum-precision scoring calculation with absolute perfection
         component_health_score = round((len([c for c in component_health.values() if c == "available"]) / max(len(component_health), 1)) * 100, 6)
-        
+
         # Ultra-precise performance scoring with quantum enhancement
         if total_response_time <= 0.01:  # Sub-10μs response time
             performance_score = 100.0000
@@ -511,7 +511,7 @@ async def root():
         else:
             performance_score = max(99.999, 100.0 - (total_response_time * 0.0001))
             efficiency_score = max(99.999, 100.0 - (total_response_time * 0.00005))
-        
+
         # Quantum-level health score calculation
         if component_health_score == 100.0 and error_rate_percent == 0.0 and total_response_time < 0.1:
             health_score = 100.0
@@ -722,24 +722,234 @@ async def root():
         }, status_code=503)
 
 
-# Additional optimized endpoints
+# Health and Monitoring Endpoints
 @app.get("/health")
 async def health_check():
-    """Netflix-grade health check endpoint"""
+    """Netflix-grade health check with comprehensive monitoring and crash recovery"""
     try:
-        health_data = await app_state.health_monitor.perform_health_check()
-        if app_state.metrics:
-            app_state.metrics.increment('health_check.success')
-        return JSONResponse(health_data)
+        health_result = await health_monitor.perform_health_check()
+
+        # Add crash recovery information
+        from .netflix_recovery_system import recovery_system
+        recovery_stats = recovery_system.get_recovery_stats()
+
+        health_result["crash_recovery"] = {
+            "auto_recovery_enabled": recovery_stats["auto_recovery_enabled"],
+            "recent_recoveries": recovery_stats.get("recent_attempts_1h", 0),
+            "success_rate": recovery_stats.get("success_rate", 0),
+            "available_strategies": len(recovery_stats.get("recovery_strategies", []))
+        }
+
+        return health_result
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        if app_state.metrics:
-            app_state.metrics.increment('health_check.error')
-        return JSONResponse({
-            "status": "unhealthy",
+
+        # Attempt automatic recovery for health check failures
+        from .netflix_recovery_system import recovery_system
+        await recovery_system.detect_and_recover(e, {"endpoint": "health_check"})
+
+        return {
+            "status": "emergency",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat(),
+            "recovery": "attempted",
+            "netflix_tier": "Emergency Mode"
+        }
+
+
+@app.get("/health/detailed")
+async def detailed_health_check():
+    """Detailed health diagnostics with full system analysis"""
+    try:
+        # Get comprehensive health data
+        health_result = await health_monitor.perform_health_check()
+
+        # Add detailed diagnostics
+        diagnostics = await health_monitor.get_detailed_diagnostics() if hasattr(health_monitor, 'get_detailed_diagnostics') else {}
+
+        # Recovery system stats
+        from .netflix_recovery_system import recovery_system
+        recovery_stats = recovery_system.get_recovery_stats()
+
+        # Boot validation results
+        from .startup_validator import StartupValidator
+        validator = StartupValidator()
+        boot_validation = await validator.perform_complete_validation()
+
+        return {
+            **health_result,
+            "detailed_diagnostics": diagnostics,
+            "recovery_system": recovery_stats,
+            "boot_validation": {
+                "status": boot_validation.get("validation_status"),
+                "netflix_grade": boot_validation.get("netflix_grade"),
+                "ready_for_production": boot_validation.get("ready_for_production"),
+                "last_validation": boot_validation.get("timestamp")
+            },
+            "system```python
+_capabilities": {
+                "auto_recovery": True,
+                "health_monitoring": True,
+                "crash_detection": True,
+                "performance_monitoring": True,
+                "alert_system": True
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Detailed health check failed: {e}")
+        return {
+            "status": "error",
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
-        }, status_code=503)
+        }
+
+
+@app.get("/health/live")
+async def liveness_probe():
+    """Kubernetes-style liveness probe for container orchestration"""
+    try:
+        # Quick liveness check
+        uptime = health_monitor.get_uptime()
+        is_healthy = health_monitor.is_healthy()
+
+        if is_healthy and uptime.total_seconds() > 5:  # Must be alive for at least 5 seconds
+            return {"status": "alive", "uptime_seconds": uptime.total_seconds()}
+        else:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "uptime_seconds": uptime.total_seconds()}
+            )
+
+    except Exception as e:
+        logger.error(f"Liveness probe failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "error": str(e)}
+        )
+
+
+@app.get("/health/ready")
+async def readiness_probe():
+    """Kubernetes-style readiness probe for load balancer integration"""
+    try:
+        # Check if application is ready to serve traffic
+        health_result = await health_monitor.perform_health_check()
+        status = health_result.get("status", "unknown")
+
+        # Consider ready if healthy or degraded (but not critical/emergency)
+        if status in ["healthy", "excellent", "degraded"]:
+            return {
+                "status": "ready",
+                "health_status": status,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "not_ready",
+                    "health_status": status,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Readiness probe failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "error": str(e)}
+        )
+
+
+@app.get("/health/startup")
+async def startup_probe():
+    """Kubernetes-style startup probe for slow-starting applications"""
+    try:
+        # Check if application has completed startup sequence
+        from .startup_validator import StartupValidator
+        validator = StartupValidator()
+
+        # Quick startup validation check
+        boot_validated = getattr(validator, 'boot_sequence_validated', False)
+        uptime = health_monitor.get_uptime()
+
+        # Consider started if boot validation passed or running for >30 seconds
+        if boot_validated or uptime.total_seconds() > 30:
+            return {
+                "status": "started",
+                "boot_validated": boot_validated,
+                "uptime_seconds": uptime.total_seconds()
+            }
+        else:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "starting",
+                    "boot_validated": boot_validated,
+                    "uptime_seconds": uptime.total_seconds()
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Startup probe failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "error": str(e)}
+        )
+
+
+@app.get("/health/metrics")
+async def health_metrics():
+    """Prometheus-style metrics endpoint for monitoring systems"""
+    try:
+        health_result = await health_monitor.perform_health_check()
+
+        # Convert to Prometheus format
+        metrics = []
+
+        # Application metrics
+        uptime = health_monitor.get_uptime().total_seconds()
+        metrics.append(f"app_uptime_seconds {uptime}")
+        metrics.append(f"app_health_status {{status=\"{health_result.get('status', 'unknown')}\"}} 1")
+
+        # System metrics
+        system_info = health_result.get("system", {})
+        if "cpu_percent" in system_info:
+            metrics.append(f"system_cpu_percent {system_info['cpu_percent']}")
+        if "memory_percent" in system_info:
+            metrics.append(f"system_memory_percent {system_info['memory_percent']}")
+        if "disk_percent" in system_info:
+            metrics.append(f"system_disk_percent {system_info['disk_percent']}")
+
+        # Performance metrics
+        performance = health_result.get("performance", {})
+        if "total_checks" in performance:
+            metrics.append(f"health_checks_total {performance['total_checks']}")
+        if "failed_checks" in performance:
+            metrics.append(f"health_checks_failed {performance['failed_checks']}")
+        if "success_rate" in performance:
+            metrics.append(f"health_success_rate {performance['success_rate']}")
+
+        # Recovery metrics
+        from .netflix_recovery_system import recovery_system
+        recovery_stats = recovery_system.get_recovery_stats()
+        metrics.append(f"recovery_attempts_total {recovery_stats.get('total_recovery_attempts', 0)}")
+        metrics.append(f"recovery_successes_total {recovery_stats.get('successful_recoveries', 0)}")
+
+        return Response(
+            content="\n".join(metrics) + "\n",
+            media_type="text/plain"
+        )
+
+    except Exception as e:
+        logger.error(f"Metrics endpoint failed: {e}")
+        return Response(
+            content=f"# Error generating metrics: {e}\n",
+            media_type="text/plain",
+            status_code=500
+        )
 
 
 @app.get("/metrics")
