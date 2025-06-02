@@ -1,4 +1,3 @@
-
 """
 Enterprise Configuration Management
 Netflix-level configuration with environment-specific settings and validation
@@ -39,7 +38,7 @@ class SecuritySettings(BaseSettings):
     rate_limit_requests: int = Field(default=1000, ge=10, description="Rate limit requests per window")
     rate_limit_window: int = Field(default=3600, ge=60, description="Rate limit window in seconds")
     max_upload_size: int = Field(default=500 * 1024 * 1024, description="Max upload size in bytes")
-    
+
     @validator("secret_key")
     def validate_secret_key(cls, v):
         if len(v) < 32:
@@ -136,10 +135,19 @@ class Settings(BaseSettings):
     # Core settings
     app_name: str = Field(default="ViralClip Pro", description="Application name")
     app_version: str = Field(default="10.0.0", description="Application version")
-    environment: Environment = Field(default=Environment.DEVELOPMENT, description="Environment")
+    # Environment-specific optimizations for deployment
+    environment: Environment = Field(
+        default_factory=lambda: Environment(os.getenv("ENV", "production").lower()),
+        description="Environment"
+    )
+
+    # Render.com specific settings
+    port: int = Field(
+        default_factory=lambda: int(os.getenv("PORT", "5000")),
+        ge=1000, le=65535, description="Port number"
+    )
     debug: bool = Field(default=False, description="Debug mode")
     host: str = Field(default="0.0.0.0", description="Host address")
-    port: int = Field(default=5000, ge=1000, le=65535, description="Port number")
 
     # Paths with validation
     upload_path: str = Field(default="./uploads", description="Upload directory")

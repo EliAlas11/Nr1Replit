@@ -200,3 +200,36 @@ __all__ = [
     'validate_uuid',
     'validate_platform_list'
 ]
+"""
+Core data schemas for ViralClip Pro
+"""
+
+from typing import Dict, List, Any, Optional
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+
+class VideoRequest(BaseModel):
+    """Video processing request schema"""
+    session_id: str = Field(..., description="Session identifier")
+    options: Dict[str, Any] = Field(default_factory=dict, description="Processing options")
+    file_size: Optional[int] = Field(None, description="File size in bytes")
+    file_type: Optional[str] = Field(None, description="File MIME type")
+
+
+class AnalysisResponse(BaseModel):
+    """Video analysis response schema"""
+    success: bool = Field(..., description="Operation success status")
+    analysis: Dict[str, Any] = Field(default_factory=dict, description="Analysis results")
+    processing_time: float = Field(..., description="Processing time in seconds")
+    session_id: str = Field(..., description="Session identifier")
+    performance_score: str = Field(default="A+", description="Performance grade")
+
+
+class ErrorResponse(BaseModel):
+    """Error response schema"""
+    success: bool = Field(default=False, description="Operation success status")
+    error: str = Field(..., description="Error type")
+    message: str = Field(..., description="Error message")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    support_id: Optional[str] = Field(None, description="Support ticket ID")
