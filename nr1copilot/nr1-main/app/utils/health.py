@@ -272,3 +272,208 @@ class HealthChecker:
             return "degrading"
         else:
             return "stable"
+"""
+Netflix-Grade Health Monitoring System
+Comprehensive health checks and system monitoring
+"""
+
+import asyncio
+import logging
+import time
+import psutil
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, field
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+class HealthStatus(str, Enum):
+    """Health status levels"""
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    STARTING = "starting"
+    SHUTTING_DOWN = "shutting_down"
+
+@dataclass
+class HealthMetric:
+    """Individual health metric"""
+    name: str
+    value: Any
+    status: HealthStatus
+    threshold: Optional[float] = None
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+class HealthMonitor:
+    """Netflix-tier health monitoring system"""
+    
+    def __init__(self):
+        self.status = HealthStatus.STARTING
+        self.startup_time = datetime.utcnow()
+        self.last_check = None
+        self.metrics: Dict[str, HealthMetric] = {}
+        self.alert_thresholds = {
+            "cpu_usage": 80.0,
+            "memory_usage": 85.0,
+            "disk_usage": 90.0,
+            "response_time": 5.0
+        }
+        
+    async def perform_health_check(self) -> Dict[str, Any]:
+        """Perform comprehensive health check"""
+        try:
+            start_time = time.time()
+            
+            # System metrics
+            await self._check_system_resources()
+            await self._check_application_health()
+            await self._check_dependencies()
+            
+            check_duration = time.time() - start_time
+            self.last_check = datetime.utcnow()
+            
+            # Determine overall status
+            overall_status = self._calculate_overall_status()
+            
+            return {
+                "status": overall_status.value,
+                "timestamp": self.last_check.isoformat(),
+                "uptime_seconds": (self.last_check - self.startup_time).total_seconds(),
+                "check_duration_ms": round(check_duration * 1000, 2),
+                "metrics": {name: {
+                    "value": metric.value,
+                    "status": metric.status.value,
+                    "timestamp": metric.timestamp.isoformat()
+                } for name, metric in self.metrics.items()},
+                "version": "10.0.0",
+                "environment": "production"
+            }
+            
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            return {
+                "status": HealthStatus.UNHEALTHY.value,
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+    
+    async def _check_system_resources(self):
+        """Check system resource usage"""
+        try:
+            # CPU usage
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            self.metrics["cpu_usage"] = HealthMetric(
+                name="cpu_usage",
+                value=cpu_percent,
+                status=HealthStatus.HEALTHY if cpu_percent < self.alert_thresholds["cpu_usage"] else HealthStatus.DEGRADED
+            )
+            
+            # Memory usage
+            memory = psutil.virtual_memory()
+            self.metrics["memory_usage"] = HealthMetric(
+                name="memory_usage",
+                value=memory.percent,
+                status=HealthStatus.HEALTHY if memory.percent < self.alert_thresholds["memory_usage"] else HealthStatus.DEGRADED
+            )
+            
+            # Disk usage
+            disk = psutil.disk_usage('/')
+            disk_percent = (disk.used / disk.total) * 100
+            self.metrics["disk_usage"] = HealthMetric(
+                name="disk_usage",
+                value=round(disk_percent, 2),
+                status=HealthStatus.HEALTHY if disk_percent < self.alert_thresholds["disk_usage"] else HealthStatus.DEGRADED
+            )
+            
+        except Exception as e:
+            logger.error(f"System resource check failed: {e}")
+            self.metrics["system_resources"] = HealthMetric(
+                name="system_resources",
+                value="error",
+                status=HealthStatus.UNHEALTHY
+            )
+    
+    async def _check_application_health(self):
+        """Check application-specific health"""
+        try:
+            # Application is running
+            self.metrics["application"] = HealthMetric(
+                name="application",
+                value="running",
+                status=HealthStatus.HEALTHY
+            )
+            
+            # Check if we can access essential directories
+            import os
+            essential_dirs = ["./uploads", "./temp", "./logs"]
+            for directory in essential_dirs:
+                if not os.path.exists(directory):
+                    self.metrics[f"directory_{directory}"] = HealthMetric(
+                        name=f"directory_{directory}",
+                        value="missing",
+                        status=HealthStatus.DEGRADED
+                    )
+                else:
+                    self.metrics[f"directory_{directory}"] = HealthMetric(
+                        name=f"directory_{directory}",
+                        value="exists",
+                        status=HealthStatus.HEALTHY
+                    )
+                    
+        except Exception as e:
+            logger.error(f"Application health check failed: {e}")
+            self.metrics["application"] = HealthMetric(
+                name="application",
+                value="error",
+                status=HealthStatus.UNHEALTHY
+            )
+    
+    async def _check_dependencies(self):
+        """Check external dependencies"""
+        try:
+            # For now, mark dependencies as healthy
+            # In a real implementation, you would check database, Redis, APIs, etc.
+            self.metrics["dependencies"] = HealthMetric(
+                name="dependencies",
+                value="available",
+                status=HealthStatus.HEALTHY
+            )
+            
+        except Exception as e:
+            logger.error(f"Dependencies check failed: {e}")
+            self.metrics["dependencies"] = HealthMetric(
+                name="dependencies",
+                value="error",
+                status=HealthStatus.UNHEALTHY
+            )
+    
+    def _calculate_overall_status(self) -> HealthStatus:
+        """Calculate overall health status based on individual metrics"""
+        if not self.metrics:
+            return HealthStatus.STARTING
+        
+        statuses = [metric.status for metric in self.metrics.values()]
+        
+        if HealthStatus.UNHEALTHY in statuses:
+            return HealthStatus.UNHEALTHY
+        elif HealthStatus.DEGRADED in statuses:
+            return HealthStatus.DEGRADED
+        else:
+            return HealthStatus.HEALTHY
+    
+    def update_status(self, status: str):
+        """Update overall health status"""
+        try:
+            self.status = HealthStatus(status)
+        except ValueError:
+            logger.warning(f"Invalid health status: {status}")
+            self.status = HealthStatus.DEGRADED
+    
+    def get_uptime(self) -> timedelta:
+        """Get application uptime"""
+        return datetime.utcnow() - self.startup_time
+    
+    def is_healthy(self) -> bool:
+        """Check if system is healthy"""
+        return self.status == HealthStatus.HEALTHY

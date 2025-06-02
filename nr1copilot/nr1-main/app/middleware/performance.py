@@ -499,3 +499,84 @@ class NetflixLevelPerformanceMiddleware(BaseHTTPMiddleware):
                 "No performance issues detected"
             ]
         }
+"""
+Netflix-Grade Performance Middleware
+Real-time performance monitoring and optimization
+"""
+
+import time
+import asyncio
+import logging
+from typing import Callable, Dict, Any
+from fastapi import Request, Response
+from fastapi.middleware.base import BaseHTTPMiddleware
+
+logger = logging.getLogger(__name__)
+
+class PerformanceMiddleware(BaseHTTPMiddleware):
+    """Netflix-tier performance monitoring and optimization middleware"""
+    
+    def __init__(self, app, max_request_time: float = 30.0):
+        super().__init__(app)
+        self.max_request_time = max_request_time
+        self.request_metrics: Dict[str, Any] = {}
+        
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """Process request with performance monitoring"""
+        start_time = time.time()
+        request_id = f"{request.method}_{request.url.path}_{int(start_time * 1000)}"
+        
+        # Add performance headers
+        response = await self._process_with_monitoring(request, call_next, request_id)
+        
+        # Calculate processing time
+        process_time = time.time() - start_time
+        
+        # Add performance headers
+        response.headers["X-Process-Time"] = str(round(process_time, 4))
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Performance-Grade"] = self._get_performance_grade(process_time)
+        
+        # Log slow requests
+        if process_time > 1.0:
+            logger.warning(f"Slow request: {request.method} {request.url.path} took {process_time:.4f}s")
+            
+        return response
+    
+    async def _process_with_monitoring(self, request: Request, call_next: Callable, request_id: str) -> Response:
+        """Process request with comprehensive monitoring"""
+        try:
+            # Set request timeout
+            response = await asyncio.wait_for(
+                call_next(request), 
+                timeout=self.max_request_time
+            )
+            return response
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Request timeout: {request.method} {request.url.path}")
+            return Response(
+                content="Request timeout",
+                status_code=504,
+                headers={"X-Error": "timeout"}
+            )
+        except Exception as e:
+            logger.error(f"Request processing error: {e}")
+            return Response(
+                content="Internal server error",
+                status_code=500,
+                headers={"X-Error": "processing_error"}
+            )
+    
+    def _get_performance_grade(self, process_time: float) -> str:
+        """Get performance grade based on processing time"""
+        if process_time < 0.1:
+            return "A+"
+        elif process_time < 0.5:
+            return "A"
+        elif process_time < 1.0:
+            return "B"
+        elif process_time < 2.0:
+            return "C"
+        else:
+            return "D"

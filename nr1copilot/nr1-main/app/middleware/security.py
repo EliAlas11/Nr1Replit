@@ -613,3 +613,115 @@ class NetflixLevelSecurityMiddleware(BaseHTTPMiddleware):
             'compliance_status': 'fully_compliant',
             'security_grade': 'A+'
         }
+"""
+Netflix-Grade Security Middleware
+Enterprise-level security controls and monitoring
+"""
+
+import time
+import logging
+import hashlib
+from typing import Dict, Set, Optional
+from fastapi import Request, Response, HTTPException
+from fastapi.middleware.base import BaseHTTPMiddleware
+from collections import defaultdict, deque
+
+logger = logging.getLogger(__name__)
+
+class SecurityMiddleware(BaseHTTPMiddleware):
+    """Netflix-tier security middleware with threat protection"""
+    
+    def __init__(
+        self, 
+        app,
+        rate_limit_requests: int = 100,
+        rate_limit_window: int = 60,
+        max_content_length: int = 500 * 1024 * 1024  # 500MB
+    ):
+        super().__init__(app)
+        self.rate_limit_requests = rate_limit_requests
+        self.rate_limit_window = rate_limit_window
+        self.max_content_length = max_content_length
+        
+        # Rate limiting storage
+        self.request_counts: Dict[str, deque] = defaultdict(deque)
+        self.blocked_ips: Set[str] = set()
+        
+        # Security headers
+        self.security_headers = {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+        }
+    
+    async def dispatch(self, request: Request, call_next) -> Response:
+        """Process request with security controls"""
+        client_ip = self._get_client_ip(request)
+        
+        # Check if IP is blocked
+        if client_ip in self.blocked_ips:
+            logger.warning(f"Blocked request from {client_ip}")
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Rate limiting
+        if not self._check_rate_limit(client_ip):
+            logger.warning(f"Rate limit exceeded for {client_ip}")
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        
+        # Content length check
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_content_length:
+            logger.warning(f"Content too large from {client_ip}: {content_length}")
+            raise HTTPException(status_code=413, detail="Content too large")
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Add security headers
+        for header, value in self.security_headers.items():
+            response.headers[header] = value
+        
+        return response
+    
+    def _get_client_ip(self, request: Request) -> str:
+        """Get client IP with proxy support"""
+        # Check for forwarded headers (for reverse proxies)
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+        
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip
+        
+        return request.client.host if request.client else "unknown"
+    
+    def _check_rate_limit(self, client_ip: str) -> bool:
+        """Check if client is within rate limits"""
+        now = time.time()
+        window_start = now - self.rate_limit_window
+        
+        # Clean old requests
+        while self.request_counts[client_ip] and self.request_counts[client_ip][0] < window_start:
+            self.request_counts[client_ip].popleft()
+        
+        # Check current count
+        if len(self.request_counts[client_ip]) >= self.rate_limit_requests:
+            return False
+        
+        # Add current request
+        self.request_counts[client_ip].append(now)
+        return True
+    
+    def block_ip(self, ip: str):
+        """Block an IP address"""
+        self.blocked_ips.add(ip)
+        logger.info(f"Blocked IP: {ip}")
+    
+    def unblock_ip(self, ip: str):
+        """Unblock an IP address"""
+        self.blocked_ips.discard(ip)
+        logger.info(f"Unblocked IP: {ip}")

@@ -338,3 +338,138 @@ class NetflixLevelErrorHandler(BaseHTTPMiddleware):
             recommendations.append("High memory usage - investigate memory leaks")
 
         return recommendations
+"""
+Netflix-Grade Error Handling Middleware
+Comprehensive error handling with monitoring and recovery
+"""
+
+import logging
+import traceback
+import uuid
+from datetime import datetime
+from typing import Dict, Any
+from fastapi import Request, Response, HTTPException
+from fastapi.middleware.base import BaseHTTPMiddleware
+from fastapi.responses import JSONResponse
+import json
+
+logger = logging.getLogger(__name__)
+
+class ErrorHandlerMiddleware(BaseHTTPMiddleware):
+    """Netflix-tier error handling with comprehensive logging and recovery"""
+    
+    def __init__(self, app, enable_debug: bool = False):
+        super().__init__(app)
+        self.enable_debug = enable_debug
+        self.error_counts: Dict[str, int] = {}
+        
+    async def dispatch(self, request: Request, call_next) -> Response:
+        """Process request with comprehensive error handling"""
+        request_id = str(uuid.uuid4())
+        
+        try:
+            # Add request ID to request state
+            request.state.request_id = request_id
+            
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            
+            return response
+            
+        except HTTPException as http_exc:
+            # Handle HTTP exceptions (expected errors)
+            return await self._handle_http_exception(http_exc, request_id)
+            
+        except Exception as exc:
+            # Handle unexpected exceptions
+            return await self._handle_general_exception(exc, request, request_id)
+    
+    async def _handle_http_exception(self, exc: HTTPException, request_id: str) -> JSONResponse:
+        """Handle HTTP exceptions with proper logging"""
+        error_type = f"HTTP_{exc.status_code}"
+        self._increment_error_count(error_type)
+        
+        logger.warning(f"HTTP Exception [{request_id}]: {exc.status_code} - {exc.detail}")
+        
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": True,
+                "status_code": exc.status_code,
+                "message": exc.detail,
+                "request_id": request_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "type": "http_exception"
+            },
+            headers={"X-Request-ID": request_id}
+        )
+    
+    async def _handle_general_exception(self, exc: Exception, request: Request, request_id: str) -> JSONResponse:
+        """Handle general exceptions with comprehensive logging"""
+        error_type = type(exc).__name__
+        self._increment_error_count(error_type)
+        
+        # Log the full error details
+        error_details = {
+            "request_id": request_id,
+            "error_type": error_type,
+            "error_message": str(exc),
+            "request_method": request.method,
+            "request_url": str(request.url),
+            "request_headers": dict(request.headers),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        if self.enable_debug:
+            error_details["traceback"] = traceback.format_exc()
+        
+        logger.error(f"Unhandled Exception [{request_id}]: {error_details}")
+        
+        # Write to error log file
+        await self._write_error_log(error_details)
+        
+        # Return user-friendly error response
+        response_content = {
+            "error": True,
+            "status_code": 500,
+            "message": "Internal server error",
+            "request_id": request_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "type": "server_error"
+        }
+        
+        if self.enable_debug:
+            response_content["debug"] = {
+                "error_type": error_type,
+                "error_message": str(exc)
+            }
+        
+        return JSONResponse(
+            status_code=500,
+            content=response_content,
+            headers={"X-Request-ID": request_id}
+        )
+    
+    def _increment_error_count(self, error_type: str):
+        """Increment error count for monitoring"""
+        self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+    
+    async def _write_error_log(self, error_details: Dict[str, Any]):
+        """Write error details to structured log file"""
+        try:
+            log_entry = json.dumps(error_details) + "\n"
+            
+            # Write to error log file
+            with open("./logs/errors.jsonl", "a") as f:
+                f.write(log_entry)
+                
+        except Exception as log_exc:
+            logger.error(f"Failed to write error log: {log_exc}")
+    
+    def get_error_statistics(self) -> Dict[str, Any]:
+        """Get error statistics for monitoring"""
+        return {
+            "total_errors": sum(self.error_counts.values()),
+            "error_types": dict(self.error_counts),
+            "timestamp": datetime.utcnow().isoformat()
+        }

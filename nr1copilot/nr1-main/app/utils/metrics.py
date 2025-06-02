@@ -236,3 +236,176 @@ class MetricsCollector:
 
             except Exception as e:
                 logger.error(f"Error cleaning up metrics: {e}")
+"""
+Netflix-Grade Metrics Collection System
+Real-time performance and business metrics collection
+"""
+
+import time
+import asyncio
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+import json
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class Metric:
+    """Individual metric data point"""
+    name: str
+    value: float
+    tags: Dict[str, str] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+class MetricsCollector:
+    """Netflix-tier metrics collection and aggregation"""
+    
+    def __init__(self, retention_hours: int = 24):
+        self.retention_hours = retention_hours
+        self.metrics: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10000))
+        self.counters: Dict[str, float] = defaultdict(float)
+        self.gauges: Dict[str, float] = {}
+        self.histograms: Dict[str, List[float]] = defaultdict(list)
+        self.last_cleanup = datetime.utcnow()
+        
+    def increment(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None):
+        """Increment a counter metric"""
+        self.counters[metric_name] += value
+        self._record_metric(metric_name, value, tags or {}, "counter")
+    
+    def gauge(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None):
+        """Set a gauge metric"""
+        self.gauges[metric_name] = value
+        self._record_metric(metric_name, value, tags or {}, "gauge")
+    
+    def histogram(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None):
+        """Record a histogram metric"""
+        self.histograms[metric_name].append(value)
+        self._record_metric(metric_name, value, tags or {}, "histogram")
+    
+    def timing(self, metric_name: str, duration: float, tags: Optional[Dict[str, str]] = None):
+        """Record timing metric in milliseconds"""
+        self.histogram(f"{metric_name}.duration", duration * 1000, tags)
+    
+    def _record_metric(self, name: str, value: float, tags: Dict[str, str], metric_type: str):
+        """Record metric with metadata"""
+        metric = Metric(
+            name=name,
+            value=value,
+            tags={**tags, "type": metric_type}
+        )
+        self.metrics[name].append(metric)
+        
+        # Periodic cleanup
+        if (datetime.utcnow() - self.last_cleanup).total_seconds() > 3600:  # Every hour
+            asyncio.create_task(self._cleanup_old_metrics())
+    
+    async def _cleanup_old_metrics(self):
+        """Clean up old metrics to maintain memory efficiency"""
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(hours=self.retention_hours)
+            
+            for metric_name, metric_list in self.metrics.items():
+                # Remove old metrics
+                while metric_list and metric_list[0].timestamp < cutoff_time:
+                    metric_list.popleft()
+            
+            # Clean up histograms
+            for histogram_name, values in self.histograms.items():
+                if len(values) > 1000:  # Keep last 1000 values
+                    self.histograms[histogram_name] = values[-1000:]
+            
+            self.last_cleanup = datetime.utcnow()
+            logger.info("Metrics cleanup completed")
+            
+        except Exception as e:
+            logger.error(f"Metrics cleanup failed: {e}")
+    
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """Get comprehensive metrics summary"""
+        try:
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "counters": dict(self.counters),
+                "gauges": dict(self.gauges),
+                "histograms_stats": self._calculate_histogram_stats(),
+                "total_metrics": sum(len(metric_list) for metric_list in self.metrics.values()),
+                "retention_hours": self.retention_hours
+            }
+        except Exception as e:
+            logger.error(f"Failed to get metrics summary: {e}")
+            return {"error": str(e)}
+    
+    def _calculate_histogram_stats(self) -> Dict[str, Dict[str, float]]:
+        """Calculate statistics for histogram metrics"""
+        stats = {}
+        
+        for name, values in self.histograms.items():
+            if values:
+                sorted_values = sorted(values)
+                count = len(sorted_values)
+                
+                stats[name] = {
+                    "count": count,
+                    "min": sorted_values[0],
+                    "max": sorted_values[-1],
+                    "mean": sum(sorted_values) / count,
+                    "p50": sorted_values[count // 2],
+                    "p95": sorted_values[int(count * 0.95)] if count > 1 else sorted_values[0],
+                    "p99": sorted_values[int(count * 0.99)] if count > 1 else sorted_values[0]
+                }
+        
+        return stats
+    
+    def get_metric_history(self, metric_name: str, hours: int = 1) -> List[Dict[str, Any]]:
+        """Get historical data for a specific metric"""
+        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        
+        if metric_name not in self.metrics:
+            return []
+        
+        return [
+            {
+                "timestamp": metric.timestamp.isoformat(),
+                "value": metric.value,
+                "tags": metric.tags
+            }
+            for metric in self.metrics[metric_name]
+            if metric.timestamp >= cutoff_time
+        ]
+    
+    async def export_metrics(self, format_type: str = "json") -> str:
+        """Export metrics in specified format"""
+        try:
+            if format_type == "json":
+                return json.dumps(self.get_metrics_summary(), indent=2)
+            elif format_type == "prometheus":
+                return self._format_prometheus_metrics()
+            else:
+                raise ValueError(f"Unsupported format: {format_type}")
+                
+        except Exception as e:
+            logger.error(f"Metrics export failed: {e}")
+            return json.dumps({"error": str(e)})
+    
+    def _format_prometheus_metrics(self) -> str:
+        """Format metrics in Prometheus format"""
+        lines = []
+        
+        # Counters
+        for name, value in self.counters.items():
+            lines.append(f"# TYPE {name} counter")
+            lines.append(f"{name} {value}")
+        
+        # Gauges
+        for name, value in self.gauges.items():
+            lines.append(f"# TYPE {name} gauge")
+            lines.append(f"{name} {value}")
+        
+        return "\n".join(lines)
+
+# Global metrics instance
+metrics = MetricsCollector()
