@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1"]
 
 [workflows]
-runButton = "Netflix ViralClip Pro v4.0"
+runButton = "Netflix ViralClip Pro v5.0"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -161,6 +161,19 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && upm add fastapi uvicorn python-multipart websockets pydantic pydantic-settings psutil python-jose passlib asyncio-throttle aiofiles pytest pytest-asyncio black isort flake8"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info"
+
+[[workflows.workflow]]
+name = "Netflix ViralClip Pro v5.0"
+author = 43366290
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install -r requirements.txt"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
