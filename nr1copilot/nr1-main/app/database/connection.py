@@ -73,12 +73,23 @@ class NetflixLevelDatabaseManager:
         # Check for Replit Database URL first
         db_url = os.getenv("DATABASE_URL")
         if db_url:
+            # Validate URL format
+            try:
+                parsed = urlparse(db_url)
+                if not all([parsed.scheme, parsed.hostname, parsed.path]):
+                    raise ValueError("Invalid database URL format")
+            except Exception as e:
+                logger.error(f"Invalid DATABASE_URL format: {e}")
+                raise ConnectionError(f"Database URL validation failed: {e}")
+            
             # Use pooler for better performance
             if ".us-east-2" in db_url and "-pooler" not in db_url:
                 db_url = db_url.replace(".us-east-2", "-pooler.us-east-2")
+                logger.info("✅ Using Replit PostgreSQL connection pooler")
             return db_url
         
         # Fallback configuration for development
+        logger.warning("⚠️ Using development database URL - not for production")
         return "postgresql://user:password@localhost:5432/viralclip_pro"
     
     async def initialize(self) -> bool:
@@ -233,8 +244,33 @@ class NetflixLevelDatabaseManager:
                 "failed_connections": self.stats.failed_connections,
                 "avg_query_time": round(self.stats.avg_query_time, 4),
                 "total_queries": self.stats.total_queries
-            }
+            },
+            "backup_enabled": bool(os.getenv("BACKUP_ENABLED")),
+            "read_replica_enabled": bool(os.getenv("READ_REPLICA_URL"))
         }
+    
+    async def create_backup(self) -> Dict[str, Any]:
+        """Create database backup (if backup URL configured)"""
+        backup_url = os.getenv("BACKUP_URL")
+        if not backup_url:
+            return {"status": "not_configured", "message": "Backup URL not configured"}
+        
+        try:
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"viralclip_backup_{timestamp}"
+            
+            # In production, this would trigger actual backup process
+            # For now, we log the backup request
+            logger.info(f"📦 Backup requested: {backup_name}")
+            
+            return {
+                "status": "requested",
+                "backup_name": backup_name,
+                "timestamp": timestamp
+            }
+        except Exception as e:
+            logger.error(f"Backup failed: {e}")
+            return {"status": "failed", "error": str(e)}
     
     async def health_check(self) -> Dict[str, Any]:
         """Comprehensive database health check"""
