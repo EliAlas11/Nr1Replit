@@ -1,387 +1,202 @@
-
 """
-ViralClip Pro Enterprise v6.0 - Netflix-Level Data Schemas
-Production-grade data models with comprehensive validation
+Pydantic schemas for API validation and serialization
+Netflix-level data validation and type safety
 """
 
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
+from pydantic import BaseModel, Field, validator
 from enum import Enum
-from pydantic import BaseModel, Field, validator, root_validator
 import uuid
 
 
-class ProcessingStage(str, Enum):
-    """Processing stages for video analysis"""
-    INITIALIZING = "initializing"
-    UPLOADING = "uploading"
-    ANALYZING = "analyzing"
-    EXTRACTING_FEATURES = "extracting_features"
-    SCORING_SEGMENTS = "scoring_segments"
-    GENERATING_TIMELINE = "generating_timeline"
-    CREATING_PREVIEWS = "creating_previews"
-    OPTIMIZING = "optimizing"
-    COMPLETE = "complete"
-    FAILED = "failed"
-
-
-class UploadStatus(str, Enum):
-    """Upload status enumeration"""
-    QUEUED = "queued"
-    UPLOADING = "uploading"
+class StatusEnum(str, Enum):
+    """Status enumeration"""
+    SUCCESS = "success"
+    ERROR = "error"
+    PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
-    FAILED = "failed"
-    PAUSED = "paused"
-    CANCELLED = "cancelled"
 
 
-class QualityLevel(str, Enum):
-    """Quality levels for processing"""
-    DRAFT = "draft"
-    STANDARD = "standard"
-    HIGH = "high"
-    NETFLIX = "netflix"
-    PREMIUM = "premium"
-
-
-class Platform(str, Enum):
+class PlatformEnum(str, Enum):
     """Social media platforms"""
     TIKTOK = "tiktok"
     INSTAGRAM = "instagram"
-    YOUTUBE_SHORTS = "youtube_shorts"
+    YOUTUBE = "youtube"
     TWITTER = "twitter"
-    SNAPCHAT = "snapchat"
     FACEBOOK = "facebook"
     LINKEDIN = "linkedin"
 
 
-# Base Response Models
-class BaseResponse(BaseModel):
-    """Base response model with common fields"""
-    success: bool = Field(..., description="Operation success status")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
-    request_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique request identifier")
+class VideoRequest(BaseModel):
+    """Video processing request schema"""
+    file_url: Optional[str] = Field(None, description="URL of the video file")
+    file_name: Optional[str] = Field(None, description="Name of the uploaded file")
+    session_id: str = Field(..., description="Session ID for tracking")
+    platforms: List[PlatformEnum] = Field(default=[], description="Target platforms")
+    options: Dict[str, Any] = Field(default_factory=dict, description="Processing options")
 
-
-class ErrorResponse(BaseResponse):
-    """Error response model"""
-    success: bool = Field(default=False, description="Always false for errors")
-    error_code: str = Field(..., description="Machine-readable error code")
-    message: str = Field(..., description="Human-readable error message")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
-    trace_id: Optional[str] = Field(None, description="Error trace identifier")
-
-
-# Upload Models
-class FileValidationResult(BaseModel):
-    """File validation result"""
-    valid: bool = Field(..., description="Validation success status")
-    error: Optional[str] = Field(None, description="Validation error message")
-    file_size: int = Field(0, description="File size in bytes")
-    duration: Optional[float] = Field(None, description="Video duration in seconds")
-    format: Optional[str] = Field(None, description="File format")
-    resolution: Optional[str] = Field(None, description="Video resolution")
-    estimated_time: Optional[float] = Field(None, description="Estimated processing time")
-
-
-class ChunkUploadRequest(BaseModel):
-    """Chunk upload request model"""
-    upload_id: str = Field(..., description="Upload session identifier")
-    chunk_index: int = Field(..., ge=0, description="Chunk index starting from 0")
-    total_chunks: int = Field(..., ge=1, description="Total number of chunks")
-    chunk_hash: Optional[str] = Field(None, description="Chunk integrity hash")
-    
-    @validator('chunk_index')
-    def validate_chunk_index(cls, v, values):
-        if 'total_chunks' in values and v >= values['total_chunks']:
-            raise ValueError('Chunk index cannot be greater than or equal to total chunks')
+    @validator('session_id')
+    def validate_session_id(cls, v):
+        if not v or len(v) < 8:
+            raise ValueError('Session ID must be at least 8 characters')
         return v
 
 
-class UploadProgress(BaseModel):
-    """Upload progress model"""
-    upload_id: str = Field(..., description="Upload identifier")
-    status: UploadStatus = Field(..., description="Current upload status")
-    progress_percentage: float = Field(..., ge=0, le=100, description="Progress percentage")
-    bytes_uploaded: int = Field(..., ge=0, description="Bytes uploaded so far")
-    total_bytes: int = Field(..., ge=0, description="Total bytes to upload")
-    upload_speed: Optional[float] = Field(None, description="Upload speed in bytes/second")
-    eta_seconds: Optional[float] = Field(None, description="Estimated time to completion")
-    chunks_completed: int = Field(0, description="Number of chunks completed")
-    total_chunks: int = Field(1, description="Total number of chunks")
+class AnalysisResponse(BaseModel):
+    """Video analysis response schema"""
+    success: bool = Field(..., description="Success status")
+    session_id: str = Field(..., description="Session ID")
+    analysis: Dict[str, Any] = Field(default_factory=dict, description="Analysis results")
+    viral_score: Optional[float] = Field(None, ge=0, le=100, description="Viral potential score")
+    processing_time: Optional[float] = Field(None, ge=0, description="Processing time in seconds")
+    recommendations: List[str] = Field(default_factory=list, description="Optimization recommendations")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
-class VideoUploadResponse(BaseResponse):
-    """Video upload response model"""
-    session_id: str = Field(..., description="Processing session identifier")
-    file_path: str = Field(..., description="Uploaded file path")
-    file_size: int = Field(..., description="File size in bytes")
-    upload_time: float = Field(..., description="Upload processing time in seconds")
-    estimated_processing_time: Optional[float] = Field(None, description="Estimated processing time")
-    processing_started: bool = Field(default=False, description="Whether background processing started")
+class ErrorResponse(BaseModel):
+    """Error response schema"""
+    success: bool = Field(False, description="Success status")
+    error: str = Field(..., description="Error message")
+    error_code: Optional[str] = Field(None, description="Error code")
+    details: Optional[Dict[str, Any]] = Field(None, description="Error details")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
 
 
-# Analysis Models
-class AnalysisRequest(BaseModel):
-    """Analysis request model"""
-    session_id: str = Field(..., description="Session identifier")
-    file_path: str = Field(..., description="Video file path")
-    title: Optional[str] = Field(None, max_length=200, description="Video title")
-    description: Optional[str] = Field(None, max_length=1000, description="Video description")
-    target_platforms: List[Platform] = Field(default_factory=list, description="Target platforms")
-    quality_level: QualityLevel = Field(default=QualityLevel.HIGH, description="Analysis quality level")
-    custom_prompts: Optional[List[str]] = Field(None, description="Custom analysis prompts")
-    enable_captions: bool = Field(default=True, description="Enable caption analysis")
-    enable_audio_analysis: bool = Field(default=True, description="Enable audio analysis")
+class HealthResponse(BaseModel):
+    """Health check response schema"""
+    status: str = Field(..., description="Health status")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Check timestamp")
+    uptime: float = Field(..., ge=0, description="Uptime in seconds")
+    version: str = Field(..., description="Application version")
+    metrics: Dict[str, Any] = Field(default_factory=dict, description="Health metrics")
+    services: Dict[str, str] = Field(default_factory=dict, description="Service statuses")
 
 
-class ViralFactors(BaseModel):
-    """Viral potential factors"""
-    hook_strength: float = Field(..., ge=0, le=100, description="Opening hook strength score")
-    visual_appeal: float = Field(..., ge=0, le=100, description="Visual appeal score")
-    audio_quality: float = Field(..., ge=0, le=100, description="Audio quality score")
-    engagement_peaks: int = Field(..., ge=0, description="Number of engagement peaks")
-    trending_elements: List[str] = Field(default_factory=list, description="Trending elements detected")
-    emotional_impact: float = Field(..., ge=0, le=100, description="Emotional impact score")
-    shareability: float = Field(..., ge=0, le=100, description="Shareability score")
+class TemplateRequest(BaseModel):
+    """Template request schema"""
+    category: Optional[str] = Field(None, description="Template category")
+    platform: Optional[PlatformEnum] = Field(None, description="Target platform")
+    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of templates")
+    search: Optional[str] = Field(None, description="Search query")
 
 
-class TimelineSegment(BaseModel):
-    """Timeline segment with viral scoring"""
-    start_time: float = Field(..., ge=0, description="Segment start time in seconds")
-    end_time: float = Field(..., gt=0, description="Segment end time in seconds")
-    viral_score: float = Field(..., ge=0, le=100, description="Viral potential score")
-    confidence: float = Field(..., ge=0, le=1, description="Confidence in scoring")
-    key_moments: List[str] = Field(default_factory=list, description="Key moments in segment")
-    emotions: List[str] = Field(default_factory=list, description="Detected emotions")
-    
-    @validator('end_time')
-    def validate_end_time(cls, v, values):
-        if 'start_time' in values and v <= values['start_time']:
-            raise ValueError('End time must be greater than start time')
-        return v
+class TemplateResponse(BaseModel):
+    """Template response schema"""
+    success: bool = Field(..., description="Success status")
+    templates: List[Dict[str, Any]] = Field(default_factory=list, description="Template list")
+    total: int = Field(default=0, ge=0, description="Total number of templates")
+    page: int = Field(default=1, ge=1, description="Current page")
+    has_more: bool = Field(default=False, description="More templates available")
 
 
-class AnalysisResult(BaseModel):
-    """Comprehensive analysis result"""
-    overall_viral_score: float = Field(..., ge=0, le=100, description="Overall viral potential score")
-    confidence: float = Field(..., ge=0, le=1, description="Analysis confidence level")
-    viral_factors: ViralFactors = Field(..., description="Detailed viral factors")
-    timeline_segments: List[TimelineSegment] = Field(..., description="Timeline analysis")
-    key_moments: List[Dict[str, Any]] = Field(default_factory=list, description="Identified key moments")
-    platform_scores: Dict[Platform, float] = Field(default_factory=dict, description="Platform-specific scores")
-    optimization_suggestions: List[str] = Field(default_factory=list, description="Improvement suggestions")
-    processing_time: float = Field(..., description="Analysis processing time")
-    model_version: str = Field(..., description="AI model version used")
+class CollaborationRequest(BaseModel):
+    """Collaboration request schema"""
+    workspace_id: str = Field(..., description="Workspace ID")
+    project_id: str = Field(..., description="Project ID")
+    user_id: str = Field(..., description="User ID")
+    action: str = Field(..., description="Collaboration action")
+    data: Dict[str, Any] = Field(default_factory=dict, description="Action data")
 
 
-class AnalysisResponse(BaseResponse):
-    """Analysis response model"""
-    session_id: str = Field(..., description="Session identifier")
-    analysis: AnalysisResult = Field(..., description="Analysis results")
-    cached: bool = Field(default=False, description="Whether result was cached")
+class AIRequest(BaseModel):
+    """AI processing request schema"""
+    brand_id: str = Field(..., description="Brand ID")
+    content_type: str = Field(..., description="Content type")
+    context: Dict[str, Any] = Field(default_factory=dict, description="Context data")
+    customization_level: str = Field(default="high", description="Customization level")
 
 
-# Preview Models
-class PreviewRequest(BaseModel):
-    """Preview generation request"""
-    session_id: str = Field(..., description="Session identifier")
-    start_time: float = Field(..., ge=0, description="Preview start time in seconds")
-    end_time: float = Field(..., gt=0, description="Preview end time in seconds")
-    quality: QualityLevel = Field(default=QualityLevel.HIGH, description="Preview quality")
-    platform_optimization: Optional[Platform] = Field(None, description="Platform-specific optimization")
-    enable_effects: bool = Field(default=True, description="Enable visual effects")
-    enable_captions: bool = Field(default=False, description="Enable captions overlay")
-    
-    @validator('end_time')
-    def validate_preview_duration(cls, v, values):
-        if 'start_time' in values:
-            duration = v - values['start_time']
-            if duration <= 0:
-                raise ValueError('Preview duration must be positive')
-            if duration > 60:  # Max 60 seconds
-                raise ValueError('Preview duration cannot exceed 60 seconds')
-        return v
+class BatchJobRequest(BaseModel):
+    """Batch job request schema"""
+    job_type: str = Field(..., description="Job type")
+    input_data: Dict[str, Any] = Field(..., description="Input data")
+    priority: str = Field(default="normal", description="Job priority")
+    callback_url: Optional[str] = Field(None, description="Callback URL")
 
 
-class PreviewResponse(BaseResponse):
-    """Preview generation response"""
-    session_id: str = Field(..., description="Session identifier")
-    preview_url: str = Field(..., description="Preview video URL")
-    duration: float = Field(..., description="Preview duration in seconds")
-    viral_analysis: Optional[Dict[str, Any]] = Field(None, description="Segment viral analysis")
-    suggestions: List[str] = Field(default_factory=list, description="Optimization suggestions")
-    processing_time: float = Field(..., description="Generation processing time")
-    quality_metrics: Optional[Dict[str, float]] = Field(None, description="Quality metrics")
+class BatchJobResponse(BaseModel):
+    """Batch job response schema"""
+    success: bool = Field(..., description="Success status")
+    job_id: str = Field(..., description="Job ID")
+    status: StatusEnum = Field(..., description="Job status")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
+    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion")
 
 
-# Processing Status Models
-class ProcessingMetrics(BaseModel):
-    """Processing performance metrics"""
-    cpu_usage: float = Field(..., ge=0, le=100, description="CPU usage percentage")
-    memory_usage: float = Field(..., ge=0, description="Memory usage in MB")
-    gpu_usage: Optional[float] = Field(None, ge=0, le=100, description="GPU usage percentage")
-    processing_speed: float = Field(..., description="Processing speed multiplier")
-    queue_length: int = Field(..., ge=0, description="Processing queue length")
+class MetricsResponse(BaseModel):
+    """Metrics response schema"""
+    success: bool = Field(..., description="Success status")
+    metrics: Dict[str, Any] = Field(..., description="Metrics data")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Metrics timestamp")
+    period: str = Field(..., description="Metrics period")
 
 
-class ProcessingStatus(BaseResponse):
-    """Processing status model"""
-    session_id: str = Field(..., description="Session identifier")
-    stage: ProcessingStage = Field(..., description="Current processing stage")
-    progress_percentage: float = Field(..., ge=0, le=100, description="Progress percentage")
-    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
-    current_task: str = Field(..., description="Current task description")
-    tasks_completed: int = Field(..., ge=0, description="Number of completed tasks")
-    total_tasks: int = Field(..., ge=1, description="Total number of tasks")
-    metrics: Optional[ProcessingMetrics] = Field(None, description="Performance metrics")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
-
-
-# System Health Models
-class ServiceHealth(BaseModel):
-    """Individual service health"""
-    name: str = Field(..., description="Service name")
-    status: str = Field(..., description="Service status")
-    response_time: Optional[float] = Field(None, description="Response time in milliseconds")
-    last_check: datetime = Field(..., description="Last health check timestamp")
-    details: Optional[Dict[str, Any]] = Field(None, description="Additional health details")
-
-
-class SystemMetrics(BaseModel):
-    """System performance metrics"""
-    cpu_percent: float = Field(..., ge=0, le=100, description="CPU usage percentage")
-    memory_percent: float = Field(..., ge=0, le=100, description="Memory usage percentage")
-    disk_percent: float = Field(..., ge=0, le=100, description="Disk usage percentage")
-    network_io: Dict[str, int] = Field(default_factory=dict, description="Network I/O stats")
-    active_connections: int = Field(..., ge=0, description="Active WebSocket connections")
-    requests_per_minute: float = Field(..., ge=0, description="Requests per minute")
-
-
-class SystemHealth(BaseResponse):
-    """System health response"""
-    status: str = Field(..., description="Overall system status")
-    services: Dict[str, str] = Field(..., description="Service status mapping")
-    metrics: Dict[str, Any] = Field(..., description="System metrics")
-    uptime: float = Field(..., description="System uptime in seconds")
-    version: str = Field(default="6.0.0", description="Application version")
-
-
-# WebSocket Models
 class WebSocketMessage(BaseModel):
-    """Base WebSocket message"""
+    """WebSocket message schema"""
     type: str = Field(..., description="Message type")
-    session_id: Optional[str] = Field(None, description="Session identifier")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
     data: Dict[str, Any] = Field(default_factory=dict, description="Message data")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
+    user_id: Optional[str] = Field(None, description="User ID")
 
 
-class UploadProgressMessage(WebSocketMessage):
-    """Upload progress WebSocket message"""
-    type: str = Field(default="upload_progress", description="Message type")
-    progress: UploadProgress = Field(..., description="Upload progress data")
+class PaginationParams(BaseModel):
+    """Pagination parameters schema"""
+    page: int = Field(default=1, ge=1, description="Page number")
+    limit: int = Field(default=20, ge=1, le=100, description="Items per page")
+    sort_by: Optional[str] = Field(None, description="Sort field")
+    sort_order: str = Field(default="desc", description="Sort order")
+
+    @validator('sort_order')
+    def validate_sort_order(cls, v):
+        if v not in ['asc', 'desc']:
+            raise ValueError('Sort order must be "asc" or "desc"')
+        return v
 
 
-class ProcessingStatusMessage(WebSocketMessage):
-    """Processing status WebSocket message"""
-    type: str = Field(default="processing_status", description="Message type")
-    status: ProcessingStatus = Field(..., description="Processing status data")
+class APIResponse(BaseModel):
+    """Generic API response schema"""
+    success: bool = Field(..., description="Success status")
+    data: Optional[Any] = Field(None, description="Response data")
+    message: Optional[str] = Field(None, description="Response message")
+    meta: Optional[Dict[str, Any]] = Field(None, description="Response metadata")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
 
 
-class TimelineUpdateMessage(WebSocketMessage):
-    """Timeline update WebSocket message"""
-    type: str = Field(default="timeline_update", description="Message type")
-    timeline_data: Dict[str, Any] = Field(..., description="Timeline data")
+# Custom validators
+def validate_uuid(v: str) -> str:
+    """Validate UUID format"""
+    try:
+        uuid.UUID(v)
+        return v
+    except ValueError:
+        raise ValueError('Invalid UUID format')
 
 
-# Configuration Models
-class EnterpriseConfig(BaseModel):
-    """Enterprise configuration model"""
-    max_file_size: int = Field(default=2_147_483_648, description="Maximum file size in bytes")
-    max_concurrent_uploads: int = Field(default=10, description="Maximum concurrent uploads")
-    chunk_size: int = Field(default=5_242_880, description="Upload chunk size in bytes")
-    supported_formats: List[str] = Field(
-        default_factory=lambda: ["mp4", "avi", "mov", "webm", "mkv", "m4v", "3gp", "mp3", "wav"],
-        description="Supported file formats"
-    )
-    rate_limit_requests: int = Field(default=100, description="Rate limit requests per minute")
-    cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
-    enable_gpu_acceleration: bool = Field(default=True, description="Enable GPU acceleration")
-    quality_presets: Dict[QualityLevel, Dict[str, Any]] = Field(
-        default_factory=dict, description="Quality preset configurations"
-    )
+def validate_platform_list(v: List[str]) -> List[PlatformEnum]:
+    """Validate platform list"""
+    return [PlatformEnum(platform) for platform in v]
 
 
-# Validation Utilities
-def validate_file_extension(filename: str, allowed_extensions: List[str]) -> bool:
-    """Validate file extension against allowed list"""
-    if not filename or '.' not in filename:
-        return False
-    
-    extension = filename.split('.')[-1].lower()
-    return extension in [ext.lower() for ext in allowed_extensions]
-
-
-def validate_video_duration(duration: float) -> bool:
-    """Validate video duration constraints"""
-    return 0 < duration <= 3600  # Max 1 hour
-
-
-def validate_viral_score(score: float) -> bool:
-    """Validate viral score range"""
-    return 0 <= score <= 100
-
-
-# Export all models
+# Export all schemas
 __all__ = [
-    # Enums
-    "ProcessingStage",
-    "UploadStatus", 
-    "QualityLevel",
-    "Platform",
-    
-    # Base Models
-    "BaseResponse",
-    "ErrorResponse",
-    
-    # Upload Models
-    "FileValidationResult",
-    "ChunkUploadRequest",
-    "UploadProgress",
-    "VideoUploadResponse",
-    
-    # Analysis Models
-    "AnalysisRequest",
-    "ViralFactors",
-    "TimelineSegment",
-    "AnalysisResult",
-    "AnalysisResponse",
-    
-    # Preview Models
-    "PreviewRequest",
-    "PreviewResponse",
-    
-    # Processing Models
-    "ProcessingMetrics",
-    "ProcessingStatus",
-    
-    # Health Models
-    "ServiceHealth",
-    "SystemMetrics",
-    "SystemHealth",
-    
-    # WebSocket Models
-    "WebSocketMessage",
-    "UploadProgressMessage",
-    "ProcessingStatusMessage",
-    "TimelineUpdateMessage",
-    
-    # Configuration
-    "EnterpriseConfig",
-    
-    # Utilities
-    "validate_file_extension",
-    "validate_video_duration", 
-    "validate_viral_score"
+    'StatusEnum',
+    'PlatformEnum',
+    'VideoRequest',
+    'AnalysisResponse',
+    'ErrorResponse',
+    'HealthResponse',
+    'TemplateRequest',
+    'TemplateResponse',
+    'CollaborationRequest',
+    'AIRequest',
+    'BatchJobRequest',
+    'BatchJobResponse',
+    'MetricsResponse',
+    'WebSocketMessage',
+    'PaginationParams',
+    'APIResponse',
+    'validate_uuid',
+    'validate_platform_list'
 ]
