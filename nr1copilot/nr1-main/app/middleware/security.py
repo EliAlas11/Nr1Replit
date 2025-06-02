@@ -16,6 +16,9 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from ..utils.rate_limiter import rate_limiter, RateLimitScope
+from ..utils.api_responses import APIResponseBuilder, ErrorCode
+
 logger = logging.getLogger(__name__)
 
 

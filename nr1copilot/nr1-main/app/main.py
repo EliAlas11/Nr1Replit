@@ -29,6 +29,7 @@ from app.services.dependency_container import ServiceContainer
 from app.middleware.performance import PerformanceMiddleware
 from app.middleware.security import SecurityMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
+from app.middleware.validation import ValidationMiddleware
 
 # Routes
 from app.routes import auth, enterprise, websocket
@@ -342,19 +343,84 @@ app = FastAPI(
     title=APPLICATION_INFO["name"],
     description=APPLICATION_INFO["description"],
     version=APPLICATION_INFO["version"],
-    docs_url="/api/docs" if settings.debug else None,
-    redoc_url="/api/redoc" if settings.debug else None,
-    openapi_url="/api/openapi.json" if settings.debug else None,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc", 
+    openapi_url="/api/openapi.json",
     lifespan=lifespan,
+    contact={
+        "name": "ViralClip Pro Support",
+        "url": "https://support.viralclip.pro",
+        "email": "support@viralclip.pro"
+    },
+    license_info={
+        "name": "Enterprise License",
+        "url": "https://viralclip.pro/license"
+    },
+    servers=[
+        {
+            "url": "https://api.viralclip.pro",
+            "description": "Production server"
+        },
+        {
+            "url": "http://localhost:5000",
+            "description": "Development server"
+        }
+    ],
     openapi_tags=[
-        {"name": "Health", "description": "System health and monitoring"},
-        {"name": "Video", "description": "Video processing and management"},
-        {"name": "AI", "description": "AI analysis and optimization"},
-        {"name": "Analytics", "description": "Performance and usage analytics"},
-        {"name": "Enterprise", "description": "Enterprise features and management"},
-        {"name": "Auth", "description": "Authentication and authorization"},
-        {"name": "WebSocket", "description": "Real-time communication"}
-    ]
+        {
+            "name": "Health", 
+            "description": "System health and monitoring endpoints",
+            "externalDocs": {
+                "description": "Health monitoring guide",
+                "url": "https://docs.viralclip.pro/health"
+            }
+        },
+        {
+            "name": "Video", 
+            "description": "Video processing and management endpoints",
+            "externalDocs": {
+                "description": "Video API guide",
+                "url": "https://docs.viralclip.pro/video"
+            }
+        },
+        {
+            "name": "AI", 
+            "description": "AI analysis and optimization endpoints",
+            "externalDocs": {
+                "description": "AI integration guide",
+                "url": "https://docs.viralclip.pro/ai"
+            }
+        },
+        {
+            "name": "Analytics", 
+            "description": "Performance and usage analytics endpoints"
+        },
+        {
+            "name": "Enterprise", 
+            "description": "Enterprise features and management endpoints"
+        },
+        {
+            "name": "Auth", 
+            "description": "Authentication and authorization endpoints",
+            "externalDocs": {
+                "description": "Authentication guide",
+                "url": "https://docs.viralclip.pro/auth"
+            }
+        },
+        {
+            "name": "WebSocket", 
+            "description": "Real-time communication endpoints"
+        }
+    ],
+    responses={
+        400: {"description": "Bad Request - Invalid input parameters"},
+        401: {"description": "Unauthorized - Authentication required"},
+        403: {"description": "Forbidden - Insufficient permissions"},
+        404: {"description": "Not Found - Resource does not exist"},
+        429: {"description": "Too Many Requests - Rate limit exceeded"},
+        500: {"description": "Internal Server Error - Server error occurred"},
+        503: {"description": "Service Unavailable - Service temporarily down"}
+    }
 )
 
 # Middleware stack (optimized order)
@@ -387,6 +453,7 @@ app.add_middleware(
 
 app.add_middleware(PerformanceMiddleware)
 app.add_middleware(SecurityMiddleware)
+app.add_middleware(ValidationMiddleware)
 app.add_middleware(ErrorHandlerMiddleware)
 
 # Include routers
@@ -820,35 +887,64 @@ def _generate_netflix_dashboard() -> str:
 
 
 # Error handlers
+from app.utils.api_responses import APIResponseBuilder, ErrorCode
+
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: HTTPException):
-    """Optimized 404 handler"""
-    return JSONResponse(
-        status_code=404,
-        content={
-            "error": "Resource not found",
+    """Optimized 404 handler with standardized response"""
+    return APIResponseBuilder.error(
+        error_code=ErrorCode.RESOURCE_NOT_FOUND,
+        message="The requested resource was not found",
+        details={
             "path": str(request.url.path),
             "method": request.method,
-            "timestamp": datetime.utcnow().isoformat(),
-            "suggestion": "Check the API documentation at /api/docs"
-        }
+            "available_endpoints": "/api/docs"
+        },
+        suggestion="Check the API documentation at /api/docs",
+        docs_url="https://docs.viralclip.pro/endpoints",
+        request_id=getattr(request.state, "request_id", None),
+        http_status=404
     )
 
 
 @app.exception_handler(500)
 async def internal_server_error_handler(request: Request, exc: Exception):
-    """Enhanced 500 handler"""
+    """Enhanced 500 handler with standardized response"""
     error_id = f"err_{int(time.time())}"
     logger.error(f"Internal server error [{error_id}]: {exc}", exc_info=True)
 
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
+    return APIResponseBuilder.error(
+        error_code=ErrorCode.INTERNAL_ERROR,
+        message="An internal server error occurred",
+        details={
             "error_id": error_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "message": "An unexpected error occurred. Please try again."
-        }
+            "error_type": type(exc).__name__
+        },
+        suggestion="Please try again. If the problem persists, contact support.",
+        docs_url="https://docs.viralclip.pro/troubleshooting",
+        request_id=getattr(request.state, "request_id", None),
+        http_status=500
+    )
+
+
+@app.exception_handler(422)
+async def validation_exception_handler(request: Request, exc):
+    """Handle Pydantic validation errors"""
+    return APIResponseBuilder.validation_error(
+        message="Request validation failed",
+        details={"validation_errors": exc.errors() if hasattr(exc, 'errors') else str(exc)},
+        request_id=getattr(request.state, "request_id", None)
+    )
+
+
+@app.exception_handler(429)
+async def rate_limit_handler(request: Request, exc: HTTPException):
+    """Handle rate limit errors"""
+    return APIResponseBuilder.rate_limit_error(
+        retry_after=60,
+        limit=100,
+        window=3600,
+        request_id=getattr(request.state, "request_id", None)
     )
 
 
