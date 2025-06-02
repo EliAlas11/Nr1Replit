@@ -1,7 +1,7 @@
 
 """
 ViralClip Pro v6.0 - Netflix-Level Video Service
-Enterprise video processing with advanced performance and scalability
+Enterprise video processing with advanced performance, monitoring, and scalability
 """
 
 import asyncio
@@ -9,7 +9,7 @@ import logging
 import time
 import uuid
 import hashlib
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Union, Tuple, Callable
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,556 +18,979 @@ import aiofiles
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 import psutil
+from enum import Enum
+import traceback
+from contextlib import asynccontextmanager
 
 from fastapi import UploadFile, HTTPException
 
-logger = logging.getLogger(__name__)
+# ================================
+# Core Data Models
+# ================================
+
+class UploadStatus(Enum):
+    """Upload status enumeration for type safety"""
+    INITIALIZING = "initializing"
+    QUEUED = "queued"
+    UPLOADING = "uploading"
+    PAUSED = "paused"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class ProcessingStage(Enum):
+    """Processing stage enumeration"""
+    VALIDATION = "validation"
+    ASSEMBLY = "assembly"
+    ANALYSIS = "analysis"
+    OPTIMIZATION = "optimization"
+    ENCODING = "encoding"
+    FINALIZATION = "finalization"
+
+
+@dataclass
+class UploadMetrics:
+    """Comprehensive upload metrics for monitoring"""
+    total_uploads: int = 0
+    successful_uploads: int = 0
+    failed_uploads: int = 0
+    cancelled_uploads: int = 0
+    total_bytes_processed: int = 0
+    average_upload_speed: float = 0.0
+    average_processing_time: float = 0.0
+    peak_concurrent_uploads: int = 0
+    error_rate: float = 0.0
+    uptime_seconds: float = 0.0
 
 
 @dataclass
 class UploadSession:
-    """Enterprise upload session with comprehensive tracking"""
+    """Enhanced upload session with comprehensive tracking"""
     upload_id: str
     filename: str
     file_size: int
     total_chunks: int
+    
+    # Status tracking
+    status: UploadStatus = UploadStatus.INITIALIZING
     received_chunks: int = 0
-    status: str = "initializing"
+    processing_stage: Optional[ProcessingStage] = None
+    
+    # Timing
     created_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
     last_activity: datetime = field(default_factory=datetime.utcnow)
+    
+    # User context
     user_info: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    performance_metrics: Dict[str, Any] = field(default_factory=dict)
+    client_info: Dict[str, Any] = field(default_factory=dict)
+    
+    # Performance tracking
+    chunk_timings: List[float] = field(default_factory=list)
+    retry_counts: Dict[int, int] = field(default_factory=dict)
+    error_history: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Metadata
+    file_metadata: Dict[str, Any] = field(default_factory=dict)
+    processing_metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Configuration
+    chunk_size: int = 5 * 1024 * 1024
+    max_retries: int = 3
+    timeout_seconds: int = 3600
+
+    def calculate_progress(self) -> float:
+        """Calculate upload progress percentage"""
+        if self.total_chunks == 0:
+            return 0.0
+        return (self.received_chunks / self.total_chunks) * 100
+
+    def calculate_upload_speed(self) -> float:
+        """Calculate current upload speed in bytes per second"""
+        if not self.chunk_timings or not self.started_at:
+            return 0.0
+        
+        elapsed_time = (datetime.utcnow() - self.started_at).total_seconds()
+        if elapsed_time <= 0:
+            return 0.0
+        
+        uploaded_bytes = self.received_chunks * self.chunk_size
+        return uploaded_bytes / elapsed_time
+
+    def estimate_time_remaining(self) -> float:
+        """Estimate time remaining in seconds"""
+        speed = self.calculate_upload_speed()
+        if speed <= 0:
+            return float('inf')
+        
+        remaining_bytes = (self.total_chunks - self.received_chunks) * self.chunk_size
+        return remaining_bytes / speed
+
+    def is_expired(self) -> bool:
+        """Check if session has expired"""
+        elapsed = (datetime.utcnow() - self.last_activity).total_seconds()
+        return elapsed > self.timeout_seconds
+
+    def add_error(self, error: Exception, context: str = ""):
+        """Add error to history with context"""
+        self.error_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(error),
+            "context": context,
+            "traceback": traceback.format_exc()
+        })
 
 
-@dataclass
-class VideoProcessingResult:
-    """Comprehensive video processing result"""
-    session_id: str
-    success: bool
-    processing_time: float
-    file_path: Optional[Path] = None
-    preview_data: Optional[Dict[str, Any]] = None
-    viral_analysis: Optional[Dict[str, Any]] = None
-    error_details: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+# ================================
+# Performance Monitor
+# ================================
 
-
-class ValidationResult:
-    """Upload validation result with detailed feedback"""
-    def __init__(self, valid: bool, error: str = None, estimated_time: float = 0):
-        self.valid = valid
-        self.error = error
-        self.estimated_time = estimated_time
-
-
-class NetflixLevelVideoService:
-    """Netflix-level video service with enterprise performance and monitoring"""
-
+class PerformanceMonitor:
+    """Advanced performance monitoring for upload operations"""
+    
     def __init__(self):
-        # Performance optimization
-        self.thread_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="video_service")
-        self.upload_sessions: Dict[str, UploadSession] = {}
-        self.processing_queue = asyncio.Queue(maxsize=100)
-        self.active_processing = weakref.WeakSet()
-        
-        # Enterprise configuration
-        self.max_file_size = 500 * 1024 * 1024  # 500MB
-        self.supported_formats = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'}
-        self.chunk_size = 5 * 1024 * 1024  # 5MB chunks
-        self.session_timeout = 3600  # 1 hour
-        
-        # Performance monitoring
-        self.performance_metrics = {
-            "total_uploads": 0,
-            "successful_uploads": 0,
-            "average_upload_time": 0.0,
-            "average_processing_time": 0.0,
-            "error_rate": 0.0,
-            "throughput_mbps": 0.0
+        self.metrics = UploadMetrics()
+        self.start_time = time.time()
+        self.metric_history: List[Dict[str, Any]] = []
+        self.alert_thresholds = {
+            "error_rate": 0.1,  # 10%
+            "avg_processing_time": 300,  # 5 minutes
+            "memory_usage_mb": 1024,  # 1GB
+            "disk_usage_percent": 90  # 90%
         }
-        
-        # Storage paths
-        self.upload_path = Path("nr1copilot/nr1-main/uploads")
-        self.temp_path = Path("nr1copilot/nr1-main/temp")
-        self.output_path = Path("nr1copilot/nr1-main/output")
-        
-        # Initialize directories
-        for path in [self.upload_path, self.temp_path, self.output_path]:
-            path.mkdir(parents=True, exist_ok=True)
-        
-        logger.info("🎬 Netflix-level video service initialized")
 
-    async def enterprise_warm_up(self):
-        """Warm up video service for optimal performance"""
-        try:
-            start_time = time.time()
-            
-            # Pre-create processing environment
-            await self._setup_processing_environment()
-            
-            # Initialize codec support
-            await self._initialize_codecs()
-            
-            # Setup monitoring
-            await self._setup_performance_monitoring()
-            
-            warm_up_time = time.time() - start_time
-            logger.info(f"🔥 Video service warm-up completed in {warm_up_time:.2f}s")
-            
-        except Exception as e:
-            logger.error(f"Video service warm-up failed: {e}", exc_info=True)
+    def record_upload_start(self):
+        """Record upload start"""
+        self.metrics.total_uploads += 1
 
-    async def validate_enterprise_upload(
-        self,
-        filename: str,
-        file_size: int,
-        total_chunks: int,
-        user: Dict[str, Any]
-    ) -> ValidationResult:
-        """Enterprise-level upload validation with comprehensive checks"""
-        try:
-            # File extension validation
-            file_ext = Path(filename).suffix.lower()
-            if file_ext not in self.supported_formats:
-                return ValidationResult(
-                    False, 
-                    f"Unsupported format {file_ext}. Supported: {', '.join(self.supported_formats)}"
-                )
-            
-            # File size validation
-            if file_size > self.max_file_size:
-                return ValidationResult(
-                    False,
-                    f"File too large ({file_size / 1024 / 1024:.1f}MB). Maximum: {self.max_file_size / 1024 / 1024:.0f}MB"
-                )
-            
-            if file_size <= 0:
-                return ValidationResult(False, "Invalid file size")
-            
-            # Chunk validation
-            if total_chunks <= 0 or total_chunks > 1000:
-                return ValidationResult(False, "Invalid chunk count")
-            
-            # User tier validation
-            user_tier = user.get("tier", "standard")
-            if user_tier == "free" and file_size > 100 * 1024 * 1024:  # 100MB for free
-                return ValidationResult(
-                    False,
-                    "File size exceeds free tier limit (100MB). Please upgrade."
-                )
-            
-            # Rate limiting check
-            if not await self._check_user_rate_limit(user):
-                return ValidationResult(False, "Rate limit exceeded. Please try again later.")
-            
-            # Storage capacity check
-            if not await self._check_storage_capacity(file_size):
-                return ValidationResult(False, "Insufficient storage capacity")
-            
-            # Estimate processing time
-            estimated_time = self._estimate_processing_time(file_size, file_ext)
-            
-            return ValidationResult(True, None, estimated_time)
-            
-        except Exception as e:
-            logger.error(f"Upload validation failed: {e}", exc_info=True)
-            return ValidationResult(False, "Validation failed due to internal error")
+    def record_upload_success(self, processing_time: float, file_size: int):
+        """Record successful upload"""
+        self.metrics.successful_uploads += 1
+        self.metrics.total_bytes_processed += file_size
+        self._update_average_processing_time(processing_time)
+        self._update_error_rate()
 
-    async def create_enterprise_upload_session(
-        self,
-        upload_id: str,
-        filename: str,
-        file_size: int,
-        total_chunks: int,
-        user: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Create enterprise upload session with advanced tracking"""
-        try:
-            # Create upload session
-            session = UploadSession(
-                upload_id=upload_id,
-                filename=filename,
-                file_size=file_size,
-                total_chunks=total_chunks,
-                user_info=user,
-                metadata={
-                    "file_extension": Path(filename).suffix.lower(),
-                    "estimated_duration": self._estimate_video_duration(file_size),
-                    "quality_preset": "auto"
-                }
+    def record_upload_failure(self):
+        """Record failed upload"""
+        self.metrics.failed_uploads += 1
+        self._update_error_rate()
+
+    def record_upload_cancellation(self):
+        """Record cancelled upload"""
+        self.metrics.cancelled_uploads += 1
+
+    def update_concurrent_uploads(self, count: int):
+        """Update concurrent upload count"""
+        self.metrics.peak_concurrent_uploads = max(
+            self.metrics.peak_concurrent_uploads, count
+        )
+
+    def _update_average_processing_time(self, processing_time: float):
+        """Update average processing time"""
+        total_successful = self.metrics.successful_uploads
+        if total_successful == 1:
+            self.metrics.average_processing_time = processing_time
+        else:
+            current_avg = self.metrics.average_processing_time
+            self.metrics.average_processing_time = (
+                (current_avg * (total_successful - 1) + processing_time) / total_successful
             )
-            
-            # Store session
-            self.upload_sessions[upload_id] = session
-            
-            # Create upload directory
-            upload_dir = self.temp_path / upload_id
-            upload_dir.mkdir(exist_ok=True)
-            
-            logger.info(f"📋 Upload session created: {upload_id} - {filename}")
-            
-            return {
-                "upload_id": upload_id,
-                "chunk_size": self.chunk_size,
-                "upload_url": f"/api/v6/upload/chunk",
-                "session_timeout": self.session_timeout,
-                "supported_formats": list(self.supported_formats),
-                "status": "ready"
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to create upload session: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Session creation failed")
 
-    async def process_enterprise_chunk(
-        self,
-        file: UploadFile,
-        upload_id: str,
-        chunk_index: int,
-        total_chunks: int,
-        chunk_hash: Optional[str],
-        user: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Process enterprise chunk with Netflix-level reliability and advanced error handling"""
-        try:
-            start_time = time.time()
-            
-            # Validate session
-            session = self.upload_sessions.get(upload_id)
-            if not session:
-                return {"success": False, "error": "Upload session not found", "retry_after": 5}
-            
-            # Update session activity
-            session.last_activity = datetime.utcnow()
-            
-            # Validate chunk
-            if chunk_index < 0 or chunk_index >= total_chunks:
-                return {"success": False, "error": "Invalid chunk index"}
-            
-            # Check for duplicate chunk (resume support)
-            chunk_path = self.temp_path / upload_id / f"chunk_{chunk_index:04d}"
-            if chunk_path.exists():
-                # Chunk already exists, verify integrity
-                existing_size = chunk_path.stat().st_size
-                session.received_chunks = max(session.received_chunks, chunk_index + 1)
-                progress = (session.received_chunks / session.total_chunks) * 100
-                
-                logger.info(f"📦 Chunk {chunk_index} already exists for {upload_id}")
-                
-                return {
-                    "success": True,
-                    "upload_id": upload_id,
-                    "chunk_index": chunk_index,
-                    "progress": progress,
-                    "received_chunks": session.received_chunks,
-                    "total_chunks": session.total_chunks,
-                    "is_complete": session.received_chunks >= session.total_chunks,
-                    "processing_time": 0.001,  # Minimal time for duplicate
-                    "duplicate": True,
-                    "message": "Chunk already uploaded"
-                }
-            
-            # Read and validate chunk data
-            chunk_data = await file.read()
-            if not chunk_data:
-                return {"success": False, "error": "Empty chunk data", "retry_after": 1}
-            
-            # Verify chunk size limits
-            if len(chunk_data) > self.chunk_size * 2:  # Allow some flexibility
-                return {"success": False, "error": f"Chunk too large: {len(chunk_data)} bytes"}
-            
-            # Verify chunk hash if provided
-            if chunk_hash:
-                calculated_hash = hashlib.md5(chunk_data).hexdigest()
-                if calculated_hash != chunk_hash:
-                    return {
-                        "success": False, 
-                        "error": "Chunk integrity check failed",
-                        "expected_hash": chunk_hash,
-                        "calculated_hash": calculated_hash,
-                        "retry_after": 0.5
-                    }
-            
-            # Ensure upload directory exists
-            upload_dir = self.temp_path / upload_id
-            upload_dir.mkdir(exist_ok=True)
-            
-            # Save chunk to disk with atomic write
-            temp_chunk_path = chunk_path.with_suffix('.tmp')
-            try:
-                async with aiofiles.open(temp_chunk_path, 'wb') as f:
-                    await f.write(chunk_data)
-                
-                # Atomic move
-                temp_chunk_path.rename(chunk_path)
-                
-            except Exception as e:
-                # Cleanup temp file if it exists
-                if temp_chunk_path.exists():
-                    temp_chunk_path.unlink()
-                raise e
-            
-            # Update session progress atomically
-            old_count = session.received_chunks
-            session.received_chunks = max(session.received_chunks, chunk_index + 1)
-            progress = (session.received_chunks / session.total_chunks) * 100
-            
-            # Calculate upload speed
-            processing_time = time.time() - start_time
-            upload_speed = len(chunk_data) / processing_time if processing_time > 0 else 0
-            
-            # Update session performance metrics
-            if not hasattr(session, 'performance_metrics'):
-                session.performance_metrics = {
-                    "total_bytes": 0,
-                    "total_time": 0,
-                    "chunk_times": [],
-                    "speed_history": []
-                }
-            
-            session.performance_metrics["total_bytes"] += len(chunk_data)
-            session.performance_metrics["total_time"] += processing_time
-            session.performance_metrics["chunk_times"].append(processing_time)
-            session.performance_metrics["speed_history"].append(upload_speed)
-            
-            # Keep only last 10 speed measurements
-            if len(session.performance_metrics["speed_history"]) > 10:
-                session.performance_metrics["speed_history"] = session.performance_metrics["speed_history"][-10:]
-            
-            # Check if upload is complete
-            is_complete = session.received_chunks >= session.total_chunks
-            
-            result = {
-                "success": True,
-                "upload_id": upload_id,
-                "chunk_index": chunk_index,
-                "progress": progress,
-                "received_chunks": session.received_chunks,
-                "total_chunks": session.total_chunks,
-                "is_complete": is_complete,
-                "processing_time": processing_time,
-                "upload_speed": upload_speed,
-                "average_speed": sum(session.performance_metrics["speed_history"]) / len(session.performance_metrics["speed_history"]),
-                "estimated_time_remaining": self._calculate_eta(session),
-                "chunk_size": len(chunk_data),
-                "duplicate": False
-            }
-            
-            # If upload complete, assemble file and start processing
-            if is_complete:
-                try:
-                    await self._finalize_upload(session)
-                    result["status"] = "processing_started"
-                    result["message"] = "Upload complete! Starting AI analysis..."
-                    result["final_file_path"] = str(session.metadata.get("final_path", ""))
-                except Exception as e:
-                    logger.error(f"Upload finalization failed: {e}")
-                    result["success"] = False
-                    result["error"] = "Upload finalization failed"
-                    result["retry_after"] = 2
-            
-            # Update global performance metrics
-            await self._update_upload_metrics(processing_time, len(chunk_data), True)
-            
-            # Broadcast progress via WebSocket if available
-            if hasattr(self, 'realtime_engine') and self.realtime_engine:
-                await self.realtime_engine.broadcast_enterprise_progress(
-                    upload_id, result, user
-                )
-            
-            logger.debug(f"✅ Chunk {chunk_index}/{total_chunks} processed for {upload_id} in {processing_time:.3f}s")
-            
-            return result
-            
-        except asyncio.CancelledError:
-            # Handle cancellation gracefully
-            logger.info(f"Chunk upload cancelled: {upload_id} chunk {chunk_index}")
-            return {"success": False, "error": "Upload cancelled", "cancelled": True}
-            
-        except OSError as e:
-            # Handle disk/network errors
-            logger.error(f"Storage error during chunk processing: {e}")
-            return {
-                "success": False, 
-                "error": "Storage error", 
-                "details": str(e),
-                "retry_after": 2
-            }
-            
-        except Exception as e:
-            logger.error(f"Chunk processing failed: {e}", exc_info=True)
-            await self._update_upload_metrics(0, 0, False)
-            return {
-                "success": False, 
-                "error": "Chunk processing failed",
-                "details": str(e),
-                "retry_after": 1
-            }
+    def _update_error_rate(self):
+        """Update error rate calculation"""
+        total = self.metrics.total_uploads
+        if total > 0:
+            self.metrics.error_rate = self.metrics.failed_uploads / total
 
-    async def generate_preview_with_realtime_feedback(
-        self,
-        session_id: str,
-        start_time: float,
-        end_time: float,
-        quality: str,
-        enable_viral_optimization: bool = True
-    ) -> Dict[str, Any]:
-        """Generate preview with real-time feedback and viral optimization"""
-        try:
-            logger.info(f"🎬 Generating preview for session: {session_id}")
-            
-            # Simulate preview generation stages
-            stages = [
-                ("initializing", "Initializing preview generation...", 10),
-                ("extracting", "Extracting video segment...", 30),
-                ("optimizing", "Applying viral optimizations...", 60),
-                ("encoding", "Encoding preview...", 80),
-                ("finalizing", "Finalizing preview...", 100)
-            ]
-            
-            for stage, message, progress in stages:
-                # In production, broadcast to WebSocket connections
-                logger.info(f"Preview {session_id}: {message} ({progress}%)")
-                await asyncio.sleep(0.5)  # Simulate processing time
-            
-            # Generate preview metadata
-            preview_data = {
-                "session_id": session_id,
-                "preview_url": f"/api/v6/preview/{session_id}_{start_time}_{end_time}.mp4",
-                "thumbnail_url": f"/api/v6/thumbnail/{session_id}_{start_time}.jpg",
-                "duration": end_time - start_time,
-                "quality": quality,
-                "viral_optimizations_applied": enable_viral_optimization,
-                "generated_at": datetime.utcnow().isoformat()
-            }
-            
-            if enable_viral_optimization:
-                preview_data["optimizations"] = [
-                    "Color grading for maximum impact",
-                    "Audio enhancement for engagement",
-                    "Pacing optimization for retention"
-                ]
-            
-            return preview_data
-            
-        except Exception as e:
-            logger.error(f"Preview generation failed: {e}", exc_info=True)
-            raise
-
-    # Private helper methods
-
-    async def _setup_processing_environment(self):
-        """Setup optimal processing environment"""
-        # Ensure all directories exist
-        for path in [self.upload_path, self.temp_path, self.output_path]:
-            path.mkdir(parents=True, exist_ok=True, mode=0o755)
+    def get_system_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive system metrics"""
+        process = psutil.Process()
+        memory_info = process.memory_info()
         
-        # Initialize processing queue worker
-        asyncio.create_task(self._process_queue_worker())
-
-    async def _initialize_codecs(self):
-        """Initialize video codecs and processing libraries"""
-        # Simulate codec initialization
-        await asyncio.sleep(0.1)
-        logger.info("🎥 Video codecs initialized")
-
-    async def _setup_performance_monitoring(self):
-        """Setup performance monitoring"""
-        # Start background monitoring task
-        asyncio.create_task(self._monitor_performance())
-
-    async def _check_user_rate_limit(self, user: Dict[str, Any]) -> bool:
-        """Check user rate limiting"""
-        # Implement sophisticated rate limiting
-        user_tier = user.get("tier", "standard")
-        
-        # Different limits for different tiers
-        limits = {
-            "free": {"uploads_per_hour": 5, "total_mb_per_hour": 500},
-            "standard": {"uploads_per_hour": 20, "total_mb_per_hour": 2000},
-            "premium": {"uploads_per_hour": 100, "total_mb_per_hour": 10000}
+        return {
+            "cpu_percent": psutil.cpu_percent(interval=0.1),
+            "memory_usage_mb": memory_info.rss / (1024 * 1024),
+            "memory_percent": psutil.virtual_memory().percent,
+            "disk_usage": dict(psutil.disk_usage('/')),
+            "network_io": dict(psutil.net_io_counters()),
+            "timestamp": datetime.utcnow().isoformat()
         }
-        
-        # For demo, always return True
-        return True
 
-    async def _check_storage_capacity(self, file_size: int) -> bool:
-        """Check available storage capacity"""
+    def check_health(self) -> Dict[str, Any]:
+        """Perform health check against thresholds"""
+        system_metrics = self.get_system_metrics()
+        health_status = {
+            "healthy": True,
+            "alerts": [],
+            "metrics": system_metrics
+        }
+
+        # Check error rate
+        if self.metrics.error_rate > self.alert_thresholds["error_rate"]:
+            health_status["healthy"] = False
+            health_status["alerts"].append({
+                "type": "high_error_rate",
+                "current": self.metrics.error_rate,
+                "threshold": self.alert_thresholds["error_rate"]
+            })
+
+        # Check memory usage
+        if system_metrics["memory_usage_mb"] > self.alert_thresholds["memory_usage_mb"]:
+            health_status["healthy"] = False
+            health_status["alerts"].append({
+                "type": "high_memory_usage",
+                "current": system_metrics["memory_usage_mb"],
+                "threshold": self.alert_thresholds["memory_usage_mb"]
+            })
+
+        return health_status
+
+    def export_metrics(self) -> Dict[str, Any]:
+        """Export all metrics for external monitoring"""
+        self.metrics.uptime_seconds = time.time() - self.start_time
+        
+        return {
+            "metrics": self.metrics.__dict__,
+            "system": self.get_system_metrics(),
+            "history": self.metric_history[-100:],  # Last 100 entries
+            "health": self.check_health()
+        }
+
+
+# ================================
+# Circuit Breaker Pattern
+# ================================
+
+class CircuitBreaker:
+    """Circuit breaker for handling service failures gracefully"""
+    
+    def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+
+    @asynccontextmanager
+    async def call(self):
+        """Context manager for circuit breaker calls"""
+        if self.state == "OPEN":
+            if self._should_attempt_reset():
+                self.state = "HALF_OPEN"
+            else:
+                raise Exception("Circuit breaker is OPEN")
+
         try:
-            # Check disk space
-            disk_usage = psutil.disk_usage(str(self.upload_path))
-            available_space = disk_usage.free
-            
-            # Require at least 2x file size + 1GB buffer
-            required_space = file_size * 2 + (1024 * 1024 * 1024)
-            
-            return available_space >= required_space
-            
+            yield
+            if self.state == "HALF_OPEN":
+                self._reset()
         except Exception as e:
-            logger.warning(f"Storage capacity check failed: {e}")
-            return True  # Fail open
+            self._record_failure()
+            raise e
+
+    def _should_attempt_reset(self) -> bool:
+        """Check if we should attempt to reset the circuit breaker"""
+        if self.last_failure_time is None:
+            return False
+        return time.time() - self.last_failure_time >= self.recovery_timeout
+
+    def _record_failure(self):
+        """Record a failure"""
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        
+        if self.failure_count >= self.failure_threshold:
+            self.state = "OPEN"
+
+    def _reset(self):
+        """Reset the circuit breaker"""
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = "CLOSED"
+
+
+# ================================
+# Upload Session Manager
+# ================================
+
+class UploadSessionManager:
+    """Advanced session management with lifecycle handling"""
+    
+    def __init__(self, performance_monitor: PerformanceMonitor):
+        self.sessions: Dict[str, UploadSession] = {}
+        self.session_locks: Dict[str, asyncio.Lock] = {}
+        self.performance_monitor = performance_monitor
+        self.cleanup_task: Optional[asyncio.Task] = None
+        self.logger = logging.getLogger(f"{__name__}.SessionManager")
+
+    async def start(self):
+        """Start session manager background tasks"""
+        self.cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
+
+    async def stop(self):
+        """Stop session manager and cleanup"""
+        if self.cleanup_task:
+            self.cleanup_task.cancel()
+            try:
+                await self.cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+    async def create_session(
+        self,
+        upload_id: str,
+        filename: str,
+        file_size: int,
+        total_chunks: int,
+        user_info: Dict[str, Any],
+        client_info: Dict[str, Any] = None
+    ) -> UploadSession:
+        """Create new upload session with validation"""
+        
+        if upload_id in self.sessions:
+            raise ValueError(f"Session {upload_id} already exists")
+
+        session = UploadSession(
+            upload_id=upload_id,
+            filename=filename,
+            file_size=file_size,
+            total_chunks=total_chunks,
+            user_info=user_info or {},
+            client_info=client_info or {}
+        )
+
+        # Create session lock
+        self.session_locks[upload_id] = asyncio.Lock()
+        
+        # Store session
+        self.sessions[upload_id] = session
+        
+        # Record metrics
+        self.performance_monitor.record_upload_start()
+        self.performance_monitor.update_concurrent_uploads(len(self.sessions))
+        
+        self.logger.info(f"Created upload session: {upload_id}")
+        return session
+
+    async def get_session(self, upload_id: str) -> Optional[UploadSession]:
+        """Get session by ID"""
+        return self.sessions.get(upload_id)
+
+    async def update_session(
+        self,
+        upload_id: str,
+        update_func: Callable[[UploadSession], None]
+    ) -> bool:
+        """Thread-safe session update"""
+        session = self.sessions.get(upload_id)
+        if not session:
+            return False
+
+        lock = self.session_locks.get(upload_id)
+        if not lock:
+            return False
+
+        async with lock:
+            # Refresh session reference
+            session = self.sessions.get(upload_id)
+            if session:
+                update_func(session)
+                session.last_activity = datetime.utcnow()
+                return True
+        
+        return False
+
+    async def complete_session(self, upload_id: str, success: bool = True):
+        """Mark session as completed"""
+        session = self.sessions.get(upload_id)
+        if not session:
+            return
+
+        # Calculate processing time
+        if session.started_at:
+            processing_time = (datetime.utcnow() - session.started_at).total_seconds()
+        else:
+            processing_time = 0
+
+        # Update session
+        def update_session(s: UploadSession):
+            s.completed_at = datetime.utcnow()
+            s.status = UploadStatus.COMPLETED if success else UploadStatus.FAILED
+
+        await self.update_session(upload_id, update_session)
+
+        # Record metrics
+        if success:
+            self.performance_monitor.record_upload_success(processing_time, session.file_size)
+        else:
+            self.performance_monitor.record_upload_failure()
+
+        self.logger.info(f"Completed upload session: {upload_id} (success: {success})")
+
+    async def remove_session(self, upload_id: str):
+        """Remove session and cleanup resources"""
+        if upload_id in self.sessions:
+            session = self.sessions.pop(upload_id)
+            
+            # Cleanup session lock
+            if upload_id in self.session_locks:
+                del self.session_locks[upload_id]
+            
+            # Update metrics
+            self.performance_monitor.update_concurrent_uploads(len(self.sessions))
+            
+            self.logger.info(f"Removed upload session: {upload_id}")
+
+    async def _cleanup_expired_sessions(self):
+        """Background task to cleanup expired sessions"""
+        while True:
+            try:
+                current_time = datetime.utcnow()
+                expired_sessions = []
+
+                for upload_id, session in self.sessions.items():
+                    if session.is_expired():
+                        expired_sessions.append(upload_id)
+
+                for upload_id in expired_sessions:
+                    self.logger.info(f"Cleaning up expired session: {upload_id}")
+                    await self.remove_session(upload_id)
+
+                await asyncio.sleep(300)  # Check every 5 minutes
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Error in session cleanup: {e}")
+                await asyncio.sleep(60)  # Wait before retrying
+
+    def get_active_sessions(self) -> List[UploadSession]:
+        """Get all active sessions"""
+        return list(self.sessions.values())
+
+    def get_session_count(self) -> int:
+        """Get current session count"""
+        return len(self.sessions)
+
+
+# ================================
+# File Validator
+# ================================
+
+class FileValidator:
+    """Advanced file validation with comprehensive checks"""
+    
+    def __init__(self):
+        self.config = {
+            "max_file_size": 500 * 1024 * 1024,  # 500MB
+            "supported_formats": {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp', '.mp3', '.wav'},
+            "max_filename_length": 255,
+            "blocked_patterns": [r'[<>:"/\\|?*]'],  # Invalid filename characters
+            "virus_scan_enabled": False  # Could integrate with antivirus
+        }
+        self.logger = logging.getLogger(f"{__name__}.FileValidator")
+
+    async def validate_upload_request(
+        self,
+        filename: str,
+        file_size: int,
+        total_chunks: int,
+        user_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Comprehensive upload request validation"""
+        
+        validation_result = {
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+            "metadata": {}
+        }
+
+        # File extension validation
+        file_ext = Path(filename).suffix.lower()
+        if file_ext not in self.config["supported_formats"]:
+            validation_result["valid"] = False
+            validation_result["errors"].append({
+                "code": "UNSUPPORTED_FORMAT",
+                "message": f"Unsupported format {file_ext}. Supported: {', '.join(self.config['supported_formats'])}"
+            })
+
+        # File size validation
+        if file_size > self.config["max_file_size"]:
+            validation_result["valid"] = False
+            validation_result["errors"].append({
+                "code": "FILE_TOO_LARGE",
+                "message": f"File too large ({self._format_size(file_size)}). Maximum: {self._format_size(self.config['max_file_size'])}"
+            })
+
+        if file_size <= 0:
+            validation_result["valid"] = False
+            validation_result["errors"].append({
+                "code": "INVALID_FILE_SIZE",
+                "message": "Invalid file size"
+            })
+
+        # Filename validation
+        if len(filename) > self.config["max_filename_length"]:
+            validation_result["valid"] = False
+            validation_result["errors"].append({
+                "code": "FILENAME_TOO_LONG",
+                "message": f"Filename too long (max {self.config['max_filename_length']} characters)"
+            })
+
+        # Check for invalid characters
+        import re
+        for pattern in self.config["blocked_patterns"]:
+            if re.search(pattern, filename):
+                validation_result["valid"] = False
+                validation_result["errors"].append({
+                    "code": "INVALID_FILENAME",
+                    "message": "Filename contains invalid characters"
+                })
+                break
+
+        # Chunk validation
+        if total_chunks <= 0 or total_chunks > 10000:  # Reasonable limit
+            validation_result["valid"] = False
+            validation_result["errors"].append({
+                "code": "INVALID_CHUNK_COUNT",
+                "message": "Invalid chunk count"
+            })
+
+        # User-specific validation
+        await self._validate_user_limits(user_info, file_size, validation_result)
+
+        # Generate metadata
+        if validation_result["valid"]:
+            validation_result["metadata"] = {
+                "estimated_processing_time": self._estimate_processing_time(file_size, file_ext),
+                "estimated_duration": self._estimate_video_duration(file_size),
+                "file_category": self._categorize_file(file_ext),
+                "quality_recommendations": self._get_quality_recommendations(file_size)
+            }
+
+        return validation_result
+
+    async def _validate_user_limits(
+        self,
+        user_info: Dict[str, Any],
+        file_size: int,
+        validation_result: Dict[str, Any]
+    ):
+        """Validate user-specific limits"""
+        user_tier = user_info.get("tier", "free")
+        
+        # Tier-based limits
+        tier_limits = {
+            "free": {"max_size": 100 * 1024 * 1024, "uploads_per_hour": 5},
+            "standard": {"max_size": 250 * 1024 * 1024, "uploads_per_hour": 20},
+            "premium": {"max_size": 500 * 1024 * 1024, "uploads_per_hour": 100}
+        }
+
+        limits = tier_limits.get(user_tier, tier_limits["free"])
+        
+        if file_size > limits["max_size"]:
+            validation_result["valid"] = False
+            validation_result["errors"].append({
+                "code": "TIER_LIMIT_EXCEEDED",
+                "message": f"File size exceeds {user_tier} tier limit ({self._format_size(limits['max_size'])})"
+            })
+
+        # Rate limiting would be implemented here
+        # For now, we'll just add a warning for free tier users
+        if user_tier == "free" and file_size > 50 * 1024 * 1024:
+            validation_result["warnings"].append({
+                "code": "LARGE_FILE_FREE_TIER",
+                "message": "Large files may process slower on free tier"
+            })
 
     def _estimate_processing_time(self, file_size: int, file_ext: str) -> float:
         """Estimate processing time based on file characteristics"""
-        # Base time per MB
-        base_time_per_mb = 2.0  # seconds
+        # Base processing rate: 10MB per second
+        base_rate = 10 * 1024 * 1024
         
-        # Format multipliers
-        format_multipliers = {
+        # Format complexity multipliers
+        complexity_multipliers = {
             '.mp4': 1.0,
             '.mov': 1.2,
             '.avi': 1.5,
             '.mkv': 1.3,
             '.webm': 1.1,
-            '.m4v': 1.0
+            '.m4v': 1.0,
+            '.3gp': 0.8,
+            '.mp3': 0.3,
+            '.wav': 0.3
         }
         
-        multiplier = format_multipliers.get(file_ext, 1.5)
-        file_size_mb = file_size / (1024 * 1024)
-        
-        return file_size_mb * base_time_per_mb * multiplier
+        multiplier = complexity_multipliers.get(file_ext, 1.5)
+        return (file_size / base_rate) * multiplier
 
     def _estimate_video_duration(self, file_size: int) -> float:
         """Estimate video duration from file size"""
         # Rough estimation: 1MB ≈ 1 second for typical video
         return max(1, file_size / (1024 * 1024))
 
-    def _calculate_eta(self, session: UploadSession) -> float:
-        """Calculate estimated time remaining for upload"""
+    def _categorize_file(self, file_ext: str) -> str:
+        """Categorize file by extension"""
+        video_formats = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp'}
+        audio_formats = {'.mp3', '.wav'}
+        
+        if file_ext in video_formats:
+            return "video"
+        elif file_ext in audio_formats:
+            return "audio"
+        else:
+            return "unknown"
+
+    def _get_quality_recommendations(self, file_size: int) -> List[str]:
+        """Get quality recommendations based on file size"""
+        recommendations = []
+        
+        # Size-based recommendations
+        if file_size < 10 * 1024 * 1024:  # < 10MB
+            recommendations.append("Consider higher resolution for better quality")
+        elif file_size > 200 * 1024 * 1024:  # > 200MB
+            recommendations.append("Large file - excellent for high-quality content")
+            
+        return recommendations
+
+    def _format_size(self, size_bytes: int) -> str:
+        """Format file size in human readable format"""
+        units = ['B', 'KB', 'MB', 'GB']
+        size = float(size_bytes)
+        unit_index = 0
+        
+        while size >= 1024 and unit_index < len(units) - 1:
+            size /= 1024
+            unit_index += 1
+            
+        return f"{size:.1f} {units[unit_index]}"
+
+
+# ================================
+# Main Video Service
+# ================================
+
+class NetflixLevelVideoService:
+    """Netflix-level video service with enterprise features"""
+
+    def __init__(self):
+        # Core components
+        self.performance_monitor = PerformanceMonitor()
+        self.session_manager = UploadSessionManager(self.performance_monitor)
+        self.file_validator = FileValidator()
+        self.circuit_breaker = CircuitBreaker()
+        
+        # Configuration
+        self.config = {
+            "chunk_size": 5 * 1024 * 1024,  # 5MB
+            "max_concurrent_uploads": 10,
+            "max_retries_per_chunk": 3,
+            "session_timeout": 3600,  # 1 hour
+            "enable_detailed_logging": True
+        }
+        
+        # Storage paths
+        self.storage_paths = {
+            "uploads": Path("nr1copilot/nr1-main/uploads"),
+            "temp": Path("nr1copilot/nr1-main/temp"),
+            "output": Path("nr1copilot/nr1-main/output")
+        }
+        
+        # Background tasks
+        self.background_tasks: List[asyncio.Task] = []
+        
+        # Setup logging
+        self.logger = logging.getLogger(__name__)
+        
+        # Initialize storage
+        self._initialize_storage()
+
+    def _initialize_storage(self):
+        """Initialize storage directories"""
+        for path_type, path in self.storage_paths.items():
+            path.mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"Initialized {path_type} storage: {path}")
+
+    async def startup(self):
+        """Startup service with all components"""
         try:
-            if not hasattr(session, 'performance_metrics'):
-                return 0
+            # Start session manager
+            await self.session_manager.start()
             
-            metrics = session.performance_metrics
-            if not metrics["speed_history"]:
-                return 0
+            # Start background monitoring
+            monitor_task = asyncio.create_task(self._background_monitoring())
+            self.background_tasks.append(monitor_task)
             
-            # Calculate average speed from recent measurements
-            recent_speeds = metrics["speed_history"][-5:]  # Last 5 chunks
-            avg_speed = sum(recent_speeds) / len(recent_speeds)
+            self.logger.info("🚀 Netflix-level video service started successfully")
             
-            if avg_speed <= 0:
-                return 0
+        except Exception as e:
+            self.logger.error(f"Service startup failed: {e}")
+            raise
+
+    async def shutdown(self):
+        """Graceful shutdown"""
+        try:
+            self.logger.info("🔄 Starting video service shutdown...")
             
-            # Calculate remaining data
-            remaining_chunks = session.total_chunks - session.received_chunks
-            estimated_remaining_bytes = remaining_chunks * self.chunk_size
+            # Cancel background tasks
+            for task in self.background_tasks:
+                task.cancel()
             
-            # Estimate time
-            eta = estimated_remaining_bytes / avg_speed
-            return max(0, eta)
+            # Wait for tasks to complete
+            if self.background_tasks:
+                await asyncio.gather(*self.background_tasks, return_exceptions=True)
             
-        except Exception:
-            return 0
+            # Stop session manager
+            await self.session_manager.stop()
+            
+            self.logger.info("✅ Video service shutdown complete")
+            
+        except Exception as e:
+            self.logger.error(f"Error during shutdown: {e}")
+
+    async def validate_upload_request(
+        self,
+        filename: str,
+        file_size: int,
+        total_chunks: int,
+        user_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Validate upload request with comprehensive checks"""
+        
+        async with self.circuit_breaker.call():
+            return await self.file_validator.validate_upload_request(
+                filename, file_size, total_chunks, user_info
+            )
+
+    async def create_upload_session(
+        self,
+        upload_id: str,
+        filename: str,
+        file_size: int,
+        total_chunks: int,
+        user_info: Dict[str, Any],
+        client_info: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Create upload session with enhanced tracking"""
+        
+        try:
+            # Validate request first
+            validation = await self.validate_upload_request(
+                filename, file_size, total_chunks, user_info
+            )
+            
+            if not validation["valid"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Upload validation failed",
+                        "errors": validation["errors"]
+                    }
+                )
+
+            # Create session
+            session = await self.session_manager.create_session(
+                upload_id, filename, file_size, total_chunks, user_info, client_info
+            )
+            
+            # Create upload directory
+            upload_dir = self.storage_paths["temp"] / upload_id
+            upload_dir.mkdir(exist_ok=True)
+            
+            # Prepare response
+            response = {
+                "success": True,
+                "upload_id": upload_id,
+                "session_config": {
+                    "chunk_size": self.config["chunk_size"],
+                    "max_retries": self.config["max_retries_per_chunk"],
+                    "timeout": self.config["session_timeout"]
+                },
+                "metadata": validation.get("metadata", {}),
+                "endpoints": {
+                    "chunk_upload": f"/api/v6/upload/chunk",
+                    "status": f"/api/v6/upload/status/{upload_id}",
+                    "cancel": f"/api/v6/upload/cancel/{upload_id}"
+                }
+            }
+            
+            self.logger.info(f"Created upload session: {upload_id}")
+            return response
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to create upload session: {e}")
+            raise HTTPException(status_code=500, detail="Session creation failed")
+
+    async def process_chunk(
+        self,
+        file: UploadFile,
+        upload_id: str,
+        chunk_index: int,
+        total_chunks: int,
+        chunk_hash: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Process chunk with Netflix-level reliability"""
+        
+        start_time = time.time()
+        
+        try:
+            # Get session
+            session = await self.session_manager.get_session(upload_id)
+            if not session:
+                raise HTTPException(status_code=404, detail="Upload session not found")
+
+            # Validate chunk
+            if chunk_index < 0 or chunk_index >= total_chunks:
+                raise HTTPException(status_code=400, detail="Invalid chunk index")
+
+            # Check for duplicate chunk
+            chunk_path = self.storage_paths["temp"] / upload_id / f"chunk_{chunk_index:04d}"
+            if chunk_path.exists():
+                return await self._handle_duplicate_chunk(session, chunk_index, chunk_path)
+
+            # Process chunk
+            result = await self._process_new_chunk(
+                session, file, chunk_index, chunk_path, chunk_hash
+            )
+            
+            # Update session
+            processing_time = time.time() - start_time
+            await self._update_session_progress(session, chunk_index, processing_time)
+            
+            # Check if upload is complete
+            if session.received_chunks >= session.total_chunks:
+                await self._finalize_upload(session)
+                result["upload_complete"] = True
+                result["message"] = "Upload completed successfully"
+
+            return result
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            processing_time = time.time() - start_time
+            self.logger.error(f"Chunk processing failed: {e}")
+            
+            # Record error in session
+            session = await self.session_manager.get_session(upload_id)
+            if session:
+                session.add_error(e, f"chunk_{chunk_index}")
+            
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "message": "Chunk processing failed",
+                    "error": str(e),
+                    "processing_time": processing_time
+                }
+            )
+
+    async def _handle_duplicate_chunk(
+        self,
+        session: UploadSession,
+        chunk_index: int,
+        chunk_path: Path
+    ) -> Dict[str, Any]:
+        """Handle duplicate chunk upload"""
+        
+        existing_size = chunk_path.stat().st_size
+        
+        return {
+            "success": True,
+            "upload_id": session.upload_id,
+            "chunk_index": chunk_index,
+            "progress": session.calculate_progress(),
+            "duplicate": True,
+            "chunk_size": existing_size,
+            "message": "Chunk already uploaded"
+        }
+
+    async def _process_new_chunk(
+        self,
+        session: UploadSession,
+        file: UploadFile,
+        chunk_index: int,
+        chunk_path: Path,
+        chunk_hash: Optional[str]
+    ) -> Dict[str, Any]:
+        """Process new chunk upload"""
+        
+        # Read chunk data
+        chunk_data = await file.read()
+        if not chunk_data:
+            raise ValueError("Empty chunk data")
+
+        # Verify size limits
+        if len(chunk_data) > self.config["chunk_size"] * 2:
+            raise ValueError(f"Chunk too large: {len(chunk_data)} bytes")
+
+        # Verify hash if provided
+        if chunk_hash:
+            calculated_hash = hashlib.md5(chunk_data).hexdigest()
+            if calculated_hash != chunk_hash:
+                raise ValueError("Chunk integrity check failed")
+
+        # Save chunk atomically
+        await self._save_chunk_atomically(chunk_path, chunk_data)
+        
+        return {
+            "success": True,
+            "upload_id": session.upload_id,
+            "chunk_index": chunk_index,
+            "chunk_size": len(chunk_data),
+            "duplicate": False
+        }
+
+    async def _save_chunk_atomically(self, chunk_path: Path, chunk_data: bytes):
+        """Save chunk with atomic write operation"""
+        temp_path = chunk_path.with_suffix('.tmp')
+        
+        try:
+            # Write to temporary file
+            async with aiofiles.open(temp_path, 'wb') as f:
+                await f.write(chunk_data)
+            
+            # Atomic move
+            temp_path.rename(chunk_path)
+            
+        except Exception as e:
+            # Cleanup on failure
+            if temp_path.exists():
+                temp_path.unlink()
+            raise e
+
+    async def _update_session_progress(
+        self,
+        session: UploadSession,
+        chunk_index: int,
+        processing_time: float
+    ):
+        """Update session progress atomically"""
+        
+        def update_func(s: UploadSession):
+            s.received_chunks = max(s.received_chunks, chunk_index + 1)
+            s.chunk_timings.append(processing_time)
+            s.status = UploadStatus.UPLOADING
+            
+            if not s.started_at:
+                s.started_at = datetime.utcnow()
+
+        await self.session_manager.update_session(session.upload_id, update_func)
 
     async def _finalize_upload(self, session: UploadSession):
-        """Finalize upload by assembling chunks with comprehensive validation"""
+        """Finalize upload by assembling chunks"""
+        
         try:
-            upload_dir = self.temp_path / session.upload_id
-            final_path = self.upload_path / f"{session.upload_id}_{session.filename}"
+            upload_dir = self.storage_paths["temp"] / session.upload_id
+            final_path = self.storage_paths["uploads"] / f"{session.upload_id}_{session.filename}"
             
-            logger.info(f"🔄 Starting upload finalization for {session.upload_id}")
+            self.logger.info(f"Finalizing upload: {session.upload_id}")
             
             # Verify all chunks exist
             missing_chunks = []
@@ -578,284 +1001,176 @@ class NetflixLevelVideoService:
             
             if missing_chunks:
                 raise Exception(f"Missing chunks: {missing_chunks}")
-            
-            # Calculate total expected size
-            expected_size = session.file_size
-            actual_size = 0
-            
-            # Assemble chunks with progress tracking
-            start_time = time.time()
-            async with aiofiles.open(final_path, 'wb') as output_file:
-                for i in range(session.total_chunks):
-                    chunk_path = upload_dir / f"chunk_{i:04d}"
-                    
-                    # Read and verify chunk
-                    async with aiofiles.open(chunk_path, 'rb') as chunk_file:
-                        chunk_data = await chunk_file.read()
-                        
-                        if not chunk_data:
-                            raise Exception(f"Empty chunk {i}")
-                        
-                        actual_size += len(chunk_data)
-                        await output_file.write(chunk_data)
-                    
-                    # Report progress every 10 chunks
-                    if i % 10 == 0 or i == session.total_chunks - 1:
-                        progress = ((i + 1) / session.total_chunks) * 100
-                        logger.debug(f"📦 Assembly progress: {progress:.1f}% ({i+1}/{session.total_chunks})")
-            
-            assembly_time = time.time() - start_time
-            
-            # Verify final file size
-            if abs(actual_size - expected_size) > 1024:  # Allow 1KB difference
-                logger.warning(f"Size mismatch: expected {expected_size}, got {actual_size}")
-                # Don't fail, but log the discrepancy
-            
-            # Verify file integrity if possible
-            final_file_size = final_path.stat().st_size
-            if final_file_size != actual_size:
-                raise Exception(f"File size verification failed: {final_file_size} != {actual_size}")
+
+            # Assemble file
+            await self._assemble_chunks(upload_dir, final_path, session.total_chunks)
             
             # Cleanup chunks
-            chunks_cleaned = 0
-            for chunk_file in upload_dir.glob("chunk_*"):
-                try:
-                    chunk_file.unlink()
-                    chunks_cleaned += 1
-                except Exception as e:
-                    logger.warning(f"Failed to cleanup chunk {chunk_file}: {e}")
+            await self._cleanup_chunks(upload_dir)
             
-            # Remove upload directory
-            try:
-                upload_dir.rmdir()
-            except OSError as e:
-                logger.warning(f"Failed to remove upload directory {upload_dir}: {e}")
+            # Update session
+            def update_func(s: UploadSession):
+                s.status = UploadStatus.COMPLETED
+                s.processing_metadata["final_path"] = str(final_path)
+                s.processing_metadata["assembly_completed"] = datetime.utcnow().isoformat()
+
+            await self.session_manager.update_session(session.upload_id, update_func)
+            await self.session_manager.complete_session(session.upload_id, success=True)
             
-            # Update session with final statistics
-            session.status = "completed"
-            session.metadata.update({
-                "final_path": str(final_path),
-                "final_size": final_file_size,
-                "assembly_time": assembly_time,
-                "chunks_cleaned": chunks_cleaned,
-                "total_upload_time": time.time() - session.created_at.timestamp(),
-                "average_speed": session.performance_metrics.get("total_bytes", 0) / session.performance_metrics.get("total_time", 1)
-            })
-            
-            # Add to processing queue with priority
-            await self.processing_queue.put({
-                "type": "video_analysis",
-                "session_id": session.upload_id,
-                "file_path": final_path,
-                "metadata": session.metadata,
-                "priority": "high",
-                "user_info": session.user_info
-            })
-            
-            # Update performance metrics
-            self.performance_metrics["successful_uploads"] += 1
-            
-            logger.info(
-                f"✅ Upload finalized: {session.upload_id} "
-                f"({self.formatFileSize(final_file_size)} in {assembly_time:.2f}s)"
-            )
+            self.logger.info(f"Upload finalized successfully: {session.upload_id}")
             
         except Exception as e:
-            logger.error(f"Upload finalization failed: {e}", exc_info=True)
-            session.status = "failed"
-            session.metadata["error"] = str(e)
-            session.metadata["failed_at"] = datetime.utcnow().isoformat()
+            self.logger.error(f"Upload finalization failed: {e}")
             
-            # Update error metrics
-            self.performance_metrics["failed_uploads"] = self.performance_metrics.get("failed_uploads", 0) + 1
+            # Mark session as failed
+            def update_func(s: UploadSession):
+                s.status = UploadStatus.FAILED
+                s.add_error(e, "finalization")
+
+            await self.session_manager.update_session(session.upload_id, update_func)
+            await self.session_manager.complete_session(session.upload_id, success=False)
             
             raise e
 
-    def formatFileSize(self, size_bytes: int) -> str:
-        """Format file size in human readable format"""
-        if size_bytes == 0:
-            return "0 B"
+    async def _assemble_chunks(self, upload_dir: Path, final_path: Path, total_chunks: int):
+        """Assemble chunks into final file"""
         
-        size_names = ["B", "KB", "MB", "GB", "TB"]
-        import math
-        i = int(math.floor(math.log(size_bytes, 1024)))
-        p = math.pow(1024, i)
-        s = round(size_bytes / p, 2)
-        return f"{s} {size_names[i]}"
+        async with aiofiles.open(final_path, 'wb') as output_file:
+            for i in range(total_chunks):
+                chunk_path = upload_dir / f"chunk_{i:04d}"
+                
+                async with aiofiles.open(chunk_path, 'rb') as chunk_file:
+                    chunk_data = await chunk_file.read()
+                    await output_file.write(chunk_data)
 
-    async def _process_queue_worker(self):
-        """Background worker for processing queue"""
-        while True:
-            try:
-                # Get next item from queue
-                item = await self.processing_queue.get()
-                
-                # Process item
-                await self._process_video_item(item)
-                
-                # Mark task as done
-                self.processing_queue.task_done()
-                
-            except Exception as e:
-                logger.error(f"Queue worker error: {e}", exc_info=True)
-                await asyncio.sleep(1)
-
-    async def _process_video_item(self, item: Dict[str, Any]):
-        """Process individual video item"""
+    async def _cleanup_chunks(self, upload_dir: Path):
+        """Cleanup chunk files"""
+        
         try:
-            session_id = item["session_id"]
-            file_path = item["file_path"]
+            for chunk_file in upload_dir.glob("chunk_*"):
+                chunk_file.unlink()
             
-            logger.info(f"🎬 Processing video: {session_id}")
-            
-            # Simulate processing stages
-            stages = [
-                ("analyzing", "Analyzing video content...", 20),
-                ("extracting_features", "Extracting viral features...", 40),
-                ("scoring_segments", "Scoring segments...", 60),
-                ("generating_timeline", "Generating timeline...", 80),
-                ("complete", "Processing complete!", 100)
-            ]
-            
-            for stage, message, progress in stages:
-                logger.info(f"Processing {session_id}: {message} ({progress}%)")
-                await asyncio.sleep(1)  # Simulate processing time
-            
-            # Update session
-            if session_id in self.upload_sessions:
-                self.upload_sessions[session_id].status = "processed"
-            
-            logger.info(f"✅ Video processing completed: {session_id}")
+            upload_dir.rmdir()
             
         except Exception as e:
-            logger.error(f"Video processing failed: {e}", exc_info=True)
+            self.logger.warning(f"Chunk cleanup failed: {e}")
 
-    async def _monitor_performance(self):
-        """Background performance monitoring"""
-        while True:
-            try:
-                # Monitor system resources
-                memory_info = psutil.Process().memory_info()
-                cpu_percent = psutil.cpu_percent(interval=1)
-                
-                # Log performance metrics
-                logger.info(
-                    f"Performance: CPU {cpu_percent}%, "
-                    f"Memory {memory_info.rss / 1024 / 1024:.1f}MB, "
-                    f"Active sessions: {len(self.upload_sessions)}"
-                )
-                
-                # Cleanup expired sessions
-                await self._cleanup_expired_sessions()
-                
-                await asyncio.sleep(60)  # Monitor every minute
-                
-            except Exception as e:
-                logger.error(f"Performance monitoring error: {e}")
-                await asyncio.sleep(60)
-
-    async def _cleanup_expired_sessions(self):
-        """Clean up expired upload sessions"""
-        current_time = datetime.utcnow()
-        expired_sessions = []
+    async def get_upload_status(self, upload_id: str) -> Dict[str, Any]:
+        """Get comprehensive upload status"""
         
-        for upload_id, session in self.upload_sessions.items():
-            if current_time - session.last_activity > timedelta(seconds=self.session_timeout):
-                expired_sessions.append(upload_id)
-        
-        for upload_id in expired_sessions:
-            # Cleanup files
-            temp_dir = self.temp_path / upload_id
-            if temp_dir.exists():
-                for file in temp_dir.glob("*"):
-                    file.unlink()
-                temp_dir.rmdir()
-            
-            # Remove session
-            del self.upload_sessions[upload_id]
-        
-        if expired_sessions:
-            logger.info(f"🧹 Cleaned up {len(expired_sessions)} expired sessions")
-
-    async def _update_upload_metrics(self, processing_time: float, data_size: int, success: bool):
-        """Update upload performance metrics"""
-        self.performance_metrics["total_uploads"] += 1
-        
-        if success:
-            self.performance_metrics["successful_uploads"] += 1
-            
-            # Update average upload time
-            current_avg = self.performance_metrics["average_upload_time"]
-            total = self.performance_metrics["total_uploads"]
-            self.performance_metrics["average_upload_time"] = (
-                (current_avg * (total - 1) + processing_time) / total
-            )
-            
-            # Update throughput
-            if processing_time > 0:
-                mbps = (data_size / 1024 / 1024) / processing_time
-                current_throughput = self.performance_metrics["throughput_mbps"]
-                self.performance_metrics["throughput_mbps"] = (
-                    (current_throughput * (total - 1) + mbps) / total
-                )
-        
-        # Update error rate
-        success_rate = self.performance_metrics["successful_uploads"] / self.performance_metrics["total_uploads"]
-        self.performance_metrics["error_rate"] = 1.0 - success_rate
-
-    async def get_performance_metrics(self) -> Dict[str, Any]:
-        """Get current performance metrics"""
-        return {
-            **self.performance_metrics,
-            "active_sessions": len(self.upload_sessions),
-            "queue_size": self.processing_queue.qsize(),
-            "memory_usage_mb": psutil.Process().memory_info().rss / 1024 / 1024,
-            "cpu_percent": psutil.cpu_percent(),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-    async def get_session_status(self, upload_id: str) -> Optional[Dict[str, Any]]:
-        """Get upload session status"""
-        session = self.upload_sessions.get(upload_id)
+        session = await self.session_manager.get_session(upload_id)
         if not session:
-            return None
-        
+            raise HTTPException(status_code=404, detail="Upload session not found")
+
         return {
             "upload_id": session.upload_id,
             "filename": session.filename,
-            "status": session.status,
-            "progress": (session.received_chunks / session.total_chunks) * 100,
+            "status": session.status.value,
+            "progress": session.calculate_progress(),
             "received_chunks": session.received_chunks,
             "total_chunks": session.total_chunks,
+            "upload_speed": session.calculate_upload_speed(),
+            "estimated_time_remaining": session.estimate_time_remaining(),
             "created_at": session.created_at.isoformat(),
             "last_activity": session.last_activity.isoformat(),
-            "metadata": session.metadata
+            "error_count": len(session.error_history),
+            "metadata": session.file_metadata
         }
 
-    async def graceful_shutdown(self):
-        """Gracefully shutdown the video service"""
-        logger.info("🔄 Shutting down video service...")
+    async def cancel_upload(self, upload_id: str) -> Dict[str, Any]:
+        """Cancel upload and cleanup resources"""
         
-        # Stop processing queue
-        while not self.processing_queue.empty():
+        session = await self.session_manager.get_session(upload_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Upload session not found")
+
+        # Update session status
+        def update_func(s: UploadSession):
+            s.status = UploadStatus.CANCELLED
+
+        await self.session_manager.update_session(upload_id, update_func)
+        
+        # Cleanup files
+        upload_dir = self.storage_paths["temp"] / upload_id
+        if upload_dir.exists():
+            await self._cleanup_chunks(upload_dir)
+        
+        # Remove session
+        await self.session_manager.remove_session(upload_id)
+        
+        # Update metrics
+        self.performance_monitor.record_upload_cancellation()
+        
+        return {
+            "success": True,
+            "message": f"Upload {upload_id} cancelled successfully"
+        }
+
+    async def _background_monitoring(self):
+        """Background monitoring task"""
+        
+        while True:
             try:
-                self.processing_queue.get_nowait()
-                self.processing_queue.task_done()
-            except:
+                # Perform health check
+                health = self.performance_monitor.check_health()
+                
+                if not health["healthy"]:
+                    self.logger.warning(f"Health check failed: {health['alerts']}")
+                
+                # Log metrics periodically
+                if self.config["enable_detailed_logging"]:
+                    metrics = self.performance_monitor.export_metrics()
+                    self.logger.info(f"Performance metrics: {metrics['metrics']}")
+                
+                await asyncio.sleep(60)  # Check every minute
+                
+            except asyncio.CancelledError:
                 break
+            except Exception as e:
+                self.logger.error(f"Background monitoring error: {e}")
+                await asyncio.sleep(60)
+
+    async def get_service_metrics(self) -> Dict[str, Any]:
+        """Get comprehensive service metrics"""
         
-        # Shutdown thread pool
-        self.thread_pool.shutdown(wait=True)
+        return {
+            "service_info": {
+                "name": "Netflix-Level Video Service",
+                "version": "6.0",
+                "status": "operational"
+            },
+            "performance": self.performance_monitor.export_metrics(),
+            "session_management": {
+                "active_sessions": self.session_manager.get_session_count(),
+                "sessions": [
+                    {
+                        "id": s.upload_id,
+                        "status": s.status.value,
+                        "progress": s.calculate_progress(),
+                        "speed": s.calculate_upload_speed()
+                    }
+                    for s in self.session_manager.get_active_sessions()
+                ]
+            },
+            "circuit_breaker": {
+                "state": self.circuit_breaker.state,
+                "failure_count": self.circuit_breaker.failure_count
+            }
+        }
+
+    async def health_check(self) -> Dict[str, Any]:
+        """Comprehensive health check"""
         
-        # Cleanup temporary files
-        for session in self.upload_sessions.values():
-            temp_dir = self.temp_path / session.upload_id
-            if temp_dir.exists():
-                for file in temp_dir.glob("*"):
-                    file.unlink()
-                temp_dir.rmdir()
+        health_status = self.performance_monitor.check_health()
         
-        # Clear sessions
-        self.upload_sessions.clear()
+        # Add service-specific checks
+        health_status["service_checks"] = {
+            "storage_accessible": all(
+                path.exists() and path.is_dir() 
+                for path in self.storage_paths.values()
+            ),
+            "session_manager_active": self.session_manager.cleanup_task is not None,
+            "circuit_breaker_state": self.circuit_breaker.state
+        }
         
-        logger.info("✅ Video service shutdown complete")
+        return health_status

@@ -1,38 +1,929 @@
 
 /*
-ViralClip Pro v6.0 - Netflix-Level Upload Experience
-Enterprise-grade upload system with real-time feedback and mobile optimization
+ViralClip Pro v6.0 - Netflix-Level Upload System
+Modular, scalable, and maintainable upload architecture
 */
 
-class NetflixLevelUploadManager {
+// ================================
+// Core Upload System Architecture
+// ================================
+
+class UploadSystemCore {
     constructor() {
-        this.uploadQueue = new Map();
-        this.activeUploads = new Map();
-        this.socket = null;
-        this.maxConcurrentUploads = 3;
-        this.chunkSize = 5 * 1024 * 1024; // 5MB chunks
-        this.supportedFormats = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', '3gp', 'mp3', 'wav'];
-        this.maxFileSize = 500 * 1024 * 1024; // 500MB
-        
-        // Performance monitoring
-        this.performanceMetrics = {
-            totalUploads: 0,
-            successfulUploads: 0,
-            averageUploadSpeed: 0,
-            currentConnections: 0
-        };
-        
-        this.initializeUploadSystem();
-        this.setupWebSocketConnection();
-        this.initializeTouchOptimizations();
+        this.modules = new Map();
+        this.eventBus = new EventBus();
+        this.performance = new PerformanceMonitor();
+        this.initialized = false;
     }
 
-    initializeUploadSystem() {
-        // Create enhanced upload interface
-        const uploadSection = document.createElement('div');
-        uploadSection.id = 'enhanced-upload-section';
-        uploadSection.className = 'netflix-upload-section';
-        uploadSection.innerHTML = `
+    async initialize() {
+        if (this.initialized) return;
+        
+        // Initialize core modules in dependency order
+        await this.initializeModules();
+        await this.setupGlobalEventHandlers();
+        await this.validateSystemReadiness();
+        
+        this.initialized = true;
+        this.eventBus.emit('system:ready');
+    }
+
+    async initializeModules() {
+        const moduleInitOrder = [
+            'validator',
+            'storage',
+            'uploader',
+            'ui',
+            'analytics',
+            'realtime'
+        ];
+
+        for (const moduleKey of moduleInitOrder) {
+            const moduleClass = this.getModuleClass(moduleKey);
+            this.modules.set(moduleKey, new moduleClass(this.eventBus, this.performance));
+            await this.modules.get(moduleKey).initialize();
+        }
+    }
+
+    getModuleClass(key) {
+        const moduleMap = {
+            validator: FileValidationModule,
+            storage: StorageModule,
+            uploader: ChunkedUploaderModule,
+            ui: UIModule,
+            analytics: AnalyticsModule,
+            realtime: RealtimeModule
+        };
+        return moduleMap[key];
+    }
+
+    getModule(key) {
+        return this.modules.get(key);
+    }
+
+    async setupGlobalEventHandlers() {
+        // Global error handling
+        window.addEventListener('error', this.handleGlobalError.bind(this));
+        window.addEventListener('unhandledrejection', this.handleUnhandledRejection.bind(this));
+        
+        // Performance monitoring
+        this.performance.startMonitoring();
+    }
+
+    handleGlobalError(event) {
+        this.getModule('analytics')?.trackError(event.error);
+        console.error('Global error:', event.error);
+    }
+
+    handleUnhandledRejection(event) {
+        this.getModule('analytics')?.trackError(event.reason);
+        console.error('Unhandled rejection:', event.reason);
+    }
+
+    async validateSystemReadiness() {
+        const requiredFeatures = [
+            'File API',
+            'WebSocket',
+            'IndexedDB',
+            'Web Workers'
+        ];
+
+        for (const feature of requiredFeatures) {
+            if (!this.isFeatureSupported(feature)) {
+                throw new Error(`Required feature not supported: ${feature}`);
+            }
+        }
+    }
+
+    isFeatureSupported(feature) {
+        const featureTests = {
+            'File API': () => !!(window.File && window.FileReader && window.Blob),
+            'WebSocket': () => !!window.WebSocket,
+            'IndexedDB': () => !!window.indexedDB,
+            'Web Workers': () => !!window.Worker
+        };
+        
+        return featureTests[feature]?.() || false;
+    }
+}
+
+// ================================
+// Event Bus for Decoupled Communication
+// ================================
+
+class EventBus {
+    constructor() {
+        this.listeners = new Map();
+        this.onceListeners = new Map();
+    }
+
+    on(event, callback) {
+        if (!this.listeners.has(event)) {
+            this.listeners.set(event, new Set());
+        }
+        this.listeners.get(event).add(callback);
+        return () => this.off(event, callback);
+    }
+
+    once(event, callback) {
+        if (!this.onceListeners.has(event)) {
+            this.onceListeners.set(event, new Set());
+        }
+        this.onceListeners.get(event).add(callback);
+    }
+
+    off(event, callback) {
+        this.listeners.get(event)?.delete(callback);
+        this.onceListeners.get(event)?.delete(callback);
+    }
+
+    emit(event, data) {
+        // Regular listeners
+        this.listeners.get(event)?.forEach(callback => {
+            try {
+                callback(data);
+            } catch (error) {
+                console.error(`Error in event listener for ${event}:`, error);
+            }
+        });
+
+        // Once listeners
+        const onceCallbacks = this.onceListeners.get(event);
+        if (onceCallbacks) {
+            onceCallbacks.forEach(callback => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error(`Error in once listener for ${event}:`, error);
+                }
+            });
+            this.onceListeners.delete(event);
+        }
+    }
+}
+
+// ================================
+// Performance Monitor
+// ================================
+
+class PerformanceMonitor {
+    constructor() {
+        this.metrics = new Map();
+        this.observers = [];
+        this.startTime = performance.now();
+    }
+
+    startMonitoring() {
+        this.setupPerformanceObservers();
+        this.startMetricsCollection();
+    }
+
+    setupPerformanceObservers() {
+        if ('PerformanceObserver' in window) {
+            const observer = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    this.recordMetric(entry.entryType, entry);
+                }
+            });
+            
+            observer.observe({ entryTypes: ['measure', 'navigation', 'resource'] });
+            this.observers.push(observer);
+        }
+    }
+
+    startMetricsCollection() {
+        setInterval(() => {
+            this.collectSystemMetrics();
+        }, 5000); // Every 5 seconds
+    }
+
+    collectSystemMetrics() {
+        const metrics = {
+            memory: this.getMemoryUsage(),
+            timing: this.getTimingMetrics(),
+            network: this.getNetworkMetrics(),
+            timestamp: Date.now()
+        };
+        
+        this.recordMetric('system', metrics);
+    }
+
+    getMemoryUsage() {
+        if ('memory' in performance) {
+            return {
+                used: performance.memory.usedJSHeapSize,
+                total: performance.memory.totalJSHeapSize,
+                limit: performance.memory.jsHeapSizeLimit
+            };
+        }
+        return null;
+    }
+
+    getTimingMetrics() {
+        const navigation = performance.getEntriesByType('navigation')[0];
+        if (navigation) {
+            return {
+                domComplete: navigation.domComplete,
+                loadComplete: navigation.loadEventEnd,
+                firstPaint: this.getFirstPaint()
+            };
+        }
+        return null;
+    }
+
+    getFirstPaint() {
+        const paintEntries = performance.getEntriesByType('paint');
+        const firstPaint = paintEntries.find(entry => entry.name === 'first-paint');
+        return firstPaint?.startTime || null;
+    }
+
+    getNetworkMetrics() {
+        const resources = performance.getEntriesByType('resource');
+        return {
+            resourceCount: resources.length,
+            totalTransferSize: resources.reduce((sum, entry) => sum + (entry.transferSize || 0), 0)
+        };
+    }
+
+    recordMetric(type, data) {
+        if (!this.metrics.has(type)) {
+            this.metrics.set(type, []);
+        }
+        
+        const typeMetrics = this.metrics.get(type);
+        typeMetrics.push({
+            ...data,
+            timestamp: performance.now()
+        });
+
+        // Keep only last 100 entries per type
+        if (typeMetrics.length > 100) {
+            typeMetrics.splice(0, typeMetrics.length - 100);
+        }
+    }
+
+    getMetrics(type) {
+        return this.metrics.get(type) || [];
+    }
+
+    mark(name) {
+        performance.mark(name);
+    }
+
+    measure(name, startMark, endMark) {
+        performance.measure(name, startMark, endMark);
+    }
+}
+
+// ================================
+// File Validation Module
+// ================================
+
+class FileValidationModule {
+    constructor(eventBus, performance) {
+        this.eventBus = eventBus;
+        this.performance = performance;
+        this.config = this.getValidationConfig();
+    }
+
+    async initialize() {
+        this.eventBus.on('file:validate', this.validateFile.bind(this));
+    }
+
+    getValidationConfig() {
+        return {
+            maxFileSize: 500 * 1024 * 1024, // 500MB
+            supportedFormats: new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.3gp', '.mp3', '.wav']),
+            maxConcurrentFiles: 10,
+            chunkSize: 5 * 1024 * 1024 // 5MB
+        };
+    }
+
+    async validateFile(file) {
+        this.performance.mark('validation:start');
+        
+        try {
+            const result = await this.performValidation(file);
+            this.performance.mark('validation:end');
+            this.performance.measure('validation:duration', 'validation:start', 'validation:end');
+            
+            this.eventBus.emit('file:validated', { file, result });
+            return result;
+        } catch (error) {
+            this.eventBus.emit('file:validation:error', { file, error });
+            throw error;
+        }
+    }
+
+    async performValidation(file) {
+        const validations = [
+            this.validateFileSize.bind(this),
+            this.validateFileType.bind(this),
+            this.validateFileName.bind(this),
+            this.validateFileIntegrity.bind(this)
+        ];
+
+        for (const validation of validations) {
+            const result = await validation(file);
+            if (!result.valid) {
+                return result;
+            }
+        }
+
+        return {
+            valid: true,
+            metadata: await this.extractMetadata(file)
+        };
+    }
+
+    validateFileSize(file) {
+        if (file.size > this.config.maxFileSize) {
+            return {
+                valid: false,
+                error: `File too large. Maximum size: ${this.formatFileSize(this.config.maxFileSize)}`
+            };
+        }
+        
+        if (file.size === 0) {
+            return {
+                valid: false,
+                error: 'File is empty'
+            };
+        }
+
+        return { valid: true };
+    }
+
+    validateFileType(file) {
+        const extension = this.getFileExtension(file.name);
+        
+        if (!this.config.supportedFormats.has(extension)) {
+            return {
+                valid: false,
+                error: `Unsupported format: ${extension}. Supported: ${Array.from(this.config.supportedFormats).join(', ')}`
+            };
+        }
+
+        return { valid: true };
+    }
+
+    validateFileName(file) {
+        const invalidChars = /[<>:"/\\|?*]/;
+        
+        if (invalidChars.test(file.name)) {
+            return {
+                valid: false,
+                error: 'Filename contains invalid characters'
+            };
+        }
+
+        if (file.name.length > 255) {
+            return {
+                valid: false,
+                error: 'Filename is too long (max 255 characters)'
+            };
+        }
+
+        return { valid: true };
+    }
+
+    async validateFileIntegrity(file) {
+        // Basic integrity check by reading first few bytes
+        try {
+            const slice = file.slice(0, 1024);
+            const arrayBuffer = await slice.arrayBuffer();
+            
+            if (arrayBuffer.byteLength === 0) {
+                return {
+                    valid: false,
+                    error: 'File appears to be corrupted'
+                };
+            }
+
+            return { valid: true };
+        } catch (error) {
+            return {
+                valid: false,
+                error: 'Unable to read file'
+            };
+        }
+    }
+
+    async extractMetadata(file) {
+        const metadata = {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified,
+            extension: this.getFileExtension(file.name),
+            estimatedDuration: this.estimateVideoDuration(file.size),
+            chunksCount: Math.ceil(file.size / this.config.chunkSize)
+        };
+
+        // Extract additional metadata for video files
+        if (file.type.startsWith('video/')) {
+            metadata.thumbnail = await this.generateThumbnail(file);
+            metadata.videoMetadata = await this.extractVideoMetadata(file);
+        }
+
+        return metadata;
+    }
+
+    async generateThumbnail(file) {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            video.addEventListener('loadedmetadata', () => {
+                canvas.width = 160;
+                canvas.height = 90;
+                video.currentTime = Math.min(2, video.duration / 4);
+            });
+
+            video.addEventListener('seeked', () => {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
+                resolve(thumbnailUrl);
+                URL.revokeObjectURL(video.src);
+            });
+
+            video.addEventListener('error', () => resolve(null));
+            
+            video.src = URL.createObjectURL(file);
+            video.load();
+        });
+    }
+
+    async extractVideoMetadata(file) {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            
+            video.addEventListener('loadedmetadata', () => {
+                resolve({
+                    duration: video.duration,
+                    videoWidth: video.videoWidth,
+                    videoHeight: video.videoHeight,
+                    aspectRatio: video.videoWidth / video.videoHeight
+                });
+                URL.revokeObjectURL(video.src);
+            });
+
+            video.addEventListener('error', () => resolve({}));
+            
+            video.src = URL.createObjectURL(file);
+        });
+    }
+
+    getFileExtension(filename) {
+        return '.' + filename.split('.').pop().toLowerCase();
+    }
+
+    estimateVideoDuration(fileSize) {
+        // Rough estimation: 1MB ≈ 1 second for typical video
+        return Math.max(1, fileSize / (1024 * 1024));
+    }
+
+    formatFileSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
+}
+
+// ================================
+// Storage Module
+// ================================
+
+class StorageModule {
+    constructor(eventBus, performance) {
+        this.eventBus = eventBus;
+        this.performance = performance;
+        this.db = null;
+        this.cache = new Map();
+    }
+
+    async initialize() {
+        await this.initializeIndexedDB();
+        this.setupEventHandlers();
+    }
+
+    async initializeIndexedDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('ViralClipUploadDB', 1);
+            
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+                this.db = request.result;
+                resolve();
+            };
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                
+                if (!db.objectStoreNames.contains('uploads')) {
+                    const uploadStore = db.createObjectStore('uploads', { keyPath: 'id' });
+                    uploadStore.createIndex('status', 'status', { unique: false });
+                    uploadStore.createIndex('timestamp', 'timestamp', { unique: false });
+                }
+                
+                if (!db.objectStoreNames.contains('chunks')) {
+                    const chunkStore = db.createObjectStore('chunks', { keyPath: 'id' });
+                    chunkStore.createIndex('uploadId', 'uploadId', { unique: false });
+                }
+            };
+        });
+    }
+
+    setupEventHandlers() {
+        this.eventBus.on('upload:save', this.saveUploadData.bind(this));
+        this.eventBus.on('upload:load', this.loadUploadData.bind(this));
+        this.eventBus.on('chunk:save', this.saveChunkData.bind(this));
+        this.eventBus.on('chunk:load', this.loadChunkData.bind(this));
+    }
+
+    async saveUploadData(uploadData) {
+        try {
+            const transaction = this.db.transaction(['uploads'], 'readwrite');
+            const store = transaction.objectStore('uploads');
+            await store.put(uploadData);
+            
+            // Also cache in memory for quick access
+            this.cache.set(`upload:${uploadData.id}`, uploadData);
+            
+            this.eventBus.emit('upload:saved', uploadData);
+        } catch (error) {
+            this.eventBus.emit('storage:error', { operation: 'saveUpload', error });
+        }
+    }
+
+    async loadUploadData(uploadId) {
+        try {
+            // Check cache first
+            const cacheKey = `upload:${uploadId}`;
+            if (this.cache.has(cacheKey)) {
+                return this.cache.get(cacheKey);
+            }
+            
+            const transaction = this.db.transaction(['uploads'], 'readonly');
+            const store = transaction.objectStore('uploads');
+            const result = await store.get(uploadId);
+            
+            if (result) {
+                this.cache.set(cacheKey, result);
+            }
+            
+            return result;
+        } catch (error) {
+            this.eventBus.emit('storage:error', { operation: 'loadUpload', error });
+            return null;
+        }
+    }
+
+    async saveChunkData(chunkData) {
+        try {
+            const transaction = this.db.transaction(['chunks'], 'readwrite');
+            const store = transaction.objectStore('chunks');
+            await store.put(chunkData);
+        } catch (error) {
+            this.eventBus.emit('storage:error', { operation: 'saveChunk', error });
+        }
+    }
+
+    async loadChunkData(uploadId) {
+        try {
+            const transaction = this.db.transaction(['chunks'], 'readonly');
+            const store = transaction.objectStore('chunks');
+            const index = store.index('uploadId');
+            const result = await index.getAll(uploadId);
+            return result;
+        } catch (error) {
+            this.eventBus.emit('storage:error', { operation: 'loadChunks', error });
+            return [];
+        }
+    }
+
+    async clearUploadData(uploadId) {
+        try {
+            // Clear from cache
+            this.cache.delete(`upload:${uploadId}`);
+            
+            // Clear from IndexedDB
+            const transaction = this.db.transaction(['uploads', 'chunks'], 'readwrite');
+            
+            await transaction.objectStore('uploads').delete(uploadId);
+            
+            const chunkStore = transaction.objectStore('chunks');
+            const chunkIndex = chunkStore.index('uploadId');
+            const chunks = await chunkIndex.getAllKeys(uploadId);
+            
+            for (const chunkKey of chunks) {
+                await chunkStore.delete(chunkKey);
+            }
+            
+            this.eventBus.emit('upload:cleared', uploadId);
+        } catch (error) {
+            this.eventBus.emit('storage:error', { operation: 'clearUpload', error });
+        }
+    }
+}
+
+// ================================
+// Chunked Uploader Module
+// ================================
+
+class ChunkedUploaderModule {
+    constructor(eventBus, performance) {
+        this.eventBus = eventBus;
+        this.performance = performance;
+        this.activeUploads = new Map();
+        this.uploadQueue = [];
+        this.maxConcurrentUploads = 3;
+        this.chunkSize = 5 * 1024 * 1024; // 5MB
+    }
+
+    async initialize() {
+        this.setupEventHandlers();
+        this.startQueueProcessor();
+    }
+
+    setupEventHandlers() {
+        this.eventBus.on('file:validated', this.handleValidatedFile.bind(this));
+        this.eventBus.on('upload:pause', this.pauseUpload.bind(this));
+        this.eventBus.on('upload:resume', this.resumeUpload.bind(this));
+        this.eventBus.on('upload:cancel', this.cancelUpload.bind(this));
+    }
+
+    async handleValidatedFile({ file, result }) {
+        if (!result.valid) return;
+
+        const uploadSession = this.createUploadSession(file, result.metadata);
+        this.uploadQueue.push(uploadSession);
+        
+        this.eventBus.emit('upload:queued', uploadSession);
+    }
+
+    createUploadSession(file, metadata) {
+        const sessionId = this.generateSessionId();
+        
+        return {
+            id: sessionId,
+            file,
+            metadata,
+            status: 'queued',
+            progress: 0,
+            uploadedChunks: new Set(),
+            totalChunks: metadata.chunksCount,
+            speed: 0,
+            startTime: null,
+            pausedAt: null,
+            retryCount: 0,
+            maxRetries: 3,
+            errors: []
+        };
+    }
+
+    generateSessionId() {
+        return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    startQueueProcessor() {
+        setInterval(() => {
+            this.processQueue();
+        }, 1000);
+    }
+
+    async processQueue() {
+        if (this.activeUploads.size >= this.maxConcurrentUploads) return;
+        
+        const nextUpload = this.uploadQueue.find(upload => upload.status === 'queued');
+        if (!nextUpload) return;
+
+        nextUpload.status = 'uploading';
+        this.activeUploads.set(nextUpload.id, nextUpload);
+        
+        try {
+            await this.startUpload(nextUpload);
+        } catch (error) {
+            this.handleUploadError(nextUpload, error);
+        }
+    }
+
+    async startUpload(uploadSession) {
+        this.performance.mark(`upload:${uploadSession.id}:start`);
+        uploadSession.startTime = Date.now();
+        
+        // Initialize upload session on server
+        const sessionResponse = await this.initializeServerSession(uploadSession);
+        if (!sessionResponse.success) {
+            throw new Error(sessionResponse.error);
+        }
+
+        // Start chunked upload
+        await this.uploadChunks(uploadSession);
+    }
+
+    async initializeServerSession(uploadSession) {
+        const response = await fetch('/api/v6/upload/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                filename: uploadSession.file.name,
+                file_size: uploadSession.file.size,
+                total_chunks: uploadSession.totalChunks,
+                upload_id: uploadSession.id
+            })
+        });
+
+        return await response.json();
+    }
+
+    async uploadChunks(uploadSession) {
+        const { file, totalChunks, uploadedChunks } = uploadSession;
+        
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            if (uploadedChunks.has(chunkIndex)) continue;
+            if (uploadSession.status === 'paused') break;
+            if (uploadSession.status === 'cancelled') break;
+
+            await this.uploadChunk(uploadSession, chunkIndex);
+        }
+
+        if (uploadedChunks.size === totalChunks) {
+            await this.completeUpload(uploadSession);
+        }
+    }
+
+    async uploadChunk(uploadSession, chunkIndex) {
+        const { file } = uploadSession;
+        const start = chunkIndex * this.chunkSize;
+        const end = Math.min(start + this.chunkSize, file.size);
+        const chunk = file.slice(start, end);
+
+        const maxRetries = 3;
+        let attempt = 0;
+
+        while (attempt < maxRetries) {
+            try {
+                const startTime = Date.now();
+                await this.sendChunk(uploadSession, chunk, chunkIndex);
+                
+                const uploadTime = (Date.now() - startTime) / 1000;
+                const speed = chunk.size / uploadTime;
+                
+                uploadSession.uploadedChunks.add(chunkIndex);
+                uploadSession.speed = speed;
+                uploadSession.progress = (uploadSession.uploadedChunks.size / uploadSession.totalChunks) * 100;
+                
+                this.eventBus.emit('upload:progress', {
+                    uploadId: uploadSession.id,
+                    progress: uploadSession.progress,
+                    speed: speed,
+                    chunkIndex,
+                    totalChunks: uploadSession.totalChunks
+                });
+
+                break; // Success, exit retry loop
+                
+            } catch (error) {
+                attempt++;
+                if (attempt >= maxRetries) {
+                    throw error;
+                }
+                
+                // Exponential backoff
+                await this.delay(Math.pow(2, attempt) * 1000);
+            }
+        }
+    }
+
+    async sendChunk(uploadSession, chunk, chunkIndex) {
+        const formData = new FormData();
+        formData.append('file', chunk, `chunk_${chunkIndex}`);
+        formData.append('upload_id', uploadSession.id);
+        formData.append('chunk_index', chunkIndex);
+        formData.append('total_chunks', uploadSession.totalChunks);
+
+        const response = await fetch('/api/v6/upload/chunk', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+
+        return result;
+    }
+
+    async completeUpload(uploadSession) {
+        uploadSession.status = 'completed';
+        
+        this.performance.mark(`upload:${uploadSession.id}:end`);
+        this.performance.measure(
+            `upload:${uploadSession.id}:duration`,
+            `upload:${uploadSession.id}:start`,
+            `upload:${uploadSession.id}:end`
+        );
+
+        this.activeUploads.delete(uploadSession.id);
+        
+        this.eventBus.emit('upload:completed', uploadSession);
+    }
+
+    handleUploadError(uploadSession, error) {
+        uploadSession.errors.push({
+            error: error.message,
+            timestamp: Date.now(),
+            chunkIndex: uploadSession.uploadedChunks.size
+        });
+
+        if (uploadSession.retryCount < uploadSession.maxRetries) {
+            uploadSession.retryCount++;
+            uploadSession.status = 'queued'; // Re-queue for retry
+            this.eventBus.emit('upload:retry', uploadSession);
+        } else {
+            uploadSession.status = 'failed';
+            this.activeUploads.delete(uploadSession.id);
+            this.eventBus.emit('upload:failed', uploadSession);
+        }
+    }
+
+    pauseUpload(uploadId) {
+        const uploadSession = this.activeUploads.get(uploadId);
+        if (uploadSession) {
+            uploadSession.status = 'paused';
+            uploadSession.pausedAt = Date.now();
+            this.eventBus.emit('upload:paused', uploadSession);
+        }
+    }
+
+    resumeUpload(uploadId) {
+        const uploadSession = this.activeUploads.get(uploadId);
+        if (uploadSession && uploadSession.status === 'paused') {
+            uploadSession.status = 'uploading';
+            uploadSession.pausedAt = null;
+            this.eventBus.emit('upload:resumed', uploadSession);
+        }
+    }
+
+    cancelUpload(uploadId) {
+        const uploadSession = this.activeUploads.get(uploadId);
+        if (uploadSession) {
+            uploadSession.status = 'cancelled';
+            this.activeUploads.delete(uploadId);
+            this.eventBus.emit('upload:cancelled', uploadSession);
+        }
+    }
+
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+}
+
+// ================================
+// UI Module
+// ================================
+
+class UIModule {
+    constructor(eventBus, performance) {
+        this.eventBus = eventBus;
+        this.performance = performance;
+        this.elements = new Map();
+        this.templates = new Map();
+    }
+
+    async initialize() {
+        await this.createUploadInterface();
+        this.setupEventHandlers();
+        this.setupDragAndDrop();
+        this.setupMobileOptimizations();
+    }
+
+    async createUploadInterface() {
+        const uploadSection = this.createElement('div', {
+            id: 'enhanced-upload-section',
+            className: 'netflix-upload-section'
+        });
+
+        uploadSection.innerHTML = await this.renderMainTemplate();
+        
+        this.insertIntoDOM(uploadSection);
+        this.cacheElements();
+    }
+
+    async renderMainTemplate() {
+        return `
             <div class="upload-header">
                 <h1 class="upload-title">🎬 Netflix-Grade Upload Experience</h1>
                 <div class="upload-stats">
@@ -51,7 +942,6 @@ class NetflixLevelUploadManager {
                 </div>
             </div>
 
-            <!-- Enhanced Drag & Drop Zone -->
             <div class="netflix-drop-zone" id="mainDropZone">
                 <div class="drop-zone-content">
                     <div class="drop-zone-icon" id="dropZoneIcon">
@@ -68,7 +958,7 @@ class NetflixLevelUploadManager {
                         <p id="dropZoneSubtitle">or click to browse files</p>
                         <div class="supported-formats">
                             <span class="format-label">Supported formats:</span>
-                            <span class="format-list">${this.supportedFormats.join(', ').toUpperCase()}</span>
+                            <span class="format-list">MP4, MOV, AVI, MKV, WEBM, M4V, 3GP, MP3, WAV</span>
                         </div>
                         <div class="file-limits">
                             <span class="limit-item">📐 Max size: 500MB</span>
@@ -87,24 +977,13 @@ class NetflixLevelUploadManager {
                         </button>
                     </div>
                 </div>
-                
-                <!-- Upload Progress Overlay -->
-                <div class="upload-overlay" id="uploadOverlay" style="display: none;">
-                    <div class="upload-animation">
-                        <div class="upload-pulse"></div>
-                        <div class="upload-icon">📤</div>
-                    </div>
-                    <div class="upload-text">Processing your upload...</div>
-                </div>
             </div>
 
-            <!-- File Preview Section -->
             <div class="file-preview-section" id="filePreviewSection" style="display: none;">
                 <h3 class="preview-title">📋 Upload Queue</h3>
                 <div class="file-previews" id="filePreviews"></div>
             </div>
 
-            <!-- Upload Queue Manager -->
             <div class="queue-manager" id="queueManager" style="display: none;">
                 <div class="queue-header">
                     <h3>🎬 Upload Manager</h3>
@@ -117,98 +996,51 @@ class NetflixLevelUploadManager {
                 <div class="upload-items" id="uploadItems"></div>
             </div>
 
-            <!-- Real-time Analytics -->
-            <div class="upload-analytics" id="uploadAnalytics" style="display: none;">
-                <div class="analytics-grid">
-                    <div class="metric-card">
-                        <div class="metric-icon">⚡</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="currentSpeed">0 MB/s</div>
-                            <div class="metric-label">Current Speed</div>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-icon">⏱️</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="remainingTime">--:--</div>
-                            <div class="metric-label">Time Remaining</div>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-icon">📊</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="throughput">0%</div>
-                            <div class="metric-label">Efficiency</div>
-                        </div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-icon">🌐</div>
-                        <div class="metric-content">
-                            <div class="metric-value" id="connectionQuality">Excellent</div>
-                            <div class="metric-label">Connection</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Hidden file input -->
-            <input type="file" id="fileInput" multiple accept="${this.getAcceptString()}" style="display: none;">
+            <input type="file" id="fileInput" multiple 
+                   accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp,.mp3,.wav" 
+                   style="display: none;">
         `;
-
-        // Insert into page
-        const mainContent = document.querySelector('main') || document.body;
-        const existingUpload = document.querySelector('#upload-section');
-        if (existingUpload) {
-            existingUpload.replaceWith(uploadSection);
-        } else {
-            mainContent.insertBefore(uploadSection, mainContent.firstChild);
-        }
-
-        this.setupUploadEventListeners();
-        this.initializeDragAndDrop();
-        this.setupMobileOptimizations();
     }
 
-    setupUploadEventListeners() {
+    setupEventHandlers() {
         // File browser
-        document.getElementById('browseFilesBtn').addEventListener('click', () => {
-            document.getElementById('fileInput').click();
+        this.getElement('browseFilesBtn').addEventListener('click', () => {
+            this.getElement('fileInput').click();
         });
 
-        document.getElementById('fileInput').addEventListener('change', (e) => {
+        this.getElement('fileInput').addEventListener('change', (e) => {
             this.handleFileSelection(Array.from(e.target.files));
         });
 
-        // URL paste functionality
-        document.getElementById('pasteUrlBtn').addEventListener('click', () => {
-            this.showUrlPasteModal();
-        });
-
         // Queue controls
-        document.getElementById('pauseAllBtn')?.addEventListener('click', () => {
-            this.pauseAllUploads();
+        this.getElement('pauseAllBtn')?.addEventListener('click', () => {
+            this.eventBus.emit('queue:pauseAll');
         });
 
-        document.getElementById('resumeAllBtn')?.addEventListener('click', () => {
-            this.resumeAllUploads();
+        this.getElement('resumeAllBtn')?.addEventListener('click', () => {
+            this.eventBus.emit('queue:resumeAll');
         });
 
-        document.getElementById('clearQueueBtn')?.addEventListener('click', () => {
-            this.clearUploadQueue();
+        this.getElement('clearQueueBtn')?.addEventListener('click', () => {
+            this.eventBus.emit('queue:clear');
         });
+
+        // Event bus listeners
+        this.eventBus.on('upload:queued', this.renderUploadItem.bind(this));
+        this.eventBus.on('upload:progress', this.updateUploadProgress.bind(this));
+        this.eventBus.on('upload:completed', this.handleUploadCompleted.bind(this));
+        this.eventBus.on('upload:failed', this.handleUploadFailed.bind(this));
     }
 
-    initializeDragAndDrop() {
-        const dropZone = document.getElementById('mainDropZone');
+    setupDragAndDrop() {
+        const dropZone = this.getElement('mainDropZone');
         let dragCounter = 0;
 
-        // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, this.preventDefaults, false);
             document.body.addEventListener(eventName, this.preventDefaults, false);
         });
 
-        // Highlight drop zone when item is dragged over it
         ['dragenter', 'dragover'].forEach(eventName => {
             dropZone.addEventListener(eventName, () => {
                 dragCounter++;
@@ -225,15 +1057,276 @@ class NetflixLevelUploadManager {
             }, false);
         });
 
-        // Handle dropped files
         dropZone.addEventListener('drop', (e) => {
             const files = Array.from(e.dataTransfer.files);
             this.handleFileSelection(files);
         }, false);
 
-        // Click to upload
         dropZone.addEventListener('click', () => {
-            document.getElementById('fileInput').click();
+            this.getElement('fileInput').click();
+        });
+    }
+
+    setupMobileOptimizations() {
+        if ('ontouchstart' in window) {
+            document.body.classList.add('touch-device');
+            
+            const dropZone = this.getElement('mainDropZone');
+            dropZone.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.highlightDropZone(true);
+            });
+
+            dropZone.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.highlightDropZone(false);
+                this.getElement('fileInput').click();
+            });
+        }
+
+        this.setupResponsiveLayout();
+    }
+
+    setupResponsiveLayout() {
+        const mediaQuery = window.matchMedia('(max-width: 768px)');
+        
+        const handleMobileLayout = (e) => {
+            const dropZone = this.getElement('mainDropZone');
+            
+            if (e.matches) {
+                dropZone.classList.add('mobile-layout');
+            } else {
+                dropZone.classList.remove('mobile-layout');
+            }
+        };
+
+        mediaQuery.addListener(handleMobileLayout);
+        handleMobileLayout(mediaQuery);
+    }
+
+    handleFileSelection(files) {
+        if (files.length === 0) return;
+
+        this.showSections(['filePreviewSection', 'queueManager']);
+
+        files.forEach(file => {
+            this.eventBus.emit('file:validate', file);
+        });
+    }
+
+    renderUploadItem(uploadSession) {
+        const previewsContainer = this.getElement('filePreviews');
+        const uploadItemsContainer = this.getElement('uploadItems');
+
+        // File preview card
+        const previewCard = this.createElement('div', {
+            className: 'file-preview-card'
+        });
+
+        previewCard.innerHTML = this.renderPreviewCardTemplate(uploadSession);
+        previewsContainer.appendChild(previewCard);
+
+        // Upload manager item
+        const uploadItem = this.createElement('div', {
+            className: 'upload-item',
+            id: `upload-${uploadSession.id}`
+        });
+
+        uploadItem.innerHTML = this.renderUploadItemTemplate(uploadSession);
+        uploadItemsContainer.appendChild(uploadItem);
+
+        this.setupUploadItemControls(uploadSession);
+    }
+
+    renderPreviewCardTemplate(uploadSession) {
+        const { metadata } = uploadSession;
+        
+        return `
+            <div class="preview-thumbnail">
+                ${metadata.thumbnail ? 
+                    `<img src="${metadata.thumbnail}" alt="Video thumbnail">` :
+                    `<div class="thumbnail-placeholder">
+                        <span class="file-icon">${this.getFileIcon(uploadSession.file.type)}</span>
+                    </div>`
+                }
+                <div class="file-format">.${metadata.extension.toUpperCase().slice(1)}</div>
+            </div>
+            <div class="preview-info">
+                <div class="file-name" title="${uploadSession.file.name}">${uploadSession.file.name}</div>
+                <div class="file-details">
+                    <span class="file-size">${this.formatFileSize(uploadSession.file.size)}</span>
+                    <span class="file-duration">~${metadata.estimatedDuration}s</span>
+                    <span class="file-chunks">${metadata.chunksCount} chunks</span>
+                </div>
+            </div>
+        `;
+    }
+
+    renderUploadItemTemplate(uploadSession) {
+        const { metadata } = uploadSession;
+        
+        return `
+            <div class="upload-item-header">
+                <div class="item-thumbnail">
+                    ${metadata.thumbnail ? 
+                        `<img src="${metadata.thumbnail}" alt="Thumbnail">` :
+                        `<div class="placeholder-thumb">${this.getFileIcon(uploadSession.file.type)}</div>`
+                    }
+                </div>
+                <div class="item-info">
+                    <div class="item-name">${uploadSession.file.name}</div>
+                    <div class="item-meta">
+                        <span class="item-size">${this.formatFileSize(uploadSession.file.size)}</span>
+                        <span class="item-status" id="status-${uploadSession.id}">Queued</span>
+                    </div>
+                </div>
+                <div class="item-controls">
+                    <button class="control-btn pause-btn" id="pause-${uploadSession.id}" title="Pause">⏸️</button>
+                    <button class="control-btn retry-btn" id="retry-${uploadSession.id}" title="Retry" style="display: none;">🔄</button>
+                    <button class="control-btn remove-btn" id="remove-${uploadSession.id}" title="Remove">🗑️</button>
+                </div>
+            </div>
+            
+            <div class="upload-progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-${uploadSession.id}" style="width: 0%"></div>
+                    <div class="progress-text" id="progress-text-${uploadSession.id}">0%</div>
+                </div>
+                <div class="upload-stats">
+                    <span class="upload-speed" id="speed-${uploadSession.id}">0 MB/s</span>
+                    <span class="upload-eta" id="eta-${uploadSession.id}">--:--</span>
+                    <span class="upload-chunks" id="chunks-${uploadSession.id}">0/${metadata.chunksCount}</span>
+                </div>
+            </div>
+
+            <div class="chunk-progress" id="chunk-progress-${uploadSession.id}">
+                ${Array(Math.min(metadata.chunksCount, 20)).fill(0).map((_, i) => 
+                    `<div class="chunk-indicator" id="chunk-${uploadSession.id}-${i}"></div>`
+                ).join('')}
+                ${metadata.chunksCount > 20 ? '<span class="chunk-more">...</span>' : ''}
+            </div>
+        `;
+    }
+
+    setupUploadItemControls(uploadSession) {
+        const pauseBtn = document.getElementById(`pause-${uploadSession.id}`);
+        const retryBtn = document.getElementById(`retry-${uploadSession.id}`);
+        const removeBtn = document.getElementById(`remove-${uploadSession.id}`);
+
+        pauseBtn?.addEventListener('click', () => {
+            this.eventBus.emit('upload:pause', uploadSession.id);
+        });
+
+        retryBtn?.addEventListener('click', () => {
+            this.eventBus.emit('upload:retry', uploadSession.id);
+        });
+
+        removeBtn?.addEventListener('click', () => {
+            this.eventBus.emit('upload:cancel', uploadSession.id);
+            this.removeUploadItem(uploadSession.id);
+        });
+    }
+
+    updateUploadProgress({ uploadId, progress, speed, chunkIndex }) {
+        const progressFill = document.getElementById(`progress-${uploadId}`);
+        const progressText = document.getElementById(`progress-text-${uploadId}`);
+        const speedElement = document.getElementById(`speed-${uploadId}`);
+        const chunksElement = document.getElementById(`chunks-${uploadId}`);
+
+        if (progressFill) progressFill.style.width = `${progress}%`;
+        if (progressText) progressText.textContent = `${Math.round(progress)}%`;
+        if (speedElement) speedElement.textContent = this.formatSpeed(speed);
+        
+        if (chunksElement) {
+            const totalChunks = parseInt(chunksElement.textContent.split('/')[1]);
+            chunksElement.textContent = `${chunkIndex + 1}/${totalChunks}`;
+        }
+
+        // Update chunk indicator
+        const chunkIndicator = document.getElementById(`chunk-${uploadId}-${chunkIndex}`);
+        if (chunkIndicator) {
+            chunkIndicator.classList.add('completed');
+        }
+    }
+
+    handleUploadCompleted(uploadSession) {
+        const statusElement = document.getElementById(`status-${uploadSession.id}`);
+        if (statusElement) {
+            statusElement.textContent = 'Completed';
+            statusElement.classList.add('status-completed');
+        }
+    }
+
+    handleUploadFailed(uploadSession) {
+        const statusElement = document.getElementById(`status-${uploadSession.id}`);
+        if (statusElement) {
+            statusElement.textContent = 'Failed';
+            statusElement.classList.add('status-error');
+        }
+
+        const retryBtn = document.getElementById(`retry-${uploadSession.id}`);
+        if (retryBtn) {
+            retryBtn.style.display = 'block';
+        }
+    }
+
+    removeUploadItem(uploadId) {
+        const uploadElement = document.getElementById(`upload-${uploadId}`);
+        if (uploadElement) {
+            uploadElement.remove();
+        }
+    }
+
+    // Utility methods
+    createElement(tagName, attributes = {}) {
+        const element = document.createElement(tagName);
+        Object.entries(attributes).forEach(([key, value]) => {
+            if (key === 'className') {
+                element.className = value;
+            } else {
+                element.setAttribute(key, value);
+            }
+        });
+        return element;
+    }
+
+    insertIntoDOM(element) {
+        const mainContent = document.querySelector('main') || document.body;
+        const existingUpload = document.querySelector('#upload-section, #enhanced-upload-section');
+        
+        if (existingUpload) {
+            existingUpload.replaceWith(element);
+        } else {
+            mainContent.insertBefore(element, mainContent.firstChild);
+        }
+    }
+
+    cacheElements() {
+        const elementIds = [
+            'mainDropZone', 'dropZoneIcon', 'dropZoneTitle', 'dropZoneSubtitle',
+            'browseFilesBtn', 'pasteUrlBtn', 'fileInput', 'filePreviewSection',
+            'filePreviews', 'queueManager', 'uploadItems', 'pauseAllBtn',
+            'resumeAllBtn', 'clearQueueBtn', 'upload-speed', 'queue-count', 'success-rate'
+        ];
+
+        elementIds.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                this.elements.set(id, element);
+            }
+        });
+    }
+
+    getElement(id) {
+        return this.elements.get(id) || document.getElementById(id);
+    }
+
+    showSections(sectionIds) {
+        sectionIds.forEach(id => {
+            const section = this.getElement(id);
+            if (section) {
+                section.style.display = 'block';
+            }
         });
     }
 
@@ -243,10 +1336,10 @@ class NetflixLevelUploadManager {
     }
 
     highlightDropZone(highlight) {
-        const dropZone = document.getElementById('mainDropZone');
-        const icon = document.getElementById('dropZoneIcon');
-        const title = document.getElementById('dropZoneTitle');
-        const subtitle = document.getElementById('dropZoneSubtitle');
+        const dropZone = this.getElement('mainDropZone');
+        const icon = this.getElement('dropZoneIcon');
+        const title = this.getElement('dropZoneTitle');
+        const subtitle = this.getElement('dropZoneSubtitle');
 
         if (highlight) {
             dropZone.classList.add('drag-active');
@@ -261,587 +1354,177 @@ class NetflixLevelUploadManager {
         }
     }
 
-    async handleFileSelection(files) {
-        if (files.length === 0) return;
-
-        // Show file preview section
-        document.getElementById('filePreviewSection').style.display = 'block';
-        document.getElementById('queueManager').style.display = 'block';
-        document.getElementById('uploadAnalytics').style.display = 'block';
-
-        // Validate and process each file
-        for (const file of files) {
-            const validation = await this.validateFile(file);
-            
-            if (validation.valid) {
-                await this.addFileToQueue(file, validation);
-            } else {
-                this.showFileError(file, validation.error);
-            }
-        }
-
-        // Start processing queue
-        this.processUploadQueue();
+    getFileIcon(mimeType) {
+        if (mimeType.startsWith('video/')) return '🎬';
+        if (mimeType.startsWith('audio/')) return '🎵';
+        return '📄';
     }
 
-    async validateFile(file) {
-        const fileExtension = file.name.split('.').pop().toLowerCase();
+    formatFileSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return `${size.toFixed(2)} ${units[unitIndex]}`;
+    }
+
+    formatSpeed(bytesPerSecond) {
+        if (bytesPerSecond === 0) return '0 MB/s';
+        const mbps = bytesPerSecond / (1024 * 1024);
+        return `${mbps.toFixed(1)} MB/s`;
+    }
+}
+
+// ================================
+// Analytics Module
+// ================================
+
+class AnalyticsModule {
+    constructor(eventBus, performance) {
+        this.eventBus = eventBus;
+        this.performance = performance;
+        this.analytics = {
+            totalUploads: 0,
+            successfulUploads: 0,
+            failedUploads: 0,
+            totalBytes: 0,
+            averageSpeed: 0,
+            errors: []
+        };
+    }
+
+    async initialize() {
+        this.setupEventHandlers();
+        this.startPeriodicReporting();
+    }
+
+    setupEventHandlers() {
+        this.eventBus.on('upload:queued', this.trackUploadStart.bind(this));
+        this.eventBus.on('upload:completed', this.trackUploadSuccess.bind(this));
+        this.eventBus.on('upload:failed', this.trackUploadFailure.bind(this));
+        this.eventBus.on('upload:progress', this.trackUploadProgress.bind(this));
+    }
+
+    trackUploadStart(uploadSession) {
+        this.analytics.totalUploads++;
+        this.reportMetric('upload_started', {
+            fileSize: uploadSession.file.size,
+            fileType: uploadSession.file.type,
+            chunks: uploadSession.totalChunks
+        });
+    }
+
+    trackUploadSuccess(uploadSession) {
+        this.analytics.successfulUploads++;
+        this.analytics.totalBytes += uploadSession.file.size;
         
-        // Format validation
-        if (!this.supportedFormats.includes(fileExtension)) {
-            return {
-                valid: false,
-                error: `Unsupported format: ${fileExtension}. Supported: ${this.supportedFormats.join(', ')}`
-            };
-        }
+        const duration = (Date.now() - uploadSession.startTime) / 1000;
+        const speed = uploadSession.file.size / duration;
+        
+        this.updateAverageSpeed(speed);
+        
+        this.reportMetric('upload_completed', {
+            fileSize: uploadSession.file.size,
+            duration,
+            speed,
+            retryCount: uploadSession.retryCount
+        });
+    }
 
-        // Size validation
-        if (file.size > this.maxFileSize) {
-            return {
-                valid: false,
-                error: `File too large: ${this.formatFileSize(file.size)}. Maximum: ${this.formatFileSize(this.maxFileSize)}`
-            };
-        }
+    trackUploadFailure(uploadSession) {
+        this.analytics.failedUploads++;
+        
+        this.reportMetric('upload_failed', {
+            fileSize: uploadSession.file.size,
+            errors: uploadSession.errors,
+            retryCount: uploadSession.retryCount
+        });
+    }
 
-        if (file.size === 0) {
-            return {
-                valid: false,
-                error: 'File is empty'
-            };
-        }
+    trackUploadProgress({ uploadId, progress, speed }) {
+        this.reportMetric('upload_progress', {
+            uploadId,
+            progress,
+            speed
+        });
+    }
 
-        // Generate thumbnail for video files
-        let thumbnail = null;
-        if (file.type.startsWith('video/')) {
-            thumbnail = await this.generateVideoThumbnail(file);
-        }
+    trackError(error) {
+        this.analytics.errors.push({
+            error: error.message || error,
+            timestamp: Date.now(),
+            stack: error.stack
+        });
 
+        this.reportMetric('error', {
+            message: error.message || error,
+            stack: error.stack
+        });
+    }
+
+    updateAverageSpeed(speed) {
+        const count = this.analytics.successfulUploads;
+        this.analytics.averageSpeed = (
+            (this.analytics.averageSpeed * (count - 1) + speed) / count
+        );
+    }
+
+    reportMetric(type, data) {
+        // In production, send to analytics service
+        console.log(`Analytics: ${type}`, data);
+    }
+
+    startPeriodicReporting() {
+        setInterval(() => {
+            this.reportSystemMetrics();
+        }, 30000); // Every 30 seconds
+    }
+
+    reportSystemMetrics() {
+        const metrics = {
+            ...this.analytics,
+            performance: this.performance.getMetrics('system').slice(-1)[0],
+            timestamp: Date.now()
+        };
+
+        this.reportMetric('system_metrics', metrics);
+    }
+
+    getAnalytics() {
         return {
-            valid: true,
-            thumbnail,
-            estimatedTime: this.estimateUploadTime(file.size),
-            chunks: Math.ceil(file.size / this.chunkSize)
+            ...this.analytics,
+            errorRate: this.analytics.totalUploads > 0 ? 
+                this.analytics.failedUploads / this.analytics.totalUploads : 0,
+            successRate: this.analytics.totalUploads > 0 ? 
+                this.analytics.successfulUploads / this.analytics.totalUploads : 1
         };
     }
+}
 
-    async generateVideoThumbnail(file) {
-        return new Promise((resolve) => {
-            const video = document.createElement('video');
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+// ================================
+// Realtime Module
+// ================================
 
-            video.addEventListener('loadedmetadata', () => {
-                canvas.width = 160;
-                canvas.height = 90;
-                
-                video.currentTime = Math.min(2, video.duration / 4); // Seek to 25% or 2s
-            });
-
-            video.addEventListener('seeked', () => {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8);
-                resolve(thumbnailUrl);
-                
-                // Cleanup
-                URL.revokeObjectURL(video.src);
-            });
-
-            video.addEventListener('error', () => {
-                resolve(null);
-            });
-
-            video.src = URL.createObjectURL(file);
-            video.load();
-        });
+class RealtimeModule {
+    constructor(eventBus, performance) {
+        this.eventBus = eventBus;
+        this.performance = performance;
+        this.socket = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
     }
 
-    async addFileToQueue(file, validation) {
-        const uploadId = this.generateUploadId();
-        const uploadItem = {
-            id: uploadId,
-            file,
-            validation,
-            status: 'queued',
-            progress: 0,
-            speed: 0,
-            remainingTime: validation.estimatedTime,
-            uploadedChunks: 0,
-            totalChunks: validation.chunks,
-            retryCount: 0,
-            maxRetries: 3,
-            startTime: null,
-            pauseOffset: 0
-        };
-
-        this.uploadQueue.set(uploadId, uploadItem);
-        this.renderFilePreview(uploadItem);
-        this.updateQueueStats();
+    async initialize() {
+        await this.setupWebSocketConnection();
+        this.setupEventHandlers();
     }
 
-    renderFilePreview(uploadItem) {
-        const previewsContainer = document.getElementById('filePreviews');
-        const uploadItemsContainer = document.getElementById('uploadItems');
-
-        // File preview card
-        const previewCard = document.createElement('div');
-        previewCard.className = 'file-preview-card';
-        previewCard.innerHTML = `
-            <div class="preview-thumbnail">
-                ${uploadItem.validation.thumbnail ? 
-                    `<img src="${uploadItem.validation.thumbnail}" alt="Video thumbnail">` :
-                    `<div class="thumbnail-placeholder">
-                        <span class="file-icon">${this.getFileIcon(uploadItem.file.type)}</span>
-                    </div>`
-                }
-                <div class="file-format">.${uploadItem.file.name.split('.').pop().toUpperCase()}</div>
-            </div>
-            <div class="preview-info">
-                <div class="file-name" title="${uploadItem.file.name}">${uploadItem.file.name}</div>
-                <div class="file-details">
-                    <span class="file-size">${this.formatFileSize(uploadItem.file.size)}</span>
-                    <span class="file-duration">~${uploadItem.validation.estimatedTime}s</span>
-                    <span class="file-chunks">${uploadItem.totalChunks} chunks</span>
-                </div>
-            </div>
-        `;
-
-        previewsContainer.appendChild(previewCard);
-
-        // Upload manager item
-        const uploadManagerItem = document.createElement('div');
-        uploadManagerItem.className = 'upload-item';
-        uploadManagerItem.id = `upload-${uploadItem.id}`;
-        uploadManagerItem.innerHTML = `
-            <div class="upload-item-header">
-                <div class="item-thumbnail">
-                    ${uploadItem.validation.thumbnail ? 
-                        `<img src="${uploadItem.validation.thumbnail}" alt="Thumbnail">` :
-                        `<div class="placeholder-thumb">${this.getFileIcon(uploadItem.file.type)}</div>`
-                    }
-                </div>
-                <div class="item-info">
-                    <div class="item-name">${uploadItem.file.name}</div>
-                    <div class="item-meta">
-                        <span class="item-size">${this.formatFileSize(uploadItem.file.size)}</span>
-                        <span class="item-status" id="status-${uploadItem.id}">Queued</span>
-                    </div>
-                </div>
-                <div class="item-controls">
-                    <button class="control-btn pause-btn" id="pause-${uploadItem.id}" title="Pause">⏸️</button>
-                    <button class="control-btn retry-btn" id="retry-${uploadItem.id}" title="Retry" style="display: none;">🔄</button>
-                    <button class="control-btn remove-btn" id="remove-${uploadItem.id}" title="Remove">🗑️</button>
-                </div>
-            </div>
-            
-            <div class="upload-progress-container">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progress-${uploadItem.id}" style="width: 0%"></div>
-                    <div class="progress-text" id="progress-text-${uploadItem.id}">0%</div>
-                </div>
-                <div class="upload-stats">
-                    <span class="upload-speed" id="speed-${uploadItem.id}">0 MB/s</span>
-                    <span class="upload-eta" id="eta-${uploadItem.id}">--:--</span>
-                    <span class="upload-chunks" id="chunks-${uploadItem.id}">0/${uploadItem.totalChunks}</span>
-                </div>
-            </div>
-
-            <div class="chunk-progress" id="chunk-progress-${uploadItem.id}">
-                ${Array(Math.min(uploadItem.totalChunks, 20)).fill(0).map((_, i) => 
-                    `<div class="chunk-indicator" id="chunk-${uploadItem.id}-${i}"></div>`
-                ).join('')}
-                ${uploadItem.totalChunks > 20 ? '<span class="chunk-more">...</span>' : ''}
-            </div>
-        `;
-
-        uploadItemsContainer.appendChild(uploadManagerItem);
-
-        // Add event listeners
-        this.setupUploadItemControls(uploadItem);
-    }
-
-    setupUploadItemControls(uploadItem) {
-        const pauseBtn = document.getElementById(`pause-${uploadItem.id}`);
-        const retryBtn = document.getElementById(`retry-${uploadItem.id}`);
-        const removeBtn = document.getElementById(`remove-${uploadItem.id}`);
-
-        pauseBtn?.addEventListener('click', () => {
-            this.toggleUploadPause(uploadItem.id);
-        });
-
-        retryBtn?.addEventListener('click', () => {
-            this.retryUpload(uploadItem.id);
-        });
-
-        removeBtn?.addEventListener('click', () => {
-            this.removeUpload(uploadItem.id);
-        });
-    }
-
-    async processUploadQueue() {
-        const queuedUploads = Array.from(this.uploadQueue.values())
-            .filter(item => item.status === 'queued')
-            .slice(0, this.maxConcurrentUploads - this.activeUploads.size);
-
-        for (const uploadItem of queuedUploads) {
-            if (this.activeUploads.size >= this.maxConcurrentUploads) break;
-            
-            this.startUpload(uploadItem);
-        }
-    }
-
-    async startUpload(uploadItem) {
-        try {
-            uploadItem.status = 'initializing';
-            uploadItem.startTime = Date.now();
-            this.activeUploads.set(uploadItem.id, uploadItem);
-            
-            this.updateUploadStatus(uploadItem.id, 'Initializing upload...');
-
-            // Initialize upload session
-            const sessionResponse = await fetch('/api/v6/upload/init', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify({
-                    filename: uploadItem.file.name,
-                    file_size: uploadItem.file.size,
-                    total_chunks: uploadItem.totalChunks,
-                    upload_id: uploadItem.id
-                })
-            });
-
-            const sessionData = await sessionResponse.json();
-            
-            if (!sessionData.success) {
-                throw new Error(sessionData.error || 'Failed to initialize upload');
-            }
-
-            uploadItem.status = 'uploading';
-            this.updateUploadStatus(uploadItem.id, 'Uploading...');
-
-            // Start chunked upload
-            await this.uploadFileInChunks(uploadItem);
-
-        } catch (error) {
-            console.error('Upload failed:', error);
-            this.handleUploadError(uploadItem, error.message);
-        }
-    }
-
-    async uploadFileInChunks(uploadItem) {
-        const file = uploadItem.file;
-        const totalChunks = uploadItem.totalChunks;
-
-        for (let chunkIndex = uploadItem.uploadedChunks; chunkIndex < totalChunks; chunkIndex++) {
-            // Check if upload is paused
-            if (uploadItem.status === 'paused') {
-                return;
-            }
-
-            const start = chunkIndex * this.chunkSize;
-            const end = Math.min(start + this.chunkSize, file.size);
-            const chunk = file.slice(start, end);
-
-            await this.uploadChunk(uploadItem, chunk, chunkIndex);
-            
-            uploadItem.uploadedChunks = chunkIndex + 1;
-            this.updateUploadProgress(uploadItem);
-        }
-
-        // Upload complete
-        uploadItem.status = 'completed';
-        this.updateUploadStatus(uploadItem.id, 'Upload complete!');
-        this.activeUploads.delete(uploadItem.id);
-        
-        // Continue processing queue
-        this.processUploadQueue();
-    }
-
-    async uploadChunk(uploadItem, chunk, chunkIndex) {
-        const maxRetries = 3;
-        let attempt = 0;
-
-        while (attempt < maxRetries) {
-            try {
-                const formData = new FormData();
-                formData.append('file', chunk, `chunk_${chunkIndex}`);
-                formData.append('upload_id', uploadItem.id);
-                formData.append('chunk_index', chunkIndex);
-                formData.append('total_chunks', uploadItem.totalChunks);
-
-                const startTime = Date.now();
-                
-                const response = await fetch('/api/v6/upload/chunk', {
-                    method: 'POST',
-                    headers: this.getAuthHeaders(),
-                    body: formData
-                });
-
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error(result.error || 'Chunk upload failed');
-                }
-
-                // Update speed calculation
-                const uploadTime = (Date.now() - startTime) / 1000;
-                const speed = chunk.size / uploadTime; // bytes per second
-                uploadItem.speed = speed;
-
-                // Update chunk indicator
-                this.updateChunkIndicator(uploadItem.id, chunkIndex, 'completed');
-
-                return result;
-
-            } catch (error) {
-                attempt++;
-                this.updateChunkIndicator(uploadItem.id, chunkIndex, 'error');
-                
-                if (attempt >= maxRetries) {
-                    throw error;
-                }
-                
-                // Exponential backoff
-                await this.delay(Math.pow(2, attempt) * 1000);
-                this.updateChunkIndicator(uploadItem.id, chunkIndex, 'retrying');
-            }
-        }
-    }
-
-    updateUploadProgress(uploadItem) {
-        const progress = (uploadItem.uploadedChunks / uploadItem.totalChunks) * 100;
-        uploadItem.progress = progress;
-
-        // Update progress bar
-        const progressFill = document.getElementById(`progress-${uploadItem.id}`);
-        const progressText = document.getElementById(`progress-text-${uploadItem.id}`);
-        const speedElement = document.getElementById(`speed-${uploadItem.id}`);
-        const etaElement = document.getElementById(`eta-${uploadItem.id}`);
-        const chunksElement = document.getElementById(`chunks-${uploadItem.id}`);
-
-        if (progressFill) progressFill.style.width = `${progress}%`;
-        if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-        if (speedElement) speedElement.textContent = this.formatSpeed(uploadItem.speed);
-        if (chunksElement) chunksElement.textContent = `${uploadItem.uploadedChunks}/${uploadItem.totalChunks}`;
-
-        // Calculate ETA
-        if (uploadItem.speed > 0) {
-            const remainingBytes = (uploadItem.totalChunks - uploadItem.uploadedChunks) * this.chunkSize;
-            const remainingTime = remainingBytes / uploadItem.speed;
-            uploadItem.remainingTime = remainingTime;
-            
-            if (etaElement) etaElement.textContent = this.formatTime(remainingTime);
-        }
-
-        // Update global stats
-        this.updateGlobalStats();
-    }
-
-    updateChunkIndicator(uploadId, chunkIndex, status) {
-        const indicator = document.getElementById(`chunk-${uploadId}-${chunkIndex}`);
-        if (indicator) {
-            indicator.className = `chunk-indicator ${status}`;
-        }
-    }
-
-    updateUploadStatus(uploadId, status) {
-        const statusElement = document.getElementById(`status-${uploadId}`);
-        if (statusElement) {
-            statusElement.textContent = status;
-        }
-    }
-
-    handleUploadError(uploadItem, errorMessage) {
-        uploadItem.status = 'error';
-        uploadItem.retryCount++;
-        
-        this.updateUploadStatus(uploadItem.id, `Error: ${errorMessage}`);
-        this.activeUploads.delete(uploadItem.id);
-
-        // Show retry button if under max retries
-        if (uploadItem.retryCount < uploadItem.maxRetries) {
-            const retryBtn = document.getElementById(`retry-${uploadItem.id}`);
-            if (retryBtn) {
-                retryBtn.style.display = 'block';
-            }
-        }
-
-        // Continue processing queue
-        this.processUploadQueue();
-    }
-
-    // Queue management methods
-    toggleUploadPause(uploadId) {
-        const uploadItem = this.uploadQueue.get(uploadId);
-        if (!uploadItem) return;
-
-        const pauseBtn = document.getElementById(`pause-${uploadId}`);
-        
-        if (uploadItem.status === 'uploading') {
-            uploadItem.status = 'paused';
-            this.updateUploadStatus(uploadId, 'Paused');
-            if (pauseBtn) {
-                pauseBtn.innerHTML = '▶️';
-                pauseBtn.title = 'Resume';
-            }
-            this.activeUploads.delete(uploadId);
-        } else if (uploadItem.status === 'paused') {
-            uploadItem.status = 'queued';
-            this.updateUploadStatus(uploadId, 'Resuming...');
-            if (pauseBtn) {
-                pauseBtn.innerHTML = '⏸️';
-                pauseBtn.title = 'Pause';
-            }
-            this.processUploadQueue();
-        }
-    }
-
-    retryUpload(uploadId) {
-        const uploadItem = this.uploadQueue.get(uploadId);
-        if (!uploadItem) return;
-
-        uploadItem.status = 'queued';
-        uploadItem.uploadedChunks = 0;
-        uploadItem.progress = 0;
-        
-        this.updateUploadStatus(uploadId, 'Retrying...');
-        this.updateUploadProgress(uploadItem);
-        
-        // Hide retry button
-        const retryBtn = document.getElementById(`retry-${uploadId}`);
-        if (retryBtn) {
-            retryBtn.style.display = 'none';
-        }
-
-        this.processUploadQueue();
-    }
-
-    removeUpload(uploadId) {
-        const uploadItem = this.uploadQueue.get(uploadId);
-        if (!uploadItem) return;
-
-        // Remove from active uploads if necessary
-        this.activeUploads.delete(uploadId);
-        
-        // Remove from queue
-        this.uploadQueue.delete(uploadId);
-
-        // Remove from UI
-        const uploadElement = document.getElementById(`upload-${uploadId}`);
-        if (uploadElement) {
-            uploadElement.remove();
-        }
-
-        this.updateQueueStats();
-        this.processUploadQueue();
-    }
-
-    pauseAllUploads() {
-        this.activeUploads.forEach((uploadItem) => {
-            if (uploadItem.status === 'uploading') {
-                this.toggleUploadPause(uploadItem.id);
-            }
-        });
-    }
-
-    resumeAllUploads() {
-        this.uploadQueue.forEach((uploadItem) => {
-            if (uploadItem.status === 'paused') {
-                this.toggleUploadPause(uploadItem.id);
-            }
-        });
-    }
-
-    clearUploadQueue() {
-        if (confirm('Are you sure you want to clear the upload queue? This will cancel all uploads.')) {
-            // Cancel all active uploads
-            this.activeUploads.clear();
-            
-            // Clear queue
-            this.uploadQueue.clear();
-
-            // Clear UI
-            document.getElementById('filePreviews').innerHTML = '';
-            document.getElementById('uploadItems').innerHTML = '';
-            
-            // Hide sections
-            document.getElementById('filePreviewSection').style.display = 'none';
-            document.getElementById('queueManager').style.display = 'none';
-            document.getElementById('uploadAnalytics').style.display = 'none';
-
-            this.updateQueueStats();
-        }
-    }
-
-    // Mobile optimizations
-    setupMobileOptimizations() {
-        // Touch-friendly drag and drop
-        const dropZone = document.getElementById('mainDropZone');
-        
-        // Add touch events for mobile
-        dropZone.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.highlightDropZone(true);
-        });
-
-        dropZone.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            this.highlightDropZone(false);
-            // On mobile, just trigger file browser
-            document.getElementById('fileInput').click();
-        });
-
-        // Optimize for small screens
-        this.setupResponsiveLayout();
-        
-        // Add haptic feedback if available
-        this.setupHapticFeedback();
-    }
-
-    setupResponsiveLayout() {
-        const mediaQuery = window.matchMedia('(max-width: 768px)');
-        
-        const handleMobileLayout = (e) => {
-            const dropZone = document.getElementById('mainDropZone');
-            const analytics = document.getElementById('uploadAnalytics');
-            
-            if (e.matches) {
-                // Mobile layout adjustments
-                dropZone.classList.add('mobile-layout');
-                analytics?.classList.add('mobile-analytics');
-                this.maxConcurrentUploads = 1; // Limit concurrent uploads on mobile
-            } else {
-                // Desktop layout
-                dropZone.classList.remove('mobile-layout');
-                analytics?.classList.remove('mobile-analytics');
-                this.maxConcurrentUploads = 3;
-            }
-        };
-
-        mediaQuery.addListener(handleMobileLayout);
-        handleMobileLayout(mediaQuery);
-    }
-
-    setupHapticFeedback() {
-        if ('vibrate' in navigator) {
-            this.hapticFeedback = {
-                success: () => navigator.vibrate([100]),
-                error: () => navigator.vibrate([200, 100, 200]),
-                progress: () => navigator.vibrate([50])
-            };
-        } else {
-            this.hapticFeedback = {
-                success: () => {},
-                error: () => {},
-                progress: () => {}
-            };
-        }
-    }
-
-    // WebSocket connection for real-time updates
-    setupWebSocketConnection() {
+    async setupWebSocketConnection() {
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/api/v6/ws/enterprise/upload_manager`;
@@ -849,8 +1532,9 @@ class NetflixLevelUploadManager {
             this.socket = new WebSocket(wsUrl);
             
             this.socket.onopen = () => {
-                console.log('📡 Upload WebSocket connected');
-                this.updateConnectionStatus('connected');
+                console.log('🔗 WebSocket connected');
+                this.reconnectAttempts = 0;
+                this.eventBus.emit('realtime:connected');
             };
             
             this.socket.onmessage = (event) => {
@@ -859,15 +1543,14 @@ class NetflixLevelUploadManager {
             };
             
             this.socket.onclose = () => {
-                console.log('📡 Upload WebSocket disconnected');
-                this.updateConnectionStatus('disconnected');
-                // Attempt to reconnect
-                setTimeout(() => this.setupWebSocketConnection(), 5000);
+                console.log('🔌 WebSocket disconnected');
+                this.eventBus.emit('realtime:disconnected');
+                this.handleReconnection();
             };
             
             this.socket.onerror = (error) => {
-                console.error('📡 Upload WebSocket error:', error);
-                this.updateConnectionStatus('error');
+                console.error('❌ WebSocket error:', error);
+                this.eventBus.emit('realtime:error', error);
             };
             
         } catch (error) {
@@ -875,216 +1558,94 @@ class NetflixLevelUploadManager {
         }
     }
 
+    setupEventHandlers() {
+        this.eventBus.on('upload:progress', this.sendProgressUpdate.bind(this));
+        this.eventBus.on('upload:completed', this.sendCompletionUpdate.bind(this));
+    }
+
     handleWebSocketMessage(data) {
         switch (data.type) {
             case 'upload_progress':
-                this.handleProgressUpdate(data.progress);
+                this.eventBus.emit('realtime:progress', data);
                 break;
             case 'upload_complete':
-                this.handleUploadComplete(data);
-                break;
-            case 'upload_error':
-                this.handleUploadError(data);
+                this.eventBus.emit('realtime:complete', data);
                 break;
             case 'system_stats':
-                this.updateSystemStats(data.stats);
+                this.eventBus.emit('realtime:stats', data);
                 break;
         }
     }
 
-    updateConnectionStatus(status) {
-        const statusElement = document.getElementById('connectionStatus');
-        if (statusElement) {
-            const statusMap = {
-                connected: '🟢 Connected',
-                disconnected: '🔴 Disconnected',
-                error: '🟡 Connection Error'
-            };
-            statusElement.textContent = statusMap[status] || status;
+    sendProgressUpdate(progressData) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+                type: 'upload_progress',
+                data: progressData
+            }));
         }
     }
 
-    // Utility methods
-    generateUploadId() {
-        return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    getAcceptString() {
-        return this.supportedFormats.map(format => `.${format}`).join(',');
-    }
-
-    getFileIcon(mimeType) {
-        if (mimeType.startsWith('video/')) return '🎬';
-        if (mimeType.startsWith('audio/')) return '🎵';
-        return '📄';
-    }
-
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    formatSpeed(bytesPerSecond) {
-        if (bytesPerSecond === 0) return '0 MB/s';
-        const mbps = bytesPerSecond / (1024 * 1024);
-        return `${mbps.toFixed(1)} MB/s`;
-    }
-
-    formatTime(seconds) {
-        if (!seconds || seconds === Infinity) return '--:--';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    estimateUploadTime(fileSize) {
-        // Estimate based on average upload speed (assuming 5 MB/s)
-        const averageSpeed = 5 * 1024 * 1024; // 5 MB/s
-        return Math.ceil(fileSize / averageSpeed);
-    }
-
-    updateQueueStats() {
-        const queueCount = this.uploadQueue.size;
-        const queueElement = document.getElementById('queue-count');
-        if (queueElement) {
-            queueElement.textContent = queueCount;
+    sendCompletionUpdate(uploadSession) {
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+                type: 'upload_complete',
+                data: {
+                    uploadId: uploadSession.id,
+                    fileSize: uploadSession.file.size,
+                    duration: Date.now() - uploadSession.startTime
+                }
+            }));
         }
     }
 
-    updateGlobalStats() {
-        // Update global performance metrics
-        const totalSpeed = Array.from(this.activeUploads.values())
-            .reduce((sum, item) => sum + (item.speed || 0), 0);
-        
-        const speedElement = document.getElementById('upload-speed');
-        const currentSpeedElement = document.getElementById('currentSpeed');
-        
-        if (speedElement) speedElement.textContent = this.formatSpeed(totalSpeed);
-        if (currentSpeedElement) currentSpeedElement.textContent = this.formatSpeed(totalSpeed);
-
-        // Update success rate
-        const totalUploads = this.performanceMetrics.totalUploads;
-        const successfulUploads = this.performanceMetrics.successfulUploads;
-        const successRate = totalUploads > 0 ? (successfulUploads / totalUploads) * 100 : 100;
-        
-        const successElement = document.getElementById('success-rate');
-        if (successElement) successElement.textContent = `${successRate.toFixed(0)}%`;
-    }
-
-    getAuthHeaders() {
-        // Return authentication headers if needed
-        return {
-            'Authorization': 'Bearer ' + (localStorage.getItem('token') || '')
-        };
-    }
-
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    showFileError(file, error) {
-        const notification = document.createElement('div');
-        notification.className = 'upload-notification error';
-        notification.innerHTML = `
-            <div class="notification-icon">❌</div>
-            <div class="notification-content">
-                <div class="notification-title">Upload Error</div>
-                <div class="notification-message">${file.name}: ${error}</div>
-            </div>
-            <button class="notification-close">×</button>
-        `;
-
-        document.body.appendChild(notification);
-
-        // Auto-remove after 5 seconds
-        setTimeout(() => {
-            notification.remove();
-        }, 5000);
-
-        // Close button
-        notification.querySelector('.notification-close').addEventListener('click', () => {
-            notification.remove();
-        });
-    }
-
-    showUrlPasteModal() {
-        const modal = document.createElement('div');
-        modal.className = 'modal upload-modal';
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>🔗 Upload from URL</h3>
-                    <button class="modal-close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="url-input-group">
-                        <input type="url" id="videoUrl" placeholder="https://example.com/video.mp4" class="url-input">
-                        <button class="url-fetch-btn" id="fetchUrlBtn">Fetch</button>
-                    </div>
-                    <div class="url-info" id="urlInfo" style="display: none;">
-                        <div class="url-preview" id="urlPreview"></div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn secondary-btn" id="cancelUrlBtn">Cancel</button>
-                    <button class="btn primary-btn" id="downloadUrlBtn" disabled>Download & Upload</button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-
-        // Event listeners
-        modal.querySelector('.modal-close').addEventListener('click', () => modal.remove());
-        modal.querySelector('#cancelUrlBtn').addEventListener('click', () => modal.remove());
-        
-        // URL fetch functionality would go here
-        modal.querySelector('#fetchUrlBtn').addEventListener('click', () => {
-            // Implement URL fetching logic
-            console.log('URL fetch not implemented in demo');
-        });
-    }
-
-    initializeTouchOptimizations() {
-        // Add touch-specific CSS classes
-        if ('ontouchstart' in window) {
-            document.body.classList.add('touch-device');
+    handleReconnection() {
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            const delay = Math.pow(2, this.reconnectAttempts) * 1000;
+            
+            setTimeout(() => {
+                console.log(`🔄 Reconnecting... (attempt ${this.reconnectAttempts})`);
+                this.setupWebSocketConnection();
+            }, delay);
         }
-
-        // Optimize for touch interactions
-        const style = document.createElement('style');
-        style.textContent = `
-            @media (max-width: 768px) {
-                .netflix-btn {
-                    min-height: 44px;
-                    font-size: 16px;
-                }
-                
-                .upload-item-header {
-                    padding: 16px;
-                }
-                
-                .control-btn {
-                    min-width: 44px;
-                    min-height: 44px;
-                }
-            }
-        `;
-        document.head.appendChild(style);
     }
 }
 
-// Initialize upload manager when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof window.uploadManager === 'undefined') {
-        window.uploadManager = new NetflixLevelUploadManager();
+// ================================
+// Global Initialization
+// ================================
+
+// Initialize upload system when DOM is ready
+document.addEventListener('DOMContentLoaded', async () => {
+    if (typeof window.uploadSystem === 'undefined') {
+        try {
+            window.uploadSystem = new UploadSystemCore();
+            await window.uploadSystem.initialize();
+            console.log('🚀 Netflix-level upload system initialized successfully');
+        } catch (error) {
+            console.error('❌ Failed to initialize upload system:', error);
+            
+            // Fallback to basic upload functionality
+            document.body.innerHTML = `
+                <div style="text-align: center; padding: 50px;">
+                    <h2>Upload System Unavailable</h2>
+                    <p>Please refresh the page or try again later.</p>
+                    <button onclick="location.reload()">Refresh Page</button>
+                </div>
+            `;
+        }
     }
 });
 
-// Export for use in other modules
+// Export for module use
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = NetflixLevelUploadManager;
+    module.exports = {
+        UploadSystemCore,
+        FileValidationModule,
+        ChunkedUploaderModule,
+        UIModule,
+        AnalyticsModule,
+        RealtimeModule
+    };
 }
