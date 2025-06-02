@@ -1,0 +1,57 @@
+🔍 Testing Netflix-grade import validation...
+ ✅ FastAPI import: SUCCESS
+2025-06-02 11:42:39,610 - app.config - INFO - <module>:229 - Netflix-grade configuration loaded for environment: production
+❌ App config import: FAILED - no running event loop
+/home/runner/workspace/nr1copilot/nr1-main/test_imports.py:32: RuntimeWarning: coroutine 'NetflixCacheManager._cleanup_expired' was never awaited
+  print(f"❌ App config import: FAILED - {e}")
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+❌ Utils package import: FAILED - no running event loop
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/test_imports.py", line 36, in test_critical_imports
+    from app.utils import cache, MetricsCollector, PerformanceMonitor, HealthMonitor
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/__init__.py", line 14, in <module>
+    from .main import app
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 34, in <module>
+    from .utils import HealthMonitor, MetricsCollector, PerformanceMonitor, cache
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/__init__.py", line 5, in <module>
+    from .cache import cache, CacheManager
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/cache.py", line 644, in <module>
+    cache = NetflixCacheManager()
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/cache.py", line 495, in __init__
+    asyncio.create_task(self._cleanup_expired())
+  File "/nix/store/nb21sc3npfc8gvazwnrjxpvb5d48jysx-python3-3.12.7/lib/python3.12/asyncio/tasks.py", line 417, in create_task
+    loop = events.get_running_loop()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: no running event loop
+/home/runner/workspace/nr1copilot/nr1-main/test_imports.py:41: RuntimeWarning: coroutine 'NetflixCacheManager._cleanup_expired' was never awaited
+  traceback.print_exc()
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+✅ Middleware imports: SUCCESS
+❌ Main app import: FAILED - no running event loop
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/test_imports.py", line 55, in test_critical_imports
+    from app.main import app
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/__init__.py", line 14, in <module>
+    from .main import app
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 34, in <module>
+    from .utils import HealthMonitor, MetricsCollector, PerformanceMonitor, cache
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/__init__.py", line 5, in <module>
+    from .cache import cache, CacheManager
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/cache.py", line 644, in <module>
+    cache = NetflixCacheManager()
+            ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/utils/cache.py", line 495, in __init__
+    asyncio.create_task(self._cleanup_expired())
+  File "/nix/store/nb21sc3npfc8gvazwnrjxpvb5d48jysx-python3-3.12.7/lib/python3.12/asyncio/tasks.py", line 417, in create_task
+    loop = events.get_running_loop()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: no running event loop
+/home/runner/workspace/nr1copilot/nr1-main/test_imports.py:60: RuntimeWarning: coroutine 'NetflixCacheManager._cleanup_expired' was never awaited
+  traceback.print_exc()
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+
+❌ Import validation FAILED with 3 errors:
+  - App config: no running event loop
+  - Utils package: no running event loop
+  - Main app: no running event loop
