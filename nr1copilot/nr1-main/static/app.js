@@ -1072,19 +1072,92 @@ class UIModule {
             document.body.classList.add('touch-device');
             
             const dropZone = this.getElement('mainDropZone');
+            let touchStartTime = 0;
+            
+            // Enhanced touch feedback with haptic response
             dropZone.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                touchStartTime = Date.now();
                 this.highlightDropZone(true);
+                
+                // Haptic feedback if available
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+                
+                // Visual feedback for touch
+                dropZone.style.transform = 'scale(0.98)';
+            });
+
+            dropZone.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                // Prevent scrolling while touching upload zone
             });
 
             dropZone.addEventListener('touchend', (e) => {
                 e.preventDefault();
+                const touchDuration = Date.now() - touchStartTime;
+                
+                // Reset visual feedback
+                dropZone.style.transform = 'scale(1)';
                 this.highlightDropZone(false);
-                this.getElement('fileInput').click();
+                
+                // Only trigger file selection if it was a quick tap
+                if (touchDuration < 500) {
+                    setTimeout(() => {
+                        this.getElement('fileInput').click();
+                    }, 100);
+                }
+            });
+
+            // Improved file input for mobile
+            const fileInput = this.getElement('fileInput');
+            fileInput.addEventListener('change', () => {
+                // Provide immediate feedback on mobile
+                if (fileInput.files.length > 0) {
+                    this.showMobileUploadFeedback(fileInput.files.length);
+                }
             });
         }
 
         this.setupResponsiveLayout();
+        this.setupMobileProgressOptimizations();
+    }
+
+    showMobileUploadFeedback(fileCount) {
+        const feedback = document.createElement('div');
+        feedback.className = 'mobile-upload-feedback';
+        feedback.innerHTML = `
+            <div class="feedback-content">
+                <span class="feedback-icon">📱</span>
+                <span class="feedback-text">${fileCount} file${fileCount > 1 ? 's' : ''} selected</span>
+            </div>
+        `;
+        
+        document.body.appendChild(feedback);
+        
+        setTimeout(() => {
+            feedback.remove();
+        }, 2000);
+    }
+
+    setupMobileProgressOptimizations() {
+        // Optimize progress updates for mobile performance
+        let lastProgressUpdate = 0;
+        const originalUpdateProgress = this.updateUploadProgress.bind(this);
+        
+        this.updateUploadProgress = (progressData) => {
+            const now = Date.now();
+            // Throttle updates on mobile to 100ms intervals
+            if (document.body.classList.contains('touch-device')) {
+                if (now - lastProgressUpdate < 100) {
+                    return;
+                }
+                lastProgressUpdate = now;
+            }
+            
+            originalUpdateProgress(progressData);
+        };
     }
 
     setupResponsiveLayout() {
@@ -1227,25 +1300,110 @@ class UIModule {
         });
     }
 
-    updateUploadProgress({ uploadId, progress, speed, chunkIndex }) {
+    updateUploadProgress({ uploadId, progress, speed, chunkIndex, totalChunks, bytesUploaded, totalBytes }) {
         const progressFill = document.getElementById(`progress-${uploadId}`);
         const progressText = document.getElementById(`progress-text-${uploadId}`);
         const speedElement = document.getElementById(`speed-${uploadId}`);
         const chunksElement = document.getElementById(`chunks-${uploadId}`);
+        const etaElement = document.getElementById(`eta-${uploadId}`);
 
-        if (progressFill) progressFill.style.width = `${progress}%`;
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
+            
+            // Add speed-based color coding
+            const speedClass = this.getSpeedClass(speed);
+            progressFill.className = `progress-fill ${speedClass}`;
+        }
+        
         if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-        if (speedElement) speedElement.textContent = this.formatSpeed(speed);
+        
+        if (speedElement) {
+            const formattedSpeed = this.formatSpeed(speed);
+            const speedTrend = this.getSpeedTrend(uploadId, speed);
+            speedElement.innerHTML = `
+                <span class="speed-value">${formattedSpeed}</span>
+                <span class="speed-trend ${speedTrend.direction}">${speedTrend.icon}</span>
+            `;
+        }
         
         if (chunksElement) {
-            const totalChunks = parseInt(chunksElement.textContent.split('/')[1]);
-            chunksElement.textContent = `${chunkIndex + 1}/${totalChunks}`;
+            chunksElement.textContent = `${chunkIndex + 1}/${totalChunks || 'N/A'}`;
         }
 
-        // Update chunk indicator
+        // Enhanced ETA calculation
+        if (etaElement && speed > 0 && totalBytes) {
+            const remainingBytes = totalBytes - (bytesUploaded || 0);
+            const etaSeconds = remainingBytes / speed;
+            etaElement.textContent = this.formatETA(etaSeconds);
+        }
+
+        // Update chunk indicator with animation
         const chunkIndicator = document.getElementById(`chunk-${uploadId}-${chunkIndex}`);
-        if (chunkIndicator) {
-            chunkIndicator.classList.add('completed');
+        if (chunkIndicator && !chunkIndicator.classList.contains('completed')) {
+            chunkIndicator.classList.add('uploading');
+            setTimeout(() => {
+                chunkIndicator.classList.remove('uploading');
+                chunkIndicator.classList.add('completed');
+            }, 300);
+        }
+
+        // Update global stats
+        this.updateGlobalStats();
+    }
+
+    getSpeedClass(speed) {
+        const mbps = speed / (1024 * 1024);
+        if (mbps > 10) return 'speed-excellent';
+        if (mbps > 5) return 'speed-good';
+        if (mbps > 1) return 'speed-average';
+        return 'speed-slow';
+    }
+
+    getSpeedTrend(uploadId, currentSpeed) {
+        if (!this.speedHistory) this.speedHistory = new Map();
+        
+        const history = this.speedHistory.get(uploadId) || [];
+        history.push(currentSpeed);
+        
+        if (history.length > 5) history.shift();
+        this.speedHistory.set(uploadId, history);
+        
+        if (history.length < 2) return { direction: 'stable', icon: '━' };
+        
+        const recent = history.slice(-3);
+        const avgRecent = recent.reduce((a, b) => a + b, 0) / recent.length;
+        const prevAvg = history.slice(-5, -2).reduce((a, b) => a + b, 0) / Math.max(1, history.length - 2);
+        
+        if (avgRecent > prevAvg * 1.1) return { direction: 'up', icon: '↗' };
+        if (avgRecent < prevAvg * 0.9) return { direction: 'down', icon: '↘' };
+        return { direction: 'stable', icon: '━' };
+    }
+
+    formatETA(seconds) {
+        if (!isFinite(seconds) || seconds <= 0) return '--:--';
+        
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        if (hours > 0) return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    updateGlobalStats() {
+        const speedElement = this.getElement('upload-speed');
+        const queueElement = this.getElement('queue-count');
+        
+        if (speedElement && this.speedHistory) {
+            const allSpeeds = Array.from(this.speedHistory.values()).flat();
+            const avgSpeed = allSpeeds.length > 0 ? 
+                allSpeeds.reduce((a, b) => a + b, 0) / allSpeeds.length : 0;
+            speedElement.textContent = this.formatSpeed(avgSpeed);
+        }
+        
+        if (queueElement) {
+            const activeUploads = document.querySelectorAll('.upload-item').length;
+            queueElement.textContent = activeUploads.toString();
         }
     }
 

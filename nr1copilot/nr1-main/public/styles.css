@@ -909,6 +909,81 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+/* Mobile Upload Feedback */
+.mobile-upload-feedback {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: var(--space-lg);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(10px);
+  z-index: 10000;
+  animation: mobilePopIn 0.3s ease-out;
+}
+
+@keyframes mobilePopIn {
+  0% { 
+    opacity: 0; 
+    transform: translate(-50%, -50%) scale(0.8); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1); 
+  }
+}
+
+.feedback-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.feedback-icon {
+  font-size: 2rem;
+}
+
+.feedback-text {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+/* Enhanced Progress Styles */
+.progress-fill.speed-excellent {
+  background: linear-gradient(90deg, #4caf50, #66bb6a);
+}
+
+.progress-fill.speed-good {
+  background: linear-gradient(90deg, #2196f3, #42a5f5);
+}
+
+.progress-fill.speed-average {
+  background: linear-gradient(90deg, #ff9800, #ffb74d);
+}
+
+.progress-fill.speed-slow {
+  background: linear-gradient(90deg, #f44336, #ef5350);
+}
+
+.speed-trend {
+  margin-left: var(--space-xs);
+  font-size: 0.8rem;
+}
+
+.speed-trend.up {
+  color: #4caf50;
+}
+
+.speed-trend.down {
+  color: #f44336;
+}
+
+.speed-trend.stable {
+  color: #757575;
+}
+
 /* Mobile Optimizations */
 @media (max-width: 768px) {
   .netflix-upload-section {
