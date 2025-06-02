@@ -1,44 +1,99 @@
-"""
-Utility modules for ViralClip Pro
-"""
 
-from .cache import cache, CacheManager
-from .metrics import MetricsCollector
-
-try:
-    from .security import SecurityManager
-except ImportError:
-    SecurityManager = None
-
-try:
-    from .rate_limiter import RateLimiter
-except ImportError:
-    RateLimiter = None
-
-try:
-    from .health import HealthChecker
-except ImportError:
-    HealthChecker = None
-
-__all__ = [
-    'cache',
-    'CacheManager',
-    'MetricsCollector',
-    'SecurityManager',
-    'RateLimiter',
-    'HealthChecker'
-]
 """
 Netflix-Grade Utility Package
 Core utilities for performance, monitoring, and optimization
 """
 
-from .health import HealthMonitor
-from .metrics import MetricsCollector
-from .performance_monitor import PerformanceMonitor
+import logging
 
+logger = logging.getLogger(__name__)
+
+# Import cache with error handling
+try:
+    from .cache import cache, CacheManager, NetflixCacheManager
+    cache_available = True
+except Exception as e:
+    logger.warning(f"Cache import failed: {e}")
+    cache = None
+    CacheManager = None
+    NetflixCacheManager = None
+    cache_available = False
+
+# Import other utilities with error handling
+try:
+    from .health import HealthMonitor
+    health_available = True
+except Exception as e:
+    logger.warning(f"Health monitor import failed: {e}")
+    HealthMonitor = None
+    health_available = False
+
+try:
+    from .metrics import MetricsCollector
+    metrics_available = True
+except Exception as e:
+    logger.warning(f"Metrics collector import failed: {e}")
+    MetricsCollector = None
+    metrics_available = False
+
+try:
+    from .performance_monitor import PerformanceMonitor
+    performance_available = True
+except Exception as e:
+    logger.warning(f"Performance monitor import failed: {e}")
+    PerformanceMonitor = None
+    performance_available = False
+
+# Optional imports
+try:
+    from .security import SecurityManager
+    security_available = True
+except ImportError:
+    SecurityManager = None
+    security_available = False
+
+try:
+    from .rate_limiter import RateLimiter
+    rate_limiter_available = True
+except ImportError:
+    RateLimiter = None
+    rate_limiter_available = False
+
+# Export all available utilities
 __all__ = [
+    "cache",
+    "CacheManager", 
+    "NetflixCacheManager",
     "HealthMonitor",
-    "MetricsCollector", 
-    "PerformanceMonitor"
+    "MetricsCollector",
+    "PerformanceMonitor",
+    "SecurityManager",
+    "RateLimiter"
 ]
+
+# Provide availability flags for dependency checking
+COMPONENT_AVAILABILITY = {
+    "cache": cache_available,
+    "health": health_available, 
+    "metrics": metrics_available,
+    "performance": performance_available,
+    "security": security_available,
+    "rate_limiter": rate_limiter_available
+}
+
+def get_available_components():
+    """Get list of available utility components"""
+    return [name for name, available in COMPONENT_AVAILABILITY.items() if available]
+
+def initialize_async_components():
+    """Initialize async components when event loop is available"""
+    async def _init():
+        if cache and hasattr(cache, 'initialize'):
+            await cache.initialize()
+            logger.info("✅ Cache async components initialized")
+        
+        # Initialize other async components as needed
+        
+    return _init()
+
+logger.info(f"🚀 Netflix utilities loaded: {get_available_components()}")

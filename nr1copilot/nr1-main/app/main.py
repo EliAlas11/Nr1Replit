@@ -186,6 +186,10 @@ async def lifespan(app: FastAPI):
         # Initialize Netflix-grade services
         await service_manager.initialize_core_services()
 
+        # Initialize async cache components
+        if hasattr(cache, 'initialize'):
+            await cache.initialize()
+
         # Start performance monitoring
         await app_state.performance.start_monitoring()
 
@@ -233,6 +237,10 @@ async def lifespan(app: FastAPI):
 
         # Stop monitoring
         await app_state.performance.stop_monitoring()
+
+        # Shutdown cache
+        if hasattr(cache, 'shutdown'):
+            await cache.shutdown()
 
         # Shutdown services
         await service_manager.shutdown_services()
