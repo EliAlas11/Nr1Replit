@@ -1,0 +1,691 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ViralClip Pro - Team Collaboration Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .collaboration-container {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+            gap: 1px;
+            background: #0f0f23;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(90deg, #1a1a2e, #16213e);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid #333;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .sidebar {
+            background: #1a1a2e;
+            border-right: 1px solid #333;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid #333;
+        }
+
+        .sidebar-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #8a8a9a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .workspace-item, .project-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .workspace-item:hover, .project-item:hover {
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .workspace-item.active, .project-item.active {
+            background: linear-gradient(45deg, rgba(255, 107, 107, 0.2), rgba(78, 205, 196, 0.2));
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ecdc4;
+        }
+
+        .main-content {
+            background: #16213e;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .project-toolbar {
+            background: #1a1a2e;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #333;
+        }
+
+        .project-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .toolbar-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .collaboration-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .video-preview {
+            background: #0f0f23;
+            border-radius: 10px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 8px;
+            aspect-ratio: 16/9;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 48px;
+            cursor: pointer;
+        }
+
+        .timeline-container {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+
+        .timeline {
+            height: 60px;
+            background: #0f0f23;
+            border-radius: 6px;
+            position: relative;
+            margin: 10px 0;
+        }
+
+        .timeline-cursor {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ff6b6b;
+            transition: left 0.1s ease;
+        }
+
+        .collaboration-cursors {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            right: 0;
+            height: 20px;
+        }
+
+        .cursor {
+            position: absolute;
+            width: 2px;
+            height: 20px;
+            border-radius: 1px;
+            transition: left 0.1s ease;
+        }
+
+        .cursor::after {
+            content: attr(data-user);
+            position: absolute;
+            top: -25px;
+            left: -20px;
+            background: inherit;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .version-history {
+            background: #0f0f23;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .version-item {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #4ecdc4;
+        }
+
+        .version-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .version-author {
+            font-weight: 600;
+            color: #4ecdc4;
+        }
+
+        .version-time {
+            font-size: 12px;
+            color: #8a8a9a;
+        }
+
+        .activity-panel {
+            background: #1a1a2e;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-tabs {
+            display: flex;
+            background: #0f0f23;
+            border-bottom: 1px solid #333;
+        }
+
+        .panel-tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+
+        .panel-tab.active {
+            border-bottom-color: #ff6b6b;
+            background: #1a1a2e;
+        }
+
+        .panel-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .collaborator-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 8px;
+            transition: background 0.3s ease;
+        }
+
+        .collaborator-item:hover {
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .collaborator-info {
+            flex: 1;
+        }
+
+        .collaborator-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .collaborator-status {
+            font-size: 12px;
+            color: #8a8a9a;
+        }
+
+        .online-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ecdc4;
+        }
+
+        .comment-item {
+            background: #0f0f23;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 3px solid #ff6b6b;
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .comment-author {
+            font-weight: 600;
+            color: #ff6b6b;
+        }
+
+        .comment-time {
+            font-size: 12px;
+            color: #8a8a9a;
+        }
+
+        .comment-content {
+            line-height: 1.5;
+        }
+
+        .comment-input {
+            background: #0f0f23;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            color: white;
+            width: 100%;
+            resize: vertical;
+            min-height: 80px;
+            margin-top: 15px;
+        }
+
+        .comment-input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .approval-workflow {
+            background: #0f0f23;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #333;
+        }
+
+        .workflow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .workflow-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .status-approved {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+        }
+
+        .status-rejected {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+        }
+
+        .progress-bar {
+            background: #333;
+            border-radius: 4px;
+            height: 8px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .collaboration-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 60px auto 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .activity-panel {
+                border-left: none;
+                border-top: 1px solid #333;
+            }
+
+            .collaboration-area {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .floating-action {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .floating-action:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="collaboration-container">
+        <header class="header">
+            <div class="logo">ViralClip Pro - Team Hub</div>
+            <div class="header-actions">
+                <span id="connectionStatus">🟢 Connected</span>
+                <button class="btn" onclick="collaborationHub.createWorkspace()">+ Workspace</button>
+                <button class="btn" onclick="collaborationHub.inviteUser()">👥 Invite</button>
+            </div>
+        </header>
+
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-title">Workspaces</div>
+                <div id="workspaceList">
+                    <div class="workspace-item active" data-workspace="main">
+                        <div class="status-indicator"></div>
+                        <span>Main Workspace</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Projects</div>
+                <div id="projectList">
+                    <div class="project-item active" data-project="viral-video-1">
+                        <div class="status-indicator"></div>
+                        <span>Viral Video Campaign</span>
+                    </div>
+                    <div class="project-item" data-project="social-content-2">
+                        <div class="status-indicator"></div>
+                        <span>Social Media Content</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="project-toolbar">
+                <div class="project-title">Viral Video Campaign</div>
+                <div class="toolbar-actions">
+                    <button class="btn" onclick="collaborationHub.createVersion()">💾 Save Version</button>
+                    <button class="btn" onclick="collaborationHub.shareProject()">🔗 Share</button>
+                    <button class="btn" onclick="collaborationHub.startApproval()">✅ Request Approval</button>
+                </div>
+            </div>
+
+            <div class="collaboration-area">
+                <div class="video-preview">
+                    <h3>Video Preview</h3>
+                    <div class="video-container">
+                        <div class="video-overlay">
+                            ▶️
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-container">
+                        <div class="timeline">
+                            <div class="timeline-cursor" style="left: 30%"></div>
+                            <div class="collaboration-cursors">
+                                <div class="cursor" style="left: 25%; background: #ff6b6b;" data-user="Alice"></div>
+                                <div class="cursor" style="left: 45%; background: #4ecdc4;" data-user="Bob"></div>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #8a8a9a;">
+                            <span>0:00</span>
+                            <span>0:30</span>
+                            <span>1:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="version-history">
+                    <h3>Version History</h3>
+                    <div id="versionList">
+                        <div class="version-item">
+                            <div class="version-meta">
+                                <span class="version-author">Current User</span>
+                                <span class="version-time">2 minutes ago</span>
+                            </div>
+                            <div>Added title animation and background music</div>
+                        </div>
+                        <div class="version-item">
+                            <div class="version-meta">
+                                <span class="version-author">Alice Johnson</span>
+                                <span class="version-time">1 hour ago</span>
+                            </div>
+                            <div>Updated video transitions and color grading</div>
+                        </div>
+                        <div class="version-item">
+                            <div class="version-meta">
+                                <span class="version-author">Bob Smith</span>
+                                <span class="version-time">3 hours ago</span>
+                            </div>
+                            <div>Initial video upload and basic editing</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <aside class="activity-panel">
+            <div class="panel-tabs">
+                <div class="panel-tab active" data-tab="collaborators">Team</div>
+                <div class="panel-tab" data-tab="comments">Comments</div>
+                <div class="panel-tab" data-tab="approvals">Approvals</div>
+            </div>
+
+            <div class="panel-content">
+                <div id="collaboratorsPanel" class="panel-active">
+                    <div id="collaboratorsList">
+                        <div class="collaborator-item">
+                            <div class="avatar">CU</div>
+                            <div class="collaborator-info">
+                                <div class="collaborator-name">Current User</div>
+                                <div class="collaborator-status">Owner • Online</div>
+                            </div>
+                            <div class="online-indicator"></div>
+                        </div>
+                        <div class="collaborator-item">
+                            <div class="avatar">AJ</div>
+                            <div class="collaborator-info">
+                                <div class="collaborator-name">Alice Johnson</div>
+                                <div class="collaborator-status">Editor • Online</div>
+                            </div>
+                            <div class="online-indicator"></div>
+                        </div>
+                        <div class="collaborator-item">
+                            <div class="collaborator-info">
+                                <div class="avatar">BS</div>
+                                <div class="collaborator-name">Bob Smith</div>
+                                <div class="collaborator-status">Reviewer • Away</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="commentsPanel" style="display: none;">
+                    <div id="commentsList">
+                        <div class="comment-item">
+                            <div class="comment-header">
+                                <span class="comment-author">Alice Johnson</span>
+                                <span class="comment-time">5 min ago</span>
+                            </div>
+                            <div class="comment-content">The transition at 0:15 looks amazing! Maybe we could add a subtle sound effect there?</div>
+                        </div>
+                        <div class="comment-item">
+                            <div class="comment-header">
+                                <span class="comment-author">Bob Smith</span>
+                                <span class="comment-time">1 hour ago</span>
+                            </div>
+                            <div class="comment-content">@Alice I think the color grading needs some adjustment. What do you think?</div>
+                        </div>
+                    </div>
+                    <textarea class="comment-input" placeholder="Add a comment... Use @ to mention team members"></textarea>
+                    <button class="btn" style="margin-top: 10px;" onclick="collaborationHub.addComment()">💬 Comment</button>
+                </div>
+
+                <div id="approvalsPanel" style="display: none;">
+                    <div class="approval-workflow">
+                        <div class="workflow-header">
+                            <span>Final Review</span>
+                            <span class="workflow-status status-pending">Pending</span>
+                        </div>
+                        <div>Reviewers: Alice Johnson, Bob Smith</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 50%"></div>
+                        </div>
+                        <div style="font-size: 12px; color: #8a8a9a;">1 of 2 approvals</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <button class="floating-action" onclick="collaborationHub.quickAction()" title="Quick Actions">
+        ⚡
+    </button>
+
+    <div id="notification" class="notification">
+        <div id="notificationMessage"></div>
+    </div>
+
+    <script src="collaboration-hub.js"></script>
+</body>
+</html>

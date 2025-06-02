@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v8.0 - NETFLIX PERFECTION EDITION ⭐ 10/10
 Ultra-optimized enterprise application with absolute performance excellence
@@ -22,6 +21,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
+from fastapi import WebSocket, WebSocketDisconnect, Query
+import json
+from fastapi.responses import FileResponse
+
 
 # Core imports
 from .config import settings
@@ -33,7 +36,10 @@ from .services.dependency_container import DependencyContainer
 from .services.analytics_engine import NetflixLevelAnalyticsEngine
 from .services.realtime_engine import NetflixLevelRealtimeEngine
 from .services.template_service import NetflixLevelTemplateService
-from .services.viral_optimizer import UltimateViralOptimizer
+from .services.viral_optimizer import NetflixLevelViralOptimizer
+from .utils.performance_monitor import NetflixLevelPerformanceMonitor
+from .utils.enterprise_optimizer import EnterpriseOptimizer
+from .services.collaboration_engine import NetflixLevelCollaborationEngine
 from .services.captions_service import NetflixLevelCaptionService
 from .services.batch_processor import NetflixLevelBatchProcessor
 
@@ -56,7 +62,10 @@ enterprise_optimizer = EnterpriseOptimizer()
 analytics_engine = NetflixLevelAnalyticsEngine()
 realtime_engine = NetflixLevelRealtimeEngine()
 template_service = NetflixLevelTemplateService()
-viral_optimizer = UltimateViralOptimizer()
+viral_optimizer = NetflixLevelViralOptimizer()
+performance_monitor = NetflixLevelPerformanceMonitor()
+enterprise_optimizer = EnterpriseOptimizer()
+collaboration_engine = NetflixLevelCollaborationEngine()
 caption_service = NetflixLevelCaptionService()
 batch_processor = NetflixLevelBatchProcessor()
 performance_monitor = NetflixLevelPerformanceMonitor()
@@ -187,7 +196,7 @@ async def _cache_optimization_loop():
             await asyncio.sleep(300)  # Every 5 minutes
 
             cache_stats = await enterprise_cache.get_cache_statistics()
-            
+
             if cache_stats.get("hit_rate", 0) < 0.85:
                 logger.info("🔄 Optimizing cache performance...")
                 await enterprise_cache.optimize_cache_performance()
@@ -205,7 +214,7 @@ async def _security_monitoring_loop():
             await asyncio.sleep(60)  # Every minute
 
             security_status = await _check_security_status()
-            
+
             if security_status.get("threat_level", "low") != "low":
                 logger.warning(f"Security alert: {security_status}")
 
@@ -361,7 +370,7 @@ async def analyze_video_enterprise(
     """Enterprise video analysis with comprehensive insights"""
     try:
         start_time = time.time()
-        
+
         # Parallel analysis execution
         analysis_tasks = [
             analytics_engine.analyze_video_comprehensive(file, session_id, enable_realtime),
@@ -375,11 +384,11 @@ async def analyze_video_enterprise(
 
         # Filter out None tasks
         analysis_tasks = [task for task in analysis_tasks if task is not None]
-        
+
         results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
-        
+
         processing_time = time.time() - start_time
-        
+
         analysis_result = results[0] if not isinstance(results[0], Exception) else {}
         viral_result = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else {}
         caption_result = results[2] if len(results) > 2 and not isinstance(results[2], Exception) else {}
@@ -414,9 +423,9 @@ async def get_viral_templates(
             "limit": limit,
             "user_tier": "enterprise"
         }
-        
+
         templates = await template_service.get_template_library_advanced(filters)
-        
+
         return {
             "templates": templates,
             "netflix_grade": True,
@@ -433,7 +442,7 @@ async def get_analytics_dashboard():
     """Get comprehensive analytics dashboard with real-time metrics"""
     try:
         dashboard_data = await analytics_engine.get_comprehensive_dashboard()
-        
+
         return {
             "dashboard": dashboard_data,
             "real_time": True,
@@ -458,7 +467,7 @@ async def submit_batch_job(
             priority=priority,
             user_tier="enterprise"
         )
-        
+
         return {
             "job": job_result,
             "enterprise_features": True,
@@ -497,3 +506,192 @@ if __name__ == "__main__":
         http="httptools",
         log_level="info" if settings.debug else "warning"
     )
+@app.get("/collaboration")
+async def collaboration_hub():
+    """Team collaboration hub interface"""
+    return FileResponse("static/collaboration-hub.html")
+
+# Team Collaboration API Endpoints
+
+@app.post("/api/v8/collaboration/workspace")
+async def create_workspace(request: dict):
+    """Create new team workspace"""
+    try:
+        workspace_id = f"workspace_{uuid.uuid4().hex[:12]}"
+        result = await collaboration_engine.create_workspace(
+            workspace_id=workspace_id,
+            name=request["name"],
+            owner_id=request["owner_id"],
+            description=request.get("description", "")
+        )
+        return result
+    except Exception as e:
+        logger.error(f"❌ Workspace creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v8/collaboration/invite")
+async def invite_team_member(request: dict):
+    """Invite team member to workspace"""
+    try:
+        from .services.collaboration_engine import UserRole
+
+        user_id = f"user_{uuid.uuid4().hex[:8]}"
+        result = await collaboration_engine.add_team_member(
+            workspace_id=request["workspace_id"],
+            user_id=user_id,
+            inviter_id=request["inviter_id"],
+            role=UserRole(request.get("role", "editor")),
+            email=request["email"],
+            username=request["email"].split("@")[0]
+        )
+        return result
+    except Exception as e:
+        logger.error(f"❌ Team invitation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.websocket("/api/v8/collaboration/ws/{workspace_id}/{project_id}")
+async def collaboration_websocket(
+    websocket: WebSocket,
+    workspace_id: str,
+    project_id: str,
+    user_id: str = Query(...)
+):
+    """Real-time collaboration WebSocket"""
+    await websocket.accept()
+
+    try:
+        # Start collaboration session
+        session_result = await collaboration_engine.start_collaboration_session(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            user_id=user_id,
+            websocket=websocket
+        )
+
+        # Send session info
+        await websocket.send_text(json.dumps({
+            "type": "session_joined",
+            "session_id": session_result["session_id"],
+            "active_collaborators": session_result["active_collaborators"]
+        }))
+
+        # Handle messages
+        while True:
+            try:
+                data = await websocket.receive_text()
+                message = json.loads(data)
+
+                if message["type"] == "real_time_operation":
+                    await collaboration_engine.handle_real_time_operation(
+                        session_id=session_result["session_id"],
+                        operation=message["operation"]
+                    )
+                elif message["type"] == "heartbeat":
+                    await websocket.send_text(json.dumps({"type": "heartbeat_ack"}))
+
+            except WebSocketDisconnect:
+                break
+
+    except Exception as e:
+        logger.error(f"❌ Collaboration WebSocket error: {e}")
+        await websocket.close()
+
+@app.post("/api/v8/collaboration/comment")
+async def add_comment(request: dict):
+    """Add timestamped comment with mentions"""
+    try:
+        result = await collaboration_engine.add_comment(
+            workspace_id=request["workspace_id"],
+            project_id=request["project_id"],
+            user_id=request["user_id"],
+            content=request["content"],
+            timestamp=request["timestamp"],
+            mentions=request.get("mentions", []),
+            priority=request.get("priority", "normal")
+        )
+        return result
+    except Exception as e:
+        logger.error(f"❌ Comment creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v8/collaboration/version")
+async def create_version(request: dict):
+    """Create project version for rollback support"""
+    try:
+        result = await collaboration_engine.create_project_version(
+            workspace_id=request["workspace_id"],
+            project_id=request["project_id"],
+            user_id=request["user_id"],
+            changes=request["changes"],
+            message=request["message"],
+            tags=request.get("tags", [])
+        )
+        return result
+    except Exception as e:
+        logger.error(f"❌ Version creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v8/collaboration/share")
+async def create_shared_link(request: dict):
+    """Create secure shared link with expiration"""
+    try:
+        result = await collaboration_engine.create_shared_link(
+            workspace_id=request["workspace_id"],
+            project_id=request["project_id"],
+            user_id=request["user_id"],
+            expires_hours=request.get("expires_hours"),
+            password=request.get("password"),
+            max_views=request.get("max_views"),
+            permissions=request.get("permissions", ["view"]),
+            branded=request.get("branded", True)
+        )
+        return result
+    except Exception as e:
+        logger.error(f"❌ Shared link creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v8/collaboration/approval")
+async def create_approval_workflow(request: dict):
+    """Create content approval workflow"""
+    try:
+        result = await collaboration_engine.create_approval_workflow(
+            workspace_id=request["workspace_id"],
+            project_id=request["project_id"],
+            created_by=request["created_by"],
+            reviewers=request["reviewers"],
+            deadline_hours=request.get("deadline_hours"),
+            priority=request.get("priority", "normal")
+        )
+        return result
+    except Exception as e:
+        logger.error(f"❌ Approval workflow creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v8/collaboration/workspace/{workspace_id}")
+async def get_workspace(workspace_id: str):
+    """Get workspace information"""
+    try:
+        workspace = collaboration_engine.workspaces.get(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+
+        return {
+            "success": True,
+            "workspace": workspace
+        }
+    except Exception as e:
+        logger.error(f"❌ Workspace retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v8/collaboration/analytics/{workspace_id}")
+async def get_workspace_analytics(workspace_id: str):
+    """Get comprehensive workspace analytics"""
+    try:
+        analytics = await collaboration_engine.get_workspace_analytics(workspace_id)
+        return {
+            "success": True,
+            "analytics": analytics
+        }
+    except Exception as e:
+        logger.error(f"❌ Analytics retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
