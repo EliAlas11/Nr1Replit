@@ -617,7 +617,7 @@ class NetflixLevelApp {
                 case 'ArrowRight':
                     this.seekTimeline(5);
                     break;
-            }
+                }
         });
     }
 
@@ -1767,567 +1767,224 @@ class NetflixLevelApp {
     }
 }
 
-class ViralClipApp {
-    constructor() {
+class AdvancedUploadManager {
+    constructor(app) {
+        this.app = app;
         this.config = {
-            websocketUrl: `ws://${window.location.host}/api/v6/ws/realtime`,
-            maxFileSize: 2 * 1024 * 1024 * 1024, // 2GB for Netflix-level uploads
+            maxFileSize: 2 * 1024 * 1024 * 1024, // 2GB
+            chunkSize: 5 * 1024 * 1024, // 5MB chunks
             supportedFormats: ['mp4', 'avi', 'mov', 'webm', 'mkv', 'mp3', 'wav', 'm4v', '3gp'],
-            chunkSize: 5 * 1024 * 1024, // 5MB chunks for better performance
-            retryDelay: 1000,
-            maxRetries: 3,
-            websocketHeartbeat: 30000,
             thumbnailMaxSize: 150,
-            compressionQuality: 0.8
+            compressionQuality: 0.8,
+            maxConcurrentUploads: 3,
+            retryAttempts: 3,
+            retryDelay: 1000
         };
 
-        this.websocket = null;
-        this.uploadQueue = [];
         this.activeUploads = new Map();
-        this.currentSession = null;
-        this.timeline = null;
-        this.isPlaying = false;
-        this.currentTime = 0;
-        this.uploadManager = null;
-        this.dragDropManager = null;
-        this.previewGenerator = null;
-        this.touchManager = null;
+        this.uploadQueue = [];
+        this.isProcessingQueue = false;
+        this.networkMonitor = new NetworkMonitor();
 
         this.init();
     }
 
     init() {
-        this.setupWebSocket();
-        this.initializeUploadManager();
-        this.initializeDragDropManager();
-        this.initializePreviewGenerator();
-        this.initializeTouchManager();
-        this.setupEventListeners();
-        this.initializeTimeline();
-        this.initializePreview();
-        this.initializeMetrics();
-        this.startPerformanceMonitoring();
+        this.setupDragDropZone();
+        this.setupFileInput();
         this.setupMobileOptimizations();
+        this.startNetworkMonitoring();
+        console.log('🚀 Netflix-grade Upload Manager initialized');
     }
 
-    initializeUploadManager() {
-        this.uploadManager = {
-            queue: [],
-            active: new Map(),
-            paused: new Set(),
-            failed: new Map(),
-            maxConcurrent: 3,
+    setupDragDropZone() {
+        const dropZone = document.querySelector('.upload-zone') || this.createUploadZone();
+        let dragCounter = 0;
 
-            async addToQueue(file, uploadId) {
-                const uploadItem = {
-                    id: uploadId,
-                    file: file,
-                    status: 'queued',
-                    progress: 0,
-                    speed: 0,
-                    retries: 0,
-                    chunks: [],
-                    startTime: null,
-                    thumbnail: null
-                };
+        // Enhanced drag and drop with visual feedback
+        dropZone.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            dropZone.classList.add('drag-active');
+            this.showDropFeedback(e);
+        });
 
-                // Generate thumbnail immediately
-                uploadItem.thumbnail = await app.previewGenerator.generateThumbnail(file);
-                this.queue.push(uploadItem);
-                app.updateUploadQueueUI();
-                this.processQueue();
-            },
-
-            async processQueue() {
-                while (this.active.size < this.maxConcurrent && this.queue.length > 0) {
-                    const uploadItem = this.queue.shift();
-                    if (!this.paused.has(uploadItem.id)) {
-                        this.active.set(uploadItem.id, uploadItem);
-                        this.startChunkedUpload(uploadItem);
-                    }
-                }
-            },
-
-            pauseUpload(uploadId) {
-                this.paused.add(uploadId);
-                const upload = this.active.get(uploadId);
-                if (upload) {
-                    upload.status = 'paused';
-                    app.updateUploadItemUI(upload);
-                }
-            },
-
-            resumeUpload(uploadId) {
-                this.paused.delete(uploadId);
-                const upload = this.active.get(uploadId) || this.queue.find(u => u.id === uploadId);
-                if (upload) {
-                    upload.status = 'uploading';
-                    if (!this.active.has(uploadId)) {
-                        this.processQueue();
-                    }
-                }
-            },
-
-            cancelUpload(uploadId) {
-                this.paused.add(uploadId);
-                const upload = this.active.get(uploadId);
-                if (upload) {
-                    upload.status = 'cancelled';
-                    this.active.delete(uploadId);
-                    app.updateUploadItemUI(upload);
-                }
-                // Remove from queue if queued
-                this.queue = this.queue.filter(u => u.id !== uploadId);
-                app.updateUploadQueueUI();
-            },
-
-            async startChunkedUpload(uploadItem) {
-                const file = uploadItem.file;
-                const totalChunks = Math.ceil(file.size / app.config.chunkSize);
-                uploadItem.totalChunks = totalChunks;
-                uploadItem.uploadedChunks = 0;
-                uploadItem.status = 'uploading';
-                uploadItem.startTime = Date.now();
-
-                try {
-                    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                        if (this.paused.has(uploadItem.id)) {
-                            uploadItem.status = 'paused';
-                            return;
-                        }
-
-                        await this.uploadChunk(uploadItem, chunkIndex);
-                        uploadItem.uploadedChunks = chunkIndex + 1;
-
-                        // Update progress and speed
-                        const elapsed = Date.now() - uploadItem.startTime;
-                        const uploaded = uploadItem.uploadedChunks * app.config.chunkSize;
-                        uploadItem.speed = uploaded / (elapsed / 1000); // bytes per second
-                        uploadItem.progress = (uploadItem.uploadedChunks / totalChunks) * 100;
-
-                        app.updateUploadItemUI(uploadItem);
-                    }
-
-                    uploadItem.status = 'complete';
-                    this.active.delete(uploadItem.id);
-                    app.updateUploadItemUI(uploadItem);
-                    this.processQueue();
-
-                } catch (error) {
-                    await this.handleUploadError(uploadItem, error);
-                }
-            },
-
-            async uploadChunk(uploadItem, chunkIndex) {
-                const start = chunkIndex * app.config.chunkSize;
-                const end = Math.min(start + app.config.chunkSize, uploadItem.file.size);
-                const chunk = uploadItem.file.slice(start, end);
-
-                const formData = new FormData();
-                formData.append('chunk', chunk);
-                formData.append('upload_id', uploadItem.id);
-                formData.append('chunk_index', chunkIndex);
-                formData.append('total_chunks', uploadItem.totalChunks);
-                formData.append('filename', uploadItem.file.name);
-
-                let retries = 0;
-                while (retries <= app.config.maxRetries) {
-                    try {
-                        const response = await fetch('/api/v6/upload-chunk', {
-                            method: 'POST',
-                            body: formData
-                        });
-
-                        if (response.ok) {
-                            return await response.json();
-                        } else {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                    } catch (error) {
-                        retries++;
-                        if (retries > app.config.maxRetries) {
-                            throw error;
-                        }
-                        await this.delay(app.config.retryDelay * retries);
-                    }
-                }
-            },
-
-            async handleUploadError(uploadItem, error) {
-                uploadItem.retries++;
-                if (uploadItem.retries <= app.config.maxRetries) {
-                    uploadItem.status = 'retrying';
-                    app.updateUploadItemUI(uploadItem);
-                    await this.delay(app.config.retryDelay * uploadItem.retries);
-                    this.startChunkedUpload(uploadItem);
-                } else {
-                    uploadItem.status = 'failed';
-                    uploadItem.error = error.message;
-                    this.failed.set(uploadItem.id, uploadItem);
-                    this.active.delete(uploadItem.id);
-                    app.updateUploadItemUI(uploadItem);
-                    this.processQueue();
-                }
-            },
-
-            delay(ms) {
-                return new Promise(resolve => setTimeout(resolve, ms));
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter === 0) {
+                dropZone.classList.remove('drag-active');
+                this.hideDropFeedback();
             }
-        };
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            this.updateDropFeedback(e);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            dropZone.classList.remove('drag-active');
+            this.hideDropFeedback();
+
+            const files = Array.from(e.dataTransfer.files);
+            this.handleMultipleFiles(files);
+        });
+
+        // Paste support for mobile
+        document.addEventListener('paste', (e) => {
+            const items = Array.from(e.clipboardData.items);
+            const files = items
+                .filter(item => item.kind === 'file')
+                .map(item => item.getAsFile())
+                .filter(file => file);
+
+            if (files.length > 0) {
+                this.handleMultipleFiles(files);
+            }
+        });
     }
 
-    initializeDragDropManager() {
-        this.dragDropManager = {
-            dragCounter: 0,
-            isDragging: false,
+    createUploadZone() {
+        const uploadZone = document.createElement('div');
+        uploadZone.className = 'upload-zone';
+        uploadZone.innerHTML = `
+            <div class="upload-content">
+                <div class="upload-icon">📁</div>
+                <h3>Drop your videos here</h3>
+                <p>Or click to browse files</p>
+                <div class="supported-formats">
+                    Supports: ${this.config.supportedFormats.join(', ').toUpperCase()}
+                </div>
+                <div class="upload-stats">
+                    <span class="max-size">Max size: 2GB</span>
+                    <span class="network-speed" id="networkSpeed"></span>
+                </div>
+            </div>
+            <div class="drop-feedback" id="dropFeedback"></div>
+        `;
 
-            init() {
-                const dropZone = document.getElementById('uploadDropZone');
-                const body = document.body;
+        uploadZone.addEventListener('click', () => {
+            document.getElementById('videoFile')?.click();
+        });
 
-                // Prevent default drag behaviors
-                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                    body.addEventListener(eventName, this.preventDefaults, false);
-                    dropZone?.addEventListener(eventName, this.preventDefaults, false);
-                });
-
-                // Highlight drop zone when item is dragged over it
-                ['dragenter', 'dragover'].forEach(eventName => {
-                    body.addEventListener(eventName, this.handleDragEnter.bind(this), false);
-                });
-
-                ['dragleave', 'drop'].forEach(eventName => {
-                    body.addEventListener(eventName, this.handleDragLeave.bind(this), false);
-                });
-
-                // Handle dropped files
-                body.addEventListener('drop', this.handleDrop.bind(this), false);
-                dropZone?.addEventListener('drop', this.handleDrop.bind(this), false);
-            },
-
-            preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            },
-
-            handleDragEnter(e) {
-                this.dragCounter++;
-                if (e.dataTransfer.types.includes('Files')) {
-                    this.isDragging = true;
-                    this.showDropOverlay();
-                }
-            },
-
-            handleDragLeave(e) {
-                this.dragCounter--;
-                if (this.dragCounter <= 0) {
-                    this.isDragging = false;
-                    this.hideDropOverlay();
-                    this.dragCounter = 0;
-                }
-            },
-
-            async handleDrop(e) {
-                this.dragCounter = 0;
-                this.isDragging = false;
-                this.hideDropOverlay();
-
-                const files = Array.from(e.dataTransfer.files);
-                if (files.length > 0) {
-                    for (const file of files) {
-                        await app.handleFileSelection(file);
-                    }
-                }
-            },
-
-            showDropOverlay() {
-                let overlay = document.getElementById('dragDropOverlay');
-                if (!overlay) {
-                    overlay = this.createDropOverlay();
-                    document.body.appendChild(overlay);
-                }
-                overlay.classList.add('visible');
-                document.body.classList.add('dragging');
-            },
-
-            hideDropOverlay() {
-                const overlay = document.getElementById('dragDropOverlay');
-                if (overlay) {
-                    overlay.classList.remove('visible');
-                }
-                document.body.classList.remove('dragging');
-            },
-
-            createDropOverlay() {
-                const overlay = document.createElement('div');
-                overlay.id = 'dragDropOverlay';
-                overlay.className = 'drag-drop-overlay';
-                overlay.innerHTML = `
-                    <div class="drop-zone-content">
-                        <div class="drop-icon">📁</div>
-                        <h3>Drop your videos here</h3>
-                        <p>Support for MP4, AVI, MOV, WebM and more</p>
-                        <div class="drop-animation"></div>
-                    </div>
-                `;
-                return overlay;
-            }
-        };
-
-        this.dragDropManager.init();
+        const container = document.querySelector('.upload-container') || document.body;
+        container.appendChild(uploadZone);
+        return uploadZone;
     }
 
-    initializePreviewGenerator() {
-        this.previewGenerator = {
-            async generateThumbnail(file) {
-                return new Promise((resolve) => {
-                    if (file.type.startsWith('video/')) {
-                        const video = document.createElement('video');
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
+    setupFileInput() {
+        let fileInput = document.getElementById('videoFile');
+        if (!fileInput) {
+            fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.id = 'videoFile';
+            fileInput.multiple = true;
+            fileInput.accept = this.config.supportedFormats.map(f => `.${f}`).join(',');
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+        }
 
-                        video.onloadedmetadata = () => {
-                            // Set canvas size maintaining aspect ratio
-                            const aspectRatio = video.videoWidth / video.videoHeight;
-                            if (aspectRatio > 1) {
-                                canvas.width = app.config.thumbnailMaxSize;
-                                canvas.height = app.config.thumbnailMaxSize / aspectRatio;
-                            } else {
-                                canvas.height = app.config.thumbnailMaxSize;
-                                canvas.width = app.config.thumbnailMaxSize * aspectRatio;
-                            }
-
-                            video.currentTime = Math.min(2, video.duration / 2); // 2 seconds or middle
-                        };
-
-                        video.onseeked = () => {
-                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            const thumbnail = canvas.toDataURL('image/jpeg', app.config.compressionQuality);
-                            resolve({
-                                dataUrl: thumbnail,
-                                width: video.videoWidth,
-                                height: video.videoHeight,
-                                duration: video.duration
-                            });
-                        };
-
-                        video.onerror = () => {
-                            resolve(this.generatePlaceholderThumbnail(file));
-                        };
-
-                        video.src = URL.createObjectURL(file);
-                    } else {
-                        resolve(this.generatePlaceholderThumbnail(file));
-                    }
-                });
-            },
-
-            generatePlaceholderThumbnail(file) {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = app.config.thumbnailMaxSize;
-                canvas.height = app.config.thumbnailMaxSize;
-
-                // Create gradient background
-                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-                gradient.addColorStop(0, '#667eea');
-                gradient.addColorStop(1, '#764ba2');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                // Add file icon
-                ctx.fillStyle = 'white';
-                ctx.font = '48px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('📁', canvas.width / 2, canvas.height / 2 + 16);
-
-                // Add file type
-                const extension = file.name.split('.').pop().toUpperCase();
-                ctx.font = '12px Arial';
-                ctx.fillText(extension, canvas.width / 2, canvas.height - 20);
-
-                return {
-                    dataUrl: canvas.toDataURL('image/jpeg', app.config.compressionQuality),
-                    width: null,
-                    height: null,
-                    duration: null
-                };
-            }
-        };
-    }
-
-    initializeTouchManager() {
-        this.touchManager = {
-            init() {
-                if ('ontouchstart' in window) {
-                    this.setupTouchOptimizations();
-                }
-            },
-
-            setupTouchOptimizations() {
-                // Prevent zoom on double tap for upload buttons
-                const uploadButtons = document.querySelectorAll('.upload-btn, .drag-drop-zone');
-                uploadButtons.forEach(button => {
-                    button.style.touchAction = 'manipulation';
-                });
-
-                // Add haptic feedback for touch interactions
-                const interactiveElements = document.querySelectorAll('button, .clickable');
-                interactiveElements.forEach(element => {
-                    element.addEventListener('touchstart', this.addHapticFeedback, { passive: true });
-                });
-            },
-
-            addHapticFeedback() {
-                if ('vibrate' in navigator) {
-                    navigator.vibrate(10); // Short vibration for feedback
-                }
-            }
-        };
-
-        this.touchManager.init();
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            this.handleMultipleFiles(files);
+            e.target.value = ''; // Reset for reselection
+        });
     }
 
     setupMobileOptimizations() {
-        // Detect mobile device
-        const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // Touch-friendly upload button
+        const uploadBtn = document.getElementById('uploadButton');
+        if (uploadBtn) {
+            uploadBtn.style.minHeight = '48px';
+            uploadBtn.style.padding = '12px 24px';
+        }
 
-        if (isMobile) {
-            document.body.classList.add('mobile-device');
+        // Mobile-specific drag handling
+        if (this.isMobile()) {
+            this.setupMobileDragDrop();
+        }
 
-            // Adjust chunk size for mobile networks
-            if (navigator.connection) {
-                const connection = navigator.connection;
-                if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
-                    this.config.chunkSize = 1024 * 1024; // 1MB for slow connections
-                } else if (connection.effectiveType === '3g') {
-                    this.config.chunkSize = 2 * 1024 * 1024; // 2MB for 3G
+        // Responsive upload zone
+        this.adjustUploadZoneForViewport();
+        window.addEventListener('resize', () => this.adjustUploadZoneForViewport());
+    }
+
+    setupMobileDragDrop() {
+        const dropZone = document.querySelector('.upload-zone');
+        if (!dropZone) return;
+
+        // Mobile touch events for drag-like behavior
+        let touchStarted = false;
+
+        dropZone.addEventListener('touchstart', (e) => {
+            touchStarted = true;
+            dropZone.classList.add('touch-active');
+        });
+
+        dropZone.addEventListener('touchend', (e) => {
+            if (touchStarted) {
+                dropZone.classList.remove('touch-active');
+                // Trigger file picker on mobile
+                document.getElementById('videoFile')?.click();
+            }
+            touchStarted = false;
+        });
+    }
+
+    async handleMultipleFiles(files) {
+        console.log(`📥 Processing ${files.length} files`);
+
+        for (const file of files) {
+            try {
+                // Validate file
+                const validation = await this.validateFile(file);
+                if (!validation.valid) {
+                    this.showError(`${file.name}: ${validation.error}`);
+                    continue;
                 }
+
+                // Generate upload ID and create preview
+                const uploadId = this.generateUploadId();
+                const preview = await this.generateInstantPreview(file);
+
+                // Add to queue
+                const uploadData = {
+                    id: uploadId,
+                    file: file,
+                    preview: preview,
+                    status: 'queued',
+                    progress: 0,
+                    speed: 0,
+                    eta: 0,
+                    retries: 0,
+                    chunks: [],
+                    startTime: null
+                };
+
+                this.uploadQueue.push(uploadData);
+                this.displayUploadItem(uploadData);
+
+            } catch (error) {
+                console.error(`Failed to process ${file.name}:`, error);
+                this.showError(`Failed to process ${file.name}`);
             }
-
-            // Add mobile-specific UI enhancements
-            this.addMobileUIEnhancements();
-        }
-    }
-
-    addMobileUIEnhancements() {
-        // Add mobile upload progress indicator in viewport
-        const progressContainer = document.createElement('div');
-        progressContainer.id = 'mobileProgressContainer';
-        progressContainer.className = 'mobile-progress-container';
-        document.body.appendChild(progressContainer);
-
-        // Add floating action button for upload
-        const fab = document.createElement('button');
-        fab.id = 'uploadFAB';
-        fab.className = 'upload-fab';
-        fab.innerHTML = '📤';
-        fab.onclick = () => document.getElementById('videoFile')?.click();
-        document.body.appendChild(fab);
-    }
-
-    setupEventListeners() {
-        // File input change with multiple file support
-        const fileInput = document.getElementById('videoFile');
-        if (fileInput) {
-            fileInput.setAttribute('multiple', 'true');
-            fileInput.addEventListener('change', async (e) => {
-                if (e.target.files.length > 0) {
-                    for (const file of Array.from(e.target.files)) {
-                        await this.handleFileSelection(file);
-                    }
-                }
-            });
         }
 
-        // Upload button click
-        const uploadButton = document.getElementById('uploadButton');
-        if (uploadButton) {
-            uploadButton.addEventListener('click', () => {
-                fileInput?.click();
-            });
-        }
-
-        // Timeline controls
-        document.getElementById('playBtn')?.addEventListener('click', () => this.playTimeline());
-        document.getElementById('pauseBtn')?.addEventListener('click', () => this.pauseTimeline());
-
-        // Preview controls
-        document.getElementById('previewQuality')?.addEventListener('change', () => this.regeneratePreview());
-        document.getElementById('platformOptimization')?.addEventListener('change', () => this.regeneratePreview());
-
-        // Generate clips button
-        document.getElementById('generateClipsBtn')?.addEventListener('click', () => this.generateViralClips());
-
-        // Queue management
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('.pause-upload')) {
-                const uploadId = e.target.dataset.uploadId;
-                this.uploadManager.pauseUpload(uploadId);
-            }
-            if (e.target.matches('.resume-upload')) {
-                const uploadId = e.target.dataset.uploadId;
-                this.uploadManager.resumeUpload(uploadId);
-            }
-            if (e.target.matches('.cancel-upload')) {
-                const uploadId = e.target.dataset.uploadId;
-                this.uploadManager.cancelUpload(uploadId);
-            }
-            if (e.target.matches('.retry-upload')) {
-                const uploadId = e.target.dataset.uploadId;
-                this.retryFailedUpload(uploadId);
-            }
-        });
-
-        // Network status monitoring
-        window.addEventListener('online', () => {
-            console.log('🌐 Connection restored - resuming uploads');
-            this.resumeAllUploads();
-        });
-
-        window.addEventListener('offline', () => {
-            console.log('📡 Connection lost - pausing uploads');
-            this.pauseAllUploads();
-        });
+        this.processUploadQueue();
     }
 
-    async handleFileSelection(file) {
-        // Validate file
-        const validation = this.validateFile(file);
-        if (!validation.valid) {
-            this.showError(validation.error);
-            return;
-        }
-
-        // Generate unique upload ID
-        const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        // Add to upload queue
-        await this.uploadManager.addToQueue(file, uploadId);
-
-        // Show upload started notification
-        this.showNotification(`Upload started: ${file.name}`, 'success');
-    }
-
-    validateFile(file) {
-        // Check file size
+    async validateFile(file) {
+        // Size validation
         if (file.size > this.config.maxFileSize) {
             return {
                 valid: false,
-                error: `File too large. Maximum size is ${this.formatFileSize(this.config.maxFileSize)}`
+                error: `File too large. Max size: ${this.formatFileSize(this.config.maxFileSize)}`
             };
         }
 
-        // Check file type
-        const extension = file.name.split('.').pop().toLowerCase();
-        if (!this.config.supportedFormats.includes(extension)) {
-            return {
-                valid: false,
-                error: `Unsupported format. Supported: ${this.config.supportedFormats.join(', ')}`
-            };
-        }
-
-        // Check for empty file
         if (file.size === 0) {
             return {
                 valid: false,
@@ -2335,113 +1992,543 @@ class ViralClipApp {
             };
         }
 
+        // Format validation
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        if (!this.config.supportedFormats.includes(extension)) {
+            return {
+                valid: false,
+                error: `Unsupported format. Supported: ${this.config.supportedFormats.join(', ')}`
+            };
+        }
+
+        // Advanced validation for video files
+        if (['mp4', 'avi', 'mov', 'webm', 'mkv', 'm4v', '3gp'].includes(extension)) {
+            try {
+                const videoInfo = await this.getVideoInfo(file);
+                if (!videoInfo.valid) {
+                    return {
+                        valid: false,
+                        error: 'Invalid video file'
+                    };
+                }
+            } catch (error) {
+                console.warn('Video validation failed:', error);
+                // Continue anyway for basic formats
+            }
+        }
+
         return { valid: true };
     }
 
-    updateUploadQueueUI() {
-        const queueContainer = document.getElementById('uploadQueue');
-        if (!queueContainer) return;
+    async getVideoInfo(file) {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
 
-        const allUploads = [
-            ...this.uploadManager.queue,
-            ...Array.from(this.uploadManager.active.values()),
-            ...Array.from(this.uploadManager.failed.values())
-        ];
+            video.onloadedmetadata = () => {
+                resolve({
+                    valid: true,
+                    duration: video.duration,
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    aspectRatio: video.videoWidth / video.videoHeight
+                });
+                URL.revokeObjectURL(video.src);
+            };
 
-        queueContainer.innerHTML = allUploads.map(upload => this.renderUploadItem(upload)).join('');
+            video.onerror = () => {
+                resolve({ valid: false });
+                URL.revokeObjectURL(video.src);
+            };
+
+            video.src = URL.createObjectURL(file);
+        });
     }
 
-    renderUploadItem(upload) {
-        const progress = Math.round(upload.progress || 0);
-        const speed = this.formatSpeed(upload.speed || 0);
-        const fileSize = this.formatFileSize(upload.file.size);
-        const thumbnail = upload.thumbnail?.dataUrl || '';
+    async generateInstantPreview(file) {
+        try {
+            const isVideo = file.type.startsWith('video/');
 
-        let statusIcon = '⏳';
-        let statusText = 'Queued';
-        let actionButtons = '';
+            if (isVideo) {
+                return await this.generateVideoThumbnail(file);
+            } else {
+                return await this.generateAudioPreview(file);
+            }
+        } catch (error) {
+            console.error('Preview generation failed:', error);
+            return this.getDefaultPreview(file);
+        }
+    }
 
-        switch (upload.status) {
-            case 'uploading':
-                statusIcon = '⬆️';
-                statusText = `Uploading ${progress}%`;
-                actionButtons = `<button class="pause-upload" data-upload-id="${upload.id}">⏸️</button>`;
-                break;
-            case 'paused':
-                statusIcon = '⏸️';
-                statusText = 'Paused';
-                actionButtons = `<button class="resume-upload" data-upload-id="${upload.id}">▶️</button>`;
-                break;
-            case 'complete':
-                statusIcon = '✅';
-                statusText = 'Complete';
-                break;
-            case 'failed':
-                statusIcon = '❌';
-                statusText = `Failed: ${upload.error}`;
-                actionButtons = `<button class="retry-upload" data-upload-id="${upload.id}">🔄</button>`;
-                break;
-            case 'retrying':
-                statusIcon = '🔄';
-                statusText = `Retrying (${upload.retries}/${this.config.maxRetries})`;
-                break;
+    async generateVideoThumbnail(file) {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            video.onloadedmetadata = () => {
+                canvas.width = this.config.thumbnailMaxSize;
+                canvas.height = (video.videoHeight / video.videoWidth) * this.config.thumbnailMaxSize;
+
+                video.currentTime = Math.min(2, video.duration / 4); // Seek to 25% or 2 seconds
+            };
+
+            video.onseeked = () => {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const thumbnail = canvas.toDataURL('image/jpeg', this.config.compressionQuality);
+
+                resolve({
+                    type: 'video',
+                    thumbnail: thumbnail,
+                    duration: video.duration,
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    resolution: `${video.videoWidth}x${video.videoHeight}`
+                });
+
+                URL.revokeObjectURL(video.src);
+            };
+
+            video.onerror = () => {
+                resolve(this.getDefaultPreview(file));
+                URL.revokeObjectURL(video.src);
+            };
+
+            video.src = URL.createObjectURL(file);
+        });
+    }
+
+    async generateAudioPreview(file) {
+        return new Promise((resolve) => {
+            const audio = document.createElement('audio');
+
+            audio.onloadedmetadata = () => {
+                resolve({
+                    type: 'audio',
+                    thumbnail: this.generateAudioThumbnail(),
+                    duration: audio.duration,
+                    title: file.name.replace(/\.[^/.]+$/, "")
+                });
+                URL.revokeObjectURL(audio.src);
+            };
+
+            audio.onerror = () => {
+                resolve(this.getDefaultPreview(file));
+                URL.revokeObjectURL(audio.src);
+            };
+
+            audio.src = URL.createObjectURL(file);
+        });
+    }
+
+    generateAudioThumbnail() {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.config.thumbnailMaxSize;
+        canvas.height = this.config.thumbnailMaxSize;
+        const ctx = canvas.getContext('2d');
+
+        // Create audio waveform visualization
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        gradient.addColorStop(0, '#667eea');
+        gradient.addColorStop(1, '#764ba2');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Add audio icon
+        ctx.fillStyle = 'white';
+        ctx.font = '48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎵', canvas.width / 2, canvas.height / 2 + 16);
+
+        return canvas.toDataURL('image/jpeg', this.config.compressionQuality);
+    }
+
+    getDefaultPreview(file) {
+        return {
+            type: 'unknown',
+            thumbnail: this.generateDefaultThumbnail(file),
+            size: file.size,
+            name: file.name
+        };
+    }
+
+    generateDefaultThumbnail(file) {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.config.thumbnailMaxSize;
+        canvas.height = this.config.thumbnailMaxSize;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#666';
+        ctx.font = '48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('📄', canvas.width / 2, canvas.height / 2 + 16);
+
+        return canvas.toDataURL('image/jpeg', this.config.compressionQuality);
+    }
+
+    async processUploadQueue() {
+        if (this.isProcessingQueue) return;
+        this.isProcessingQueue = true;
+
+        while (this.uploadQueue.length > 0 && this.activeUploads.size < this.config.maxConcurrentUploads) {
+            const uploadData = this.uploadQueue.shift();
+            this.startUpload(uploadData);
         }
 
-        const eta = this.calculateETA(upload);
+        this.isProcessingQueue = false;
+    }
 
-        return `
-            <div class="upload-item ${upload.status}" data-upload-id="${upload.id}">
-                <div class="upload-thumbnail">
-                    ${thumbnail ? `<img src="${thumbnail}" alt="Thumbnail">` : '<div class="placeholder-thumb">📁</div>'}
+    async startUpload(uploadData) {
+        try {
+            uploadData.status = 'uploading';
+            uploadData.startTime = Date.now();
+            this.activeUploads.set(uploadData.id, uploadData);
+            this.updateUploadDisplay(uploadData);
+
+            console.log(`🚀 Starting upload: ${uploadData.file.name}`);
+
+            // Chunked upload with progress tracking
+            await this.uploadFileChunked(uploadData);
+
+        } catch (error) {
+            console.error(`Upload failed for ${uploadData.file.name}:`, error);
+            await this.handleUploadError(uploadData, error);
+        }
+    }
+
+    async uploadFileChunked(uploadData) {
+        const { file, id } = uploadData;
+        const totalChunks = Math.ceil(file.size / this.config.chunkSize);
+        let uploadedBytes = 0;
+
+        uploadData.chunks = Array(totalChunks).fill(false);
+
+        // Send initial upload request
+        const initResponse = await fetch('/api/v6/upload/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename: file.name,
+                file_size: file.size,
+                total_chunks: totalChunks,
+                upload_id: id
+            })
+        });
+
+        if (!initResponse.ok) {
+            throw new Error('Failed to initialize upload');
+        }
+
+        // Upload chunks with progress tracking
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            if (uploadData.status === 'cancelled') {
+                throw new Error('Upload cancelled');
+            }
+
+            const start = chunkIndex * this.config.chunkSize;
+            const end = Math.min(start + this.config.chunkSize, file.size);
+            const chunk = file.slice(start, end);
+
+            const formData = new FormData();
+            formData.append('file', chunk);
+            formData.append('upload_id', id);
+            formData.append('chunk_index', chunkIndex.toString());
+            formData.append('total_chunks', totalChunks.toString());
+
+            const chunkStartTime = Date.now();
+
+            try {
+                const response = await fetch('/api/v6/upload/chunk', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Chunk ${chunkIndex} upload failed`);
+                }
+
+                // Update progress
+                uploadedBytes += chunk.size;
+                uploadData.chunks[chunkIndex] = true;
+
+                const progress = (uploadedBytes / file.size) * 100;
+                const chunkTime = Date.now() - chunkStartTime;
+                const speed = chunk.size / (chunkTime / 1000); // bytes per second
+                const remainingBytes = file.size - uploadedBytes;
+                const eta = remainingBytes / speed;
+
+                uploadData.progress = progress;
+                uploadData.speed = speed;
+                uploadData.eta = eta;
+
+                this.updateUploadDisplay(uploadData);
+
+                // Adaptive throttling based on network speed
+                if (speed < 100000) { // Less than 100KB/s
+                    await this.sleep(100);
+                }
+
+            } catch (error) {
+                // Retry chunk upload
+                if (uploadData.retries < this.config.retryAttempts) {
+                    uploadData.retries++;
+                    chunkIndex--; // Retry this chunk
+                    await this.sleep(this.config.retryDelay * uploadData.retries);
+                    continue;
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        // Finalize upload
+        const finalizeResponse = await fetch('/api/v6/upload/finalize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ upload_id: id })
+        });
+
+        if (!finalizeResponse.ok) {
+            throw new Error('Failed to finalize upload');
+        }
+
+        uploadData.status = 'completed';
+        uploadData.progress = 100;
+        this.updateUploadDisplay(uploadData);
+        this.activeUploads.delete(id);
+
+        console.log(`✅ Upload completed: ${file.name}`);
+        this.processUploadQueue(); // Process next in queue
+    }
+
+    async handleUploadError(uploadData, error) {
+        uploadData.status = 'failed';
+        uploadData.error = error.message;
+        this.updateUploadDisplay(uploadData);
+        this.activeUploads.delete(uploadData.id);
+
+        this.showError(`Upload failed: ${uploadData.file.name} - ${error.message}`);
+        this.processUploadQueue(); // Continue with next uploads
+    }
+
+    displayUploadItem(uploadData) {
+        const container = this.getOrCreateUploadContainer();
+
+        const item = document.createElement('div');
+        item.className = 'upload-item';
+        item.id = `upload-${uploadData.id}`;
+
+        item.innerHTML = `
+            <div class="upload-preview">
+                <img src="${uploadData.preview.thumbnail}" alt="Preview" class="thumbnail">
+                <div class="upload-overlay">
+                    <div class="upload-status">${uploadData.status}</div>
                 </div>
-                <div class="upload-details">
-                    <div class="file-name">${upload.file.name}</div>
-                    <div class="file-info">
-                        <span class="file-size">${fileSize}</span>
-                        ${upload.thumbnail?.width ? `<span class="resolution">${upload.thumbnail.width}×${upload.thumbnail.height}</span>` : ''}
-                        ${upload.thumbnail?.duration ? `<span class="duration">${this.formatDuration(upload.thumbnail.duration)}</span>` : ''}
+            </div>
+            <div class="upload-details">
+                <div class="upload-header">
+                    <h4 class="filename">${uploadData.file.name}</h4>
+                    <div class="upload-actions">
+                        <button class="pause-btn" data-id="${uploadData.id}">⏸️</button>
+                        <button class="cancel-btn" data-id="${uploadData.id}">❌</button>
                     </div>
-                    <div class="upload-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progress}%"></div>
-                        </div>
-                        <div class="progress-info">
-                            <span class="status">${statusIcon} ${statusText}</span>
-                            ${speed ? `<span class="speed">${speed}</span>` : ''}
-                            ${eta ? `<span class="eta">${eta}</span>` : ''}
-                        </div>
+                </div>
+                <div class="upload-info">
+                    <span class="file-size">${this.formatFileSize(uploadData.file.size)}</span>
+                    ${uploadData.preview.resolution ? `<span class="resolution">${uploadData.preview.resolution}</span>` : ''}
+                    ${uploadData.preview.duration ? `<span class="duration">${this.formatDuration(uploadData.preview.duration)}</span>` : ''}
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${uploadData.progress}%"></div>
+                    </div>
+                    <div class="progress-stats">
+                        <span class="progress-text">${Math.round(uploadData.progress)}%</span>
+                        <span class="upload-speed"></span>
+                        <span class="upload-eta"></span>
                     </div>
                 </div>
-                <div class="upload-actions">
-                    ${actionButtons}
-                    <button class="cancel-upload" data-upload-id="${upload.id}">❌</button>
-                </div>
+            </div>
+        `;
+
+        container.appendChild(item);
+        this.setupUploadItemEvents(item, uploadData);
+    }
+
+    setupUploadItemEvents(item, uploadData) {
+        const pauseBtn = item.querySelector('.pause-btn');
+        const cancelBtn = item.querySelector('.cancel-btn');
+
+        pauseBtn?.addEventListener('click', () => {
+            this.toggleUploadPause(uploadData.id);
+        });
+
+        cancelBtn?.addEventListener('click', () => {
+            this.cancelUpload(uploadData.id);
+        });
+    }
+
+    updateUploadDisplay(uploadData) {
+        const item = document.getElementById(`upload-${uploadData.id}`);
+        if (!item) return;
+
+        const progressFill = item.querySelector('.progress-fill');
+        const progressText = item.querySelector('.progress-text');
+        const speedText = item.querySelector('.upload-speed');
+        const etaText = item.querySelector('.upload-eta');
+        const statusText = item.querySelector('.upload-status');
+
+        if (progressFill) progressFill.style.width = `${uploadData.progress}%`;
+        if (progressText) progressText.textContent = `${Math.round(uploadData.progress)}%`;
+        if (statusText) statusText.textContent = uploadData.status;
+
+        if (uploadData.speed > 0) {
+            if (speedText) speedText.textContent = this.formatSpeed(uploadData.speed);
+            if (etaText && uploadData.eta) etaText.textContent = this.formatETA(uploadData.eta);
+        }
+
+        // Update status styling
+        item.className = `upload-item status-${uploadData.status}`;
+    }
+
+    getOrCreateUploadContainer() {
+        let container = document.querySelector('.uploads-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'uploads-container';
+            container.innerHTML = '<h3>Active Uploads</h3>';
+
+            const uploadZone = document.querySelector('.upload-zone');
+            if (uploadZone && uploadZone.parentNode) {
+                uploadZone.parentNode.insertBefore(container, uploadZone.nextSibling);
+            } else {
+                document.body.appendChild(container);
+            }
+        }
+        return container;
+    }
+
+    toggleUploadPause(uploadId) {
+        const uploadData = this.activeUploads.get(uploadId);
+        if (!uploadData) return;
+
+        if (uploadData.status === 'uploading') {
+            uploadData.status = 'paused';
+        } else if (uploadData.status === 'paused') {
+            uploadData.status = 'uploading';
+            // Resume upload logic would go here
+        }
+
+        this.updateUploadDisplay(uploadData);
+    }
+
+    cancelUpload(uploadId) {
+        const uploadData = this.activeUploads.get(uploadId) || 
+                          this.uploadQueue.find(u => u.id === uploadId);
+
+        if (!uploadData) return;
+
+        uploadData.status = 'cancelled';
+        this.activeUploads.delete(uploadId);
+
+        // Remove from queue if queued
+        const queueIndex = this.uploadQueue.findIndex(u => u.id === uploadId);
+        if (queueIndex !== -1) {
+            this.uploadQueue.splice(queueIndex, 1);
+        }
+
+        // Remove from display
+        const item = document.getElementById(`upload-${uploadId}`);
+        if (item) {
+            item.remove();
+        }
+
+        this.processUploadQueue();
+    }
+
+    showDropFeedback(e) {
+        const feedback = document.getElementById('dropFeedback');
+        if (!feedback) return;
+
+        feedback.style.display = 'block';
+        feedback.innerHTML = `
+            <div class="drop-indicator">
+                <div class="drop-icon">📁</div>
+                <div class="drop-text">Drop files here to upload</div>
             </div>
         `;
     }
 
-    updateUploadItemUI(upload) {
-        const uploadElement = document.querySelector(`[data-upload-id="${upload.id}"]`);
-        if (uploadElement) {
-            const newElement = document.createElement('div');
-            newElement.innerHTML = this.renderUploadItem(upload);
-            uploadElement.replaceWith(newElement.firstElementChild);
+    updateDropFeedback(e) {
+        const feedback = document.getElementById('dropFeedback');
+        if (!feedback) return;
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            feedback.innerHTML = `
+                <div class="drop-indicator active">
+                    <div class="drop-icon">🎬</div>
+                    <div class="drop-text">Drop ${files.length} file(s) to upload</div>
+                </div>
+            `;
         }
     }
 
-    calculateETA(upload) {
-        if (!upload.speed || upload.status !== 'uploading') return null;
-
-        const remainingBytes = upload.file.size - (upload.uploadedChunks * this.config.chunkSize);
-        const remainingSeconds = remainingBytes / upload.speed;
-
-        if (remainingSeconds < 60) {
-            return `${Math.round(remainingSeconds)}s`;
-        } else if (remainingSeconds < 3600) {
-            return `${Math.round(remainingSeconds / 60)}m`;
-        } else {
-            return `${Math.round(remainingSeconds / 3600)}h`;
+    hideDropFeedback() {
+        const feedback = document.getElementById('dropFeedback');
+        if (feedback) {
+            feedback.style.display = 'none';
         }
+    }
+
+    adjustUploadZoneForViewport() {
+        const uploadZone = document.querySelector('.upload-zone');
+        if (!uploadZone) return;
+
+        const viewport = {
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
+
+        if (viewport.width < 768) { // Mobile
+            uploadZone.style.minHeight = '200px';
+            uploadZone.style.padding = '20px';
+        } else if (viewport.width < 1024) { // Tablet
+            uploadZone.style.minHeight = '250px';
+            uploadZone.style.padding = '30px';
+        } else { // Desktop
+            uploadZone.style.minHeight = '300px';
+            uploadZone.style.padding = '40px';
+        }
+    }
+
+    startNetworkMonitoring() {
+        this.networkMonitor.start();
+
+        setInterval(() => {
+            const speed = this.networkMonitor.getAverageSpeed();
+            const speedElement = document.getElementById('networkSpeed');
+            if (speedElement) {
+                speedElement.textContent = `Network: ${this.formatSpeed(speed)}`;
+            }
+        }, 5000);
+    }
+
+    // Utility methods
+    generateUploadId() {
+        return `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     formatSpeed(bytesPerSecond) {
@@ -2450,41 +2537,348 @@ class ViralClipApp {
         return `${Math.round(bytesPerSecond / (1024 * 1024))} MB/s`;
     }
 
-    formatFileSize(bytes) {
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-        if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
-        return `${Math.round(bytes / (1024 * 1024 * 1024))} GB`;
-    }
-
     formatDuration(seconds) {
+        if (seconds < 60) return `${Math.round(seconds)}s`;
         const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = Math.floor(seconds % 60);
+        const remainingSeconds = Math.round(seconds % 60);
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
 
-    pauseAllUploads() {
-        this.uploadManager.active.forEach((upload, uploadId) => {
-            this.uploadManager.pauseUpload(uploadId);
-        });
-    }
-
-    resumeAllUploads() {
-        this.uploadManager.paused.forEach(uploadId => {
-            this.uploadManager.resumeUpload(uploadId);
-        });
-    }
-
-    retryFailedUpload(uploadId) {
-        const failedUpload = this.uploadManager.failed.get(uploadId);
-        if (failedUpload) {
-            failedUpload.retries = 0;
-            failedUpload.status = 'queued';
-            this.uploadManager.failed.delete(uploadId);
-            this.uploadManager.queue.push(failedUpload);
-            this.uploadManager.processQueue();
-            this.updateUploadQueueUI();
+    formatETA(seconds) {
+        if (seconds < 60) return `${Math.round(seconds)}s remaining`;
+        if (seconds < 3600) {
+            const minutes = Math.floor(seconds / 60);
+            return `${minutes}m remaining`;
         }
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours}h ${minutes}m remaining`;
+    }
+
+    isMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    showError(message) {
+        console.error(message);
+        // This would integrate with your notification system
+        this.app.showNotification(message, 'error');
+    }
+}
+
+class NetworkMonitor {
+    constructor() {
+        this.speeds = [];
+        this.maxSamples = 10;
+        this.isMonitoring = false;
+    }
+
+    start() {
+        if (this.isMonitoring) return;
+        this.isMonitoring = true;
+        this.monitorConnection();
+    }
+
+    async monitorConnection() {
+        if (!navigator.connection) return;
+
+        const connection = navigator.connection;
+        const initialSpeed = this.estimateSpeed(connection);
+        this.addSpeedSample(initialSpeed);
+
+        // Monitor connection changes
+        connection.addEventListener('change', () => {
+            const speed = this.estimateSpeed(connection);
+            this.addSpeedSample(speed);
+        });
+    }
+
+    estimateSpeed(connection) {
+        // Estimate speed based on connection type and downlink
+        const effectiveType = connection.effectiveType || '4g';
+        const downlink = connection.downlink || 10;
+
+        const baseSpeed = {
+            'slow-2g': 50 * 1024,     // 50 KB/s
+            '2g': 250 * 1024,         // 250 KB/s
+            '3g': 1500 * 1024,        // 1.5 MB/s
+            '4g': 10 * 1024 * 1024    // 10 MB/s
+        };
+
+        return Math.min(baseSpeed[effectiveType] || baseSpeed['4g'], downlink * 125 * 1024); // Convert Mbps to bytes/s
+    }
+
+    addSpeedSample(speed) {
+        this.speeds.push(speed);
+        if (this.speeds.length > this.maxSamples) {
+            this.speeds.shift();
+        }
+    }
+
+    getAverageSpeed() {
+        if (this.speeds.length === 0) return 1024 * 1024; // Default 1 MB/s
+        return this.speeds.reduce((sum, speed) => sum + speed, 0) / this.speeds.length;
+    }
+}
+
+// Enhanced ViralClip App with Netflix-grade upload system
+class ViralClipApp {
+    constructor() {
+        this.config = {
+            websocketUrl: `ws://${window.location.host}/api/v6/ws/realtime`,
+            maxFileSize: 2 * 1024 * 1024 * 1024,
+            supportedFormats: ['mp4', 'avi', 'mov', 'webm', 'mkv', 'mp3', 'wav', 'm4v', '3gp'],
+            retryDelay: 1000,
+            maxRetries: 3,
+            websocketHeartbeat: 30000
+        };
+
+        this.websocket = null;
+        this.currentSession = null;
+        this.timeline = null;
+        this.isPlaying = false;
+        this.currentTime = 0;
+        this.uploadManager = null;
+
+        this.init();
+    }
+
+    init() {
+        this.setupWebSocket();
+        this.initializeUploadManager();
+        this.setupEventListeners();
+        this.initializeResponsiveDesign();
+        console.log('🎬 Netflix ViralClip Pro v5.0 initialized');
+    }
+
+    initializeUploadManager() {
+        this.uploadManager = new AdvancedUploadManager(this);
+        console.log('✅ Advanced Upload Manager ready');
+    }
+
+    setupWebSocket() {
+        try {
+            this.websocket = new WebSocket(this.config.websocketUrl);
+
+            this.websocket.onopen = () => {
+                console.log('🔗 WebSocket connected');
+                this.startHeartbeat();
+            };
+
+            this.websocket.onmessage = (event) => {
+                this.handleWebSocketMessage(JSON.parse(event.data));
+            };
+
+            this.websocket.onclose = () => {
+                console.log('🔌 WebSocket disconnected');
+                this.reconnectWebSocket();
+            };
+
+            this.websocket.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+
+        } catch (error) {
+            console.error('Failed to setup WebSocket:', error);
+            setTimeout(() => this.setupWebSocket(), this.config.retryDelay);
+        }
+    }
+
+    handleWebSocketMessage(data) {
+        switch (data.type) {
+            case 'upload_progress':
+                this.handleUploadProgress(data);
+                break;
+            case 'processing_status':
+                this.handleProcessingStatus(data);
+                break;
+            case 'viral_score_update':
+                this.handleViralScoreUpdate(data);
+                break;
+            case 'timeline_update':
+                this.handleTimelineUpdate(data);
+                break;
+            default:
+                console.log('Unhandled WebSocket message:', data);
+        }
+    }
+
+    handleUploadProgress(data) {
+        // Upload progress is now handled by AdvancedUploadManager
+        console.log('📊 Upload progress:', data);
+    }
+
+    setupEventListeners() {
+        // Mobile-optimized event listeners
+        document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+        document.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', this.handleKeyboardShortcuts.bind(this));
+
+        // Window events
+        window.addEventListener('resize', this.handleResize.bind(this));
+        window.addEventListener('orientationchange', this.handleOrientationChange.bind(this));
+    }
+
+    initializeResponsiveDesign() {
+        // Add responsive viewport meta tag if not present
+        if (!document.querySelector('meta[name="viewport"]')) {
+            const viewportMeta = document.createElement('meta');
+            viewportMeta.name = 'viewport';
+            viewportMeta.content = 'width=device-width, initial-scale=1.0, user-scalable=no';
+            document.head.appendChild(viewportMeta);
+        }
+
+        // Apply responsive styles
+        this.applyResponsiveStyles();
+    }
+
+    applyResponsiveStyles() {
+        const viewport = {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            isMobile: window.innerWidth < 768,
+            isTablet: window.innerWidth >= 768 && window.innerWidth < 1024,
+            isDesktop: window.innerWidth >= 1024
+        };
+
+        document.body.setAttribute('data-viewport', 
+            viewport.isMobile ? 'mobile' : 
+            viewport.isTablet ? 'tablet' : 'desktop'
+        );
+
+        // Adjust layout for viewport
+        this.adjustLayoutForViewport(viewport);
+    }
+
+    adjustLayoutForViewport(viewport) {
+        if (viewport.isMobile) {
+            this.enableMobileOptimizations();
+        } else if (viewport.isTablet) {
+            this.enableTabletOptimizations();
+        } else {
+            this.enableDesktopOptimizations();
+        }
+    }
+
+    enableMobileOptimizations() {
+        // Increase touch targets
+        document.querySelectorAll('button, .clickable').forEach(el => {
+            el.style.minHeight = '44px';
+            el.style.minWidth = '44px';
+        });
+
+        // Optimize scroll behavior
+        document.body.style.overscrollBehavior = 'contain';
+        document.body.style.touchAction = 'pan-x pan-y';
+    }
+
+    enableTabletOptimizations() {
+        // Tablet-specific optimizations
+        document.querySelectorAll('button, .clickable').forEach(el => {
+            el.style.minHeight = '40px';
+            el.style.minWidth = '40px';
+        });
+    }
+
+    enableDesktopOptimizations() {
+        // Desktop-specific optimizations
+        document.querySelectorAll('button, .clickable').forEach(el => {
+            el.style.minHeight = '36px';
+            el.style.minWidth = '36px';
+        });
+    }
+
+    handleTouchStart(e) {
+        this.touchStartTime = Date.now();
+        this.touchStartPos = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY
+        };
+    }
+
+    handleTouchMove(e) {
+        // Prevent scrolling when interacting with timeline
+        if (e.target.closest('.timeline-container')) {
+            e.preventDefault();
+        }
+    }
+
+    handleTouchEnd(e) {
+        const touchDuration = Date.now() - this.touchStartTime;
+        const touchDistance = Math.sqrt(
+            Math.pow(e.changedTouches[0].clientX - this.touchStartPos.x, 2) +
+            Math.pow(e.changedTouches[0].clientY - this.touchStartPos.y, 2)
+        );
+
+        // Detect tap vs drag
+        if (touchDuration < 200 && touchDistance < 10) {
+            // Handle tap
+            this.handleTap(e);
+        }
+    }
+
+    handleTap(e) {
+        // Handle mobile tap interactions
+        console.log('👆 Tap detected');
+    }
+
+    handleKeyboardShortcuts(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        switch (e.key) {
+            case ' ':
+                e.preventDefault();
+                this.togglePlayback();
+                break;
+            case 'Escape':
+                this.closeModals();
+                break;
+        }
+    }
+
+    handleResize() {
+        this.applyResponsiveStyles();
+
+        // Debounce resize events
+        clearTimeout(this.resizeTimeout);
+        this.resizeTimeout = setTimeout(() => {
+            this.adjustLayoutForViewport({
+                width: window.innerWidth,
+                height: window.innerHeight,
+                isMobile: window.innerWidth < 768,
+                isTablet: window.innerWidth >= 768 && window.innerWidth < 1024,
+                isDesktop: window.innerWidth >= 1024
+            });
+        }, 250);
+    }
+
+    handleOrientationChange() {
+        // Handle device rotation
+        setTimeout(() => {
+            this.applyResponsiveStyles();
+        }, 100);
+    }
+
+    startHeartbeat() {
+        setInterval(() => {
+            if (this.websocket?.readyState === WebSocket.OPEN) {
+                this.websocket.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, this.config.websocketHeartbeat);
+    }
+
+    reconnectWebSocket() {
+        setTimeout(() => {
+            console.log('🔄 Attempting WebSocket reconnection...');
+            this.setupWebSocket();
+        }, this.config.retryDelay);
     }
 
     showNotification(message, type = 'info') {
@@ -2492,31 +2886,82 @@ class ViralClipApp {
         notification.className = `notification ${type}`;
         notification.textContent = message;
 
+        // Mobile-optimized positioning
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10000;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            max-width: 90vw;
+            word-wrap: break-word;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        `;
+
+        // Type-specific styling
+        const colors = {
+            info: '#3498db',
+            success: '#2ecc71',
+            warning: '#f39c12',
+            error: '#e74c3c'
+        };
+        notification.style.backgroundColor = colors[type] || colors.info;
+
         document.body.appendChild(notification);
 
         // Animate in
-        setTimeout(() => notification.classList.add('show'), 100);
-
-        // Remove after 5 seconds
         setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => notification.remove(), 300);
-        }, 5000);
+            notification.style.opacity = '1';
+        }, 10);
+
+        // Auto remove
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 4000);
+    }
+
+    // Additional utility methods
+    togglePlayback() {
+        // Timeline playback toggle
+        console.log('⏯️ Toggle playback');
+    }
+
+    closeModals() {
+        // Close any open modals
+        document.querySelectorAll('.modal.active').forEach(modal => {
+            modal.classList.remove('active');
+        });
     }
 }
 
-// Initialize the app when DOM is loaded
+// Initialize the app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    window.viralClipApp = new NetflixLevelApp();
+    window.viralClipApp = new ViralClipApp();
+});
+
+// Handle app visibility for mobile optimization
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        console.log('📱 App backgrounded');
+    } else {
+        console.log('📱 App foregrounded');
+    }
 });
 
 // Handle page unload
 window.addEventListener('beforeunload', () => {
-    if (window.viralClipApp && window.viralClipApp.ws) {
-        window.viralClipApp.ws.close();
-    }
-    if (window.viralClipApp && window.viralClipApp.uploadWs) {
-        window.viralClipApp.uploadWs.close();
+    if (window.viralClipApp && window.viralClipApp.websocket) {
+        window.viralClipApp.websocket.close();
     }
 });
 

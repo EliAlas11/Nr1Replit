@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v6.0 - Netflix-Level Architecture
 Enterprise-grade video processing platform with advanced patterns
@@ -51,6 +50,7 @@ from app.schemas import (
     SystemHealth,
     ErrorResponse
 )
+from fastapi import Body
 
 # Initialize logging first
 logger = setup_logging()
@@ -64,7 +64,7 @@ from app.middleware.security import SecurityMiddleware
 
 class ApplicationState:
     """Application state management with circuit breaker pattern"""
-    
+
     def __init__(self):
         self.is_ready = False
         self.is_healthy = True
@@ -72,20 +72,20 @@ class ApplicationState:
         self.last_health_check = None
         self.error_count = 0
         self.max_errors = 10
-        
+
     def mark_ready(self):
         self.is_ready = True
         self.startup_time = datetime.utcnow()
-        
+
     def mark_unhealthy(self):
         self.is_healthy = False
         self.error_count += 1
-        
+
     def mark_healthy(self):
         self.is_healthy = True
         self.error_count = 0
         self.last_health_check = datetime.utcnow()
-        
+
     @property
     def should_circuit_break(self) -> bool:
         return self.error_count >= self.max_errors
@@ -102,30 +102,30 @@ container = DependencyContainer()
 async def lifespan(app: FastAPI):
     """Netflix-level application lifecycle with graceful startup/shutdown"""
     startup_start = time.time()
-    
+
     try:
         logger.info("🎬 Starting ViralClip Pro v6.0 - Netflix Architecture")
-        
+
         # Pre-startup validations
         await validate_environment()
-        
+
         # Setup directories with proper permissions
         await setup_directories()
-        
+
         # Initialize dependency container
         await container.initialize()
-        
+
         # Warm up critical services
         await warm_up_services()
-        
+
         # Mark application as ready
         app_state.mark_ready()
-        
+
         startup_time = time.time() - startup_start
         logger.info(f"✅ Application ready in {startup_time:.2f}s")
-        
+
         yield
-        
+
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
         app_state.mark_unhealthy()
@@ -144,7 +144,7 @@ async def validate_environment():
         settings.temp_path.parent,
         settings.cache_path.parent
     ]
-    
+
     for dir_path in required_dirs:
         if not dir_path.exists():
             raise RuntimeError(f"Required directory missing: {dir_path}")
@@ -171,14 +171,14 @@ async def warm_up_services():
         # Warm up AI analyzer
         if container.ai_analyzer:
             await container.ai_analyzer.warm_up()
-            
+
         # Warm up cache
         if container.cache_manager:
             await container.cache_manager.warm_up()
-            
+
         # Pre-load critical data
         await container.preload_critical_data()
-        
+
     except Exception as e:
         logger.warning(f"Service warm-up partially failed: {e}")
 
@@ -288,12 +288,12 @@ async def root():
         # Read and cache
         async with aiofiles.open("nr1copilot/nr1-main/index.html", mode="r") as f:
             content = await f.read()
-            
+
         if container.cache_manager:
             await container.cache_manager.set("root_html", content, ttl=3600)
-            
+
         return HTMLResponse(content=content)
-        
+
     except Exception as e:
         logger.error(f"Failed to serve root: {e}")
         return HTMLResponse(
@@ -310,7 +310,7 @@ async def health_check():
         health_data = await container.health_checker.get_comprehensive_health()
         app_state.mark_healthy()
         return SystemHealth(**health_data)
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         app_state.mark_unhealthy()
@@ -328,7 +328,7 @@ async def get_metrics(user=Depends(get_current_user)):
     try:
         metrics = await container.metrics_collector.get_comprehensive_metrics()
         return {"success": True, "metrics": metrics}
-        
+
     except Exception as e:
         logger.error(f"Metrics collection failed: {e}")
         return {
@@ -339,82 +339,318 @@ async def get_metrics(user=Depends(get_current_user)):
 
 
 # Chunked upload endpoint for Netflix-level uploads
-@app.post("/api/v6/upload-chunk")
+@app.post("/api/v6/upload/init")
+async def init_upload(
+    request: Request,
+    data: dict = Body(...)
+):
+    """Initialize chunked upload with validation"""
+    try:
+        filename = data.get("filename")
+        file_size = data.get("file_size", 0)
+        total_chunks = data.get("total_chunks", 1)
+        upload_id = data.get("upload_id")
+
+        if not all([filename, file_size, upload_id]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing required parameters"
+            )
+
+        # Validate file size
+        if file_size > settings.max_file_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large. Max size: {settings.max_file_size} bytes"
+            )
+
+        # Validate file type
+        extension = filename.split('.')[-1].lower()
+        if extension not in settings.allowed_video_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported file type: {extension}"
+            )
+
+        # Create upload directory
+        upload_dir = settings.upload_path / upload_id
+        upload_dir.mkdir(exist_ok=True)
+
+        # Store upload metadata
+        metadata = {
+            "filename": filename,
+            "file_size": file_size,
+            "total_chunks": total_chunks,
+            "upload_id": upload_id,
+            "created_at": time.time(),
+            "status": "initialized"
+        }
+
+        metadata_path = upload_dir / "metadata.json"
+        with open(metadata_path, "w") as f:
+            import json
+            json.dump(metadata, f)
+
+        logger.info(f"📋 Upload initialized: {upload_id} - {filename}")
+
+        return {
+            "success": True,
+            "upload_id": upload_id,
+            "status": "initialized",
+            "message": "Upload initialized successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Upload initialization failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Upload initialization failed"
+        )
+
+@app.post("/api/v6/upload/chunk")
 async def upload_chunk(
     request: Request,
-    chunk: UploadFile = File(...),
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
     upload_id: str = Form(...),
     chunk_index: int = Form(...),
-    total_chunks: int = Form(...),
-    filename: str = Form(...),
-    user=Depends(get_current_user),
-    _=Depends(check_rate_limit),
-    _health=Depends(check_health)
+    total_chunks: int = Form(...)
 ):
-    """Netflix-level chunked upload with intelligent assembly"""
+    """Handle chunked video upload with Netflix-level reliability"""
     try:
-        # Create upload session directory
-        upload_dir = settings.temp_path / upload_id
-        upload_dir.mkdir(exist_ok=True)
-        
-        # Save chunk
-        chunk_path = upload_dir / f"chunk_{chunk_index:06d}"
-        async with aiofiles.open(chunk_path, "wb") as f:
-            content = await chunk.read()
-            await f.write(content)
-        
-        # Check if all chunks are received
-        existing_chunks = list(upload_dir.glob("chunk_*"))
-        
-        if len(existing_chunks) == total_chunks:
-            # Assemble final file
-            final_path = settings.upload_path / f"{upload_id}_{filename}"
-            
-            async with aiofiles.open(final_path, "wb") as final_file:
-                for i in range(total_chunks):
-                    chunk_path = upload_dir / f"chunk_{i:06d}"
-                    if chunk_path.exists():
-                        async with aiofiles.open(chunk_path, "rb") as chunk_file:
-                            chunk_data = await chunk_file.read()
-                            await final_file.write(chunk_data)
-            
-            # Cleanup chunks
-            for chunk_file in existing_chunks:
-                chunk_file.unlink()
-            upload_dir.rmdir()
-            
-            # Start processing
-            background_tasks.add_task(
-                container.realtime_engine.process_upload_pipeline,
-                upload_id,
-                str(final_path),
-                None,  # title
-                None,  # description
-                user
+        logger.info(f"📦 Chunk upload: {upload_id} - {chunk_index}/{total_chunks}")
+
+        # Validate chunk
+        if chunk_index >= total_chunks or chunk_index < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid chunk index"
             )
-            
-            return {
-                "success": True,
+
+        # Verify upload directory exists
+        upload_dir = settings.temp_path / upload_id
+        if not upload_dir.exists():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Upload not initialized"
+            )
+
+        # Load metadata
+        metadata_path = upload_dir / "metadata.json"
+        if metadata_path.exists():
+            import json
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+        else:
+            metadata = {"filename": file.filename}
+
+        # Validate chunk size
+        chunk_data = await file.read()
+        max_chunk_size = 10 * 1024 * 1024  # 10MB
+        if len(chunk_data) > max_chunk_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Chunk too large"
+            )
+
+        # Save chunk with integrity check
+        chunk_path = upload_dir / f"chunk_{chunk_index:06d}"
+        with open(chunk_path, "wb") as chunk_file:
+            chunk_file.write(chunk_data)
+
+        # Verify chunk was written correctly
+        if chunk_path.stat().st_size != len(chunk_data):
+            chunk_path.unlink()  # Remove corrupted chunk
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Chunk write verification failed"
+            )
+
+        # Check if all chunks received
+        existing_chunks = sorted(upload_dir.glob("chunk_*"))
+        chunks_received = len(existing_chunks)
+
+        # Broadcast progress via WebSocket
+        if hasattr(container, 'realtime_engine'):
+            progress_data = {
+                "type": "chunk_progress",
                 "upload_id": upload_id,
-                "status": "complete",
-                "final_path": str(final_path),
-                "message": "Upload complete, processing started"
+                "chunks_received": chunks_received,
+                "total_chunks": total_chunks,
+                "progress": (chunks_received / total_chunks) * 100,
+                "chunk_index": chunk_index
             }
+            await container.realtime_engine.broadcast_upload_progress(upload_id, progress_data)
+
+        if chunks_received == total_chunks:
+            # Verify all chunks exist
+            missing_chunks = []
+            for i in range(total_chunks):
+                chunk_path = upload_dir / f"chunk_{i:06d}"
+                if not chunk_path.exists():
+                    missing_chunks.append(i)
+
+            if missing_chunks:
+                return {
+                    "success": False,
+                    "upload_id": upload_id,
+                    "status": "missing_chunks",
+                    "missing_chunks": missing_chunks,
+                    "chunks_received": chunks_received,
+                    "total_chunks": total_chunks
+                }
+
+            # Reassemble file
+            original_filename = metadata.get("filename", file.filename)
+            final_path = settings.upload_path / f"{upload_id}_{original_filename}"
+
+            try:
+                with open(final_path, "wb") as final_file:
+                    for i in range(total_chunks):
+                        chunk_path = upload_dir / f"chunk_{i:06d}"
+                        with open(chunk_path, "rb") as chunk_file:
+                            chunk_data = chunk_file.read()
+                            final_file.write(chunk_data)
+
+                # Verify final file size
+                expected_size = metadata.get("file_size", 0)
+                actual_size = final_path.stat().st_size
+
+                if expected_size > 0 and abs(actual_size - expected_size) > 1024:  # Allow 1KB tolerance
+                    final_path.unlink()
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"File size mismatch. Expected: {expected_size}, Got: {actual_size}"
+                    )
+
+                # Cleanup chunks
+                for chunk_file in existing_chunks:
+                    chunk_file.unlink()
+
+                # Remove metadata and directory
+                if metadata_path.exists():
+                    metadata_path.unlink()
+                upload_dir.rmdir()
+
+                # Start processing
+                background_tasks.add_task(
+                    container.realtime_engine.process_upload_pipeline,
+                    upload_id,
+                    str(final_path),
+                    None,  # title
+                    None,  # description
+                    None   # user
+                )
+
+                logger.info(f"✅ Upload completed: {upload_id} - {original_filename}")
+
+                return {
+                    "success": True,
+                    "upload_id": upload_id,
+                    "status": "complete",
+                    "final_path": str(final_path),
+                    "file_size": actual_size,
+                    "message": "Upload complete, processing started"
+                }
+
+            except Exception as e:
+                # Cleanup on error
+                if final_path.exists():
+                    final_path.unlink()
+                raise e
+
         else:
             return {
                 "success": True,
                 "upload_id": upload_id,
                 "status": "chunk_received",
-                "chunks_received": len(existing_chunks),
+                "chunks_received": chunks_received,
                 "total_chunks": total_chunks,
-                "progress": (len(existing_chunks) / total_chunks) * 100
+                "progress": (chunks_received / total_chunks) * 100,
+                "message": f"Chunk {chunk_index + 1} of {total_chunks} received"
             }
-            
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Chunk upload failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Chunk upload failed"
+        )
+
+@app.post("/api/v6/upload/finalize")
+async def finalize_upload(
+    request: Request,
+    data: dict = Body(...)
+):
+    """Finalize upload and verify integrity"""
+    try:
+        upload_id = data.get("upload_id")
+        if not upload_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing upload_id"
+            )
+
+        # Check if upload exists
+        upload_pattern = f"{upload_id}_*"
+        upload_files = list(settings.upload_path.glob(upload_pattern))
+
+        if not upload_files:
+            # Check if still in progress
+            upload_dir = settings.temp_path / upload_id
+            if upload_dir.exists():
+                return {
+                    "success": False,
+                    "status": "in_progress",
+                    "message": "Upload still in progress"
+                }
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Upload not found"
+                )
+
+        upload_file = upload_files[0]
+
+        # Perform final verification
+        try:
+            # Basic file verification
+            if upload_file.stat().st_size == 0:
+                raise ValueError("File is empty")
+
+            # Quick format verification for video files
+            if upload_file.suffix.lower() in ['.mp4', '.avi', '.mov', '.webm']:
+                # Basic header check
+                with open(upload_file, 'rb') as f:
+                    header = f.read(12)
+                    if not header:
+                        raise ValueError("Cannot read file header")
+
+            return {
+                "success": True,
+                "upload_id": upload_id,
+                "status": "verified",
+                "file_path": str(upload_file),
+                "file_size": upload_file.stat().st_size,
+                "message": "Upload verified successfully"
+            }
+
+        except Exception as e:
+            logger.error(f"Upload verification failed: {e}")
+            return {
+                "success": False,
+                "status": "verification_failed",
+                "error": str(e),
+                "message": "Upload verification failed"
+            }
+
+    except Exception as e:
+        logger.error(f"❌ Upload finalization failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Upload finalization failed"
         )
 
 
@@ -434,13 +670,13 @@ async def upload_video(
     """Netflix-level video upload with intelligent processing"""
     start_time = time.time()
     session_id = upload_id or f"upload_{uuid.uuid4().hex[:16]}"
-    
+
     try:
         # Advanced file validation
         validation_result = await container.video_service.validate_upload(
             file, user.get("permissions", [])
         )
-        
+
         if not validation_result.valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -619,7 +855,7 @@ async def get_processing_status(
         status_data = await container.realtime_engine.get_intelligent_status(
             session_id
         )
-        
+
         if not status_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -674,7 +910,7 @@ async def serve_preview(
         file_path = await container.video_service.get_preview_path(
             session_id, timestamp
         )
-        
+
         if not file_path or not file_path.exists():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -705,7 +941,7 @@ async def serve_preview(
 async def enhanced_http_exception_handler(request: Request, exc: HTTPException):
     """Netflix-level error handling with context"""
     error_id = str(uuid.uuid4())
-    
+
     logger.error(
         f"HTTP Error {error_id}: {exc.status_code} - {exc.detail}",
         extra={
@@ -733,7 +969,7 @@ async def enhanced_http_exception_handler(request: Request, exc: HTTPException):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Enhanced validation error handling"""
     error_id = str(uuid.uuid4())
-    
+
     logger.warning(
         f"Validation Error {error_id}: {exc.errors()}",
         extra={"error_id": error_id, "path": str(request.url)}
@@ -755,7 +991,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def general_exception_handler(request: Request, exc: Exception):
     """Comprehensive error handling with monitoring"""
     error_id = str(uuid.uuid4())
-    
+
     logger.error(
         f"Unexpected Error {error_id}: {str(exc)}",
         extra={

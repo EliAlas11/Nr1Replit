@@ -2,583 +2,384 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="ViralClip Pro v5.0 - Netflix-Level AI Video Processing Platform">
-    <meta name="keywords" content="video editing, AI analysis, viral content, social media optimization">
-    <meta name="author" content="ViralClip Pro Team">
-
-    <!-- PWA Configuration -->
-    <meta name="theme-color" content="#141414">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ViralClip Pro">
-
-    <!-- Preconnect for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-    <!-- PWA Manifest -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Netflix-level viral video editing and social automation platform">
+    <meta name="keywords" content="video editing, viral clips, social media, AI">
+    <meta name="theme-color" content="#667eea">
+    <title>ViralClip Pro - Netflix-Level Video Editing</title>
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/public/styles.css" as="style">
+    <link rel="preload" href="/static/app.js" as="script">
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/public/styles.css">
+    <!-- PWA Support -->
     <link rel="manifest" href="/public/manifest.json">
-
-    <!-- Icons -->
-    <link rel="icon" type="image/x-icon" href="/public/favicon.ico">
-    <link rel="apple-touch-icon" sizes="180x180" href="/public/icon-180x180.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/public/icon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/public/icon-16x16.png">
-
-    <!-- Open Graph Tags -->
-    <meta property="og:title" content="ViralClip Pro v5.0 - Netflix-Level AI Video Processing">
-    <meta property="og:description" content="Transform your videos into viral content with AI-powered analysis and optimization">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://viralclip.pro">
-    <meta property="og:image" content="/public/og-image.png">
-
-    <!-- Twitter Card Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="ViralClip Pro v5.0">
-    <meta name="twitter:description" content="Netflix-Level AI Video Processing Platform">
-    <meta name="twitter:image" content="/public/twitter-image.png">
-
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "ViralClip Pro v5.0",
-        "description": "Netflix-Level AI Video Processing Platform",
-        "url": "https://viralclip.pro",
-        "applicationCategory": "VideoEditingApplication",
-        "operatingSystem": "Web",
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
+    <link rel="apple-touch-icon" href="/public/icon-192.png">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+</head>
+<body>
+    <!-- Main App Container -->
+    <div id="app" class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="title-icon">🎬</span>
+                    ViralClip Pro
+                    <span class="version-badge">v5.0</span>
+                </h1>
+                <div class="network-status">
+                    <span id="networkSpeed" class="network-indicator">
+                        <span class="status-dot"></span>
+                        Connected
+                    </span>
+                </div>
+            </div>
+        </header>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-container">
+                    <!-- Upload Zone (will be created by JavaScript) -->
+                    <input type="file" id="videoFile" multiple accept=".mp4,.avi,.mov,.webm,.mkv,.m4v,.3gp,.mp3,.wav,.aac,.m4a" style="display: none;">
+                    <!-- Upload Button for fallback -->
+                    <button id="uploadButton" class="upload-button" style="display: none;">
+                        📁 Choose Files
+                    </button>
+                </div>
+                <!-- Upload Queue Container (will be populated by JavaScript) -->
+            </section>
+            <!-- Processing Section -->
+            <section class="processing-section" id="processingSection" style="display: none;">
+                <div class="processing-container">
+                    <h2>🎬 Processing Your Content</h2>
+                    <div class="processing-status">
+                        <div class="status-icon">⚡</div>
+                        <div class="status-text">Analyzing viral potential...</div>
+                        <div class="progress-ring">
+                            <svg width="60" height="60">
+                                <circle cx="30" cy="30" r="25" stroke="#e2e8f0" stroke-width="4" fill="none"/>
+                                <circle cx="30" cy="30" r="25" stroke="#667eea" stroke-width="4" fill="none" 
+                                        stroke-dasharray="157" stroke-dashoffset="157" class="progress-circle"/>
+                            </svg>
+                            <span class="progress-percentage">0%</span>
+                        </div>
+                    </div>
+                    <!-- Entertainment Content -->
+                    <div class="entertainment-content">
+                        <div class="viral-fact" id="viralFact">
+                            💡 Did you know? The first 3 seconds determine 89% of engagement outcomes!
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-container">
+                    <h2>🚀 Your Viral Clips Are Ready!</h2>
+                    <!-- Timeline Viewer -->
+                    <div class="timeline-container">
+                        <canvas id="timelineCanvas" class="timeline-canvas"></canvas>
+                        <div class="timeline-controls">
+                            <button id="playBtn" class="control-btn">▶️</button>
+                            <button id="pauseBtn" class="control-btn">⏸️</button>
+                            <div class="timeline-scrubber">
+                                <input type="range" id="timelineScrubber" min="0" max="100" value="0">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Preview Section -->
+                    <div class="preview-section">
+                        <div class="preview-player">
+                            <video id="previewPlayer" controls muted></video>
+                            <div class="preview-overlay">
+                                <div class="viral-score">
+                                    <span class="score-label">Viral Score</span>
+                                    <span class="score-value" id="viralScore">85</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="preview-controls">
+                            <select id="previewQuality">
+                                <option value="draft">Draft (480p)</option>
+                                <option value="standard" selected>Standard (720p)</option>
+                                <option value="high">High (1080p)</option>
+                                <option value="premium">Premium (1080p 60fps)</option>
+                            </select>
+                            <select id="platformOptimization">
+                                <option value="">All Platforms</option>
+                                <option value="tiktok">TikTok</option>
+                                <option value="instagram">Instagram</option>
+                                <option value="youtube">YouTube Shorts</option>
+                                <option value="twitter">Twitter</option>
+                            </select>
+                            <button id="regeneratePreview" class="action-btn">
+                                🔄 Regenerate
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Action Buttons -->
+                    <div class="action-buttons">
+                        <button id="generateClipsBtn" class="primary-btn">
+                            ✨ Generate Viral Clips
+                        </button>
+                        <button id="downloadBtn" class="secondary-btn">
+                            📥 Download
+                        </button>
+                        <button id="shareBtn" class="secondary-btn">
+                            📱 Share
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <div class="performance-stats">
+                    <span id="fpsCounter">60 FPS</span>
+                    <span id="connectionStatus">Connected</span>
+                </div>
+                <div class="footer-text">
+                    <span>Powered by Netflix-level AI</span>
+                    <span class="heart">❤️</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading ViralClip Pro...</div>
+        </div>
+    </div>
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Error</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage">An error occurred.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="closeModal('errorModal')">OK</button>
+            </div>
+        </div>
+    </div>
+    <!-- Scripts -->
+    <script src="/static/app.js"></script>
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => console.log('SW registered'))
+                .catch(error => console.log('SW registration failed'));
         }
-    }
+        // Remove loading overlay when app is ready
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const overlay = document.getElementById('loadingOverlay');
+                if (overlay) {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.style.display = 'none', 300);
+                }
+            }, 1000);
+        });
+        // Utility functions
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        function showError(message) {
+            const errorModal = document.getElementById('errorModal');
+            const errorMessage = document.getElementById('errorMessage');
+            if (errorModal && errorMessage) {
+                errorMessage.textContent = message;
+                errorModal.style.display = 'flex';
+            }
+        }
     </script>
-
-    <title>ViralClip Pro v5.0 - Netflix-Level AI Video Processing</title>
-
-    <!-- Critical CSS (inlined for performance) -->
     <style>
-        /* Critical above-the-fold styles */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            background: #141414;
-            color: #f5f5f5;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-
-        .netflix-app {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .app-header {
-            background: rgba(20, 20, 20, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
-
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .app-title {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: #f5f5f5;
-        }
-
-        .logo {
-            font-size: 2rem;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .version-badge {
-            background: #e50914;
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .loading-screen {
+        /* Additional inline styles for critical rendering */
+        .loading-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: #141414;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             z-index: 9999;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.3s ease;
         }
-
-        .loading-screen.hidden {
-            opacity: 0;
-            pointer-events: none;
+        .loading-content {
+            text-align: center;
+            color: white;
         }
-
         .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-left: 4px solid #e50914;
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-bottom: 2rem;
+            margin: 0 auto 20px;
         }
-
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
         .loading-text {
             font-size: 1.2rem;
-            margin-bottom: 0.5rem;
+            font-weight: 500;
         }
-
-        .loading-subtitle {
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .app-header {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding: 1rem;
+        }
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .app-title {
+            color: white;
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .version-badge {
+            font-size: 0.7rem;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .network-status {
+            color: white;
             font-size: 0.9rem;
-            color: #808080;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-    </style>
-
-    <!-- Preload critical resources -->
-    <link rel="preload" href="/public/styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="/public/styles.css"></noscript>
-
-    <!-- Performance monitoring -->
-    <script>
-        // Basic performance monitoring
-        window.performance.mark('page-start');
-
-        // Critical performance metrics
-        window.perfMetrics = {
-            pageStart: performance.now(),
-            domContentLoaded: 0,
-            firstPaint: 0,
-            firstContentfulPaint: 0,
-            largestContentfulPaint: 0
-        };
-
-        // Observe paint timings
-        if ('PerformanceObserver' in window) {
-            const observer = new PerformanceObserver((list) => {
-                for (const entry of list.getEntries()) {
-                    if (entry.name === 'first-paint') {
-                        window.perfMetrics.firstPaint = entry.startTime;
-                    } else if (entry.name === 'first-contentful-paint') {
-                        window.perfMetrics.firstContentfulPaint = entry.startTime;
-                    }
-                }
-            });
-            observer.observe({ entryTypes: ['paint'] });
-
-            // Observe LCP
-            const lcpObserver = new PerformanceObserver((list) => {
-                const entries = list.getEntries();
-                const lastEntry = entries[entries.length - 1];
-                window.perfMetrics.largestContentfulPaint = lastEntry.startTime;
-            });
-            lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #2ecc71;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
         }
-    </script>
-</head>
-<body>
-    <!-- Loading Screen -->
-    <div id="loadingScreen" class="loading-screen">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">ViralClip Pro v5.0</div>
-        <div class="loading-subtitle">Netflix-Level AI Video Processing</div>
-    </div>
-
-    <!-- Main Application Container -->
-    <div id="app-container" class="netflix-app" style="display: none;">
-        <!-- Header -->
-        <header class="app-header">
-            <div class="header-content">
-                <h1 class="app-title">
-                    <span class="logo">🎬</span>
-                    ViralClip Pro v5.0
-                    <span class="version-badge">Netflix-Level</span>
-                </h1>
-                <div class="header-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Processing</span>
-                        <span class="stat-value" id="processing-count">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Queue</span>
-                        <span class="stat-value" id="queue-count">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">WebSocket</span>
-                        <span class="stat-value websocket-status" id="ws-status">Connecting...</span>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="app-main">
-            <!-- Upload Section -->
-            <section class="upload-section" id="uploadDropZone">
-                <h2>🎬 Upload Your Videos</h2>
-                <p>Drag & drop or click to upload multiple videos for AI analysis</p>
-
-                <div class="upload-controls">
-                    <input type="file" id="videoFile" accept="video/*,audio/*" style="display: none;">
-                    <button id="uploadButton" class="upload-btn">
-                        📁 Choose Video Files
-                    </button>
-                </div>
-
-                <div class="upload-info">
-                    <p>Supported formats: MP4, AVI, MOV, WebM, MKV, MP3, WAV • Max size: 2GB</p>
-                    <p>✨ Netflix-level chunked uploads with auto-retry</p>
-                </div>
-            </section>
-
-            <!-- Upload Queue -->
-            <section class="upload-queue-container" id="uploadQueueContainer" style="display: none;">
-                <div class="upload-queue-header">
-                    <h3>📤 Upload Queue</h3>
-                    <div class="queue-stats" id="queueStats">
-                        <span id="activeUploads">0</span> active • 
-                        <span id="queuedUploads">0</span> queued
-                    </div>
-                </div>
-                <div id="uploadQueue" class="upload-queue">
-                    <!-- Upload items will be inserted here -->
-                </div>
-            </section>
-
-            <!-- Analysis Section -->
-            <section class="analysis-section" id="analysisSection" style="display: none;">
-                <div class="analysis-header">
-                    <div class="viral-score-display">
-                        <div class="score-circle" id="viralScoreCircle">
-                            <div class="score-number" id="viralScoreNumber">--</div>
-                            <div class="score-label">Viral Score</div>
-                        </div>
-                        <div class="score-details">
-                            <div class="confidence-bar">
-                                <span class="confidence-label">Confidence</span>
-                                <div class="confidence-meter">
-                                    <div class="confidence-fill" id="confidenceFill"></div>
-                                </div>
-                                <span class="confidence-value" id="confidenceValue">--</span>
-                            </div>
-                            <div class="viral-factors" id="viralFactors"></div>
-                        </div>
-                    </div>
-                    <div class="analysis-actions">
-                        <button class="action-btn primary" id="generateClipsBtn" aria-label="Generate viral clips">
-                            🎯 Generate Viral Clips
-                        </button>
-                        <button class="action-btn secondary" id="exportTimelineBtn" aria-label="Export analysis">
-                            📊 Export Analysis
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Interactive Timeline -->
-                <div class="timeline-container">
-                    <div class="timeline-header">
-                        <h3>Interactive Viral Timeline</h3>
-                        <div class="timeline-controls">
-                            <button class="timeline-btn" id="playBtn" aria-label="Play timeline">▶️</button>
-                            <button class="timeline-btn" id="pauseBtn" aria-label="Pause timeline">⏸️</button>
-                            <span class="timeline-time" id="currentTime">0:00</span>
-                            <span class="timeline-separator">/</span>
-                            <span class="timeline-time" id="totalTime">0:00</span>
-                        </div>
-                    </div>
-                    <div class="timeline-wrapper">
-                        <canvas id="viralTimeline" class="viral-timeline-canvas" aria-label="Viral score timeline"></canvas>
-                        <div class="timeline-markers" id="timelineMarkers"></div>
-                        <div class="playhead" id="playhead"></div>
-                    </div>
-                    <div class="timeline-legend">
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #ff4444;"></div>
-                            <span>Low Viral (0-40)</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #ffaa00;"></div>
-                            <span>Medium Viral (40-70)</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background: #00ff44;"></div>
-                            <span>High Viral (70-100)</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Preview Section -->
-                <div class="preview-section">
-                    <div class="preview-header">
-                        <h3>Live Preview Generator</h3>
-                        <div class="preview-controls">
-                            <label for="previewQuality">Quality:</label>
-                            <select id="previewQuality" aria-label="Preview quality">
-                                <option value="draft">Draft (Fast)</option>
-                                <option value="standard" selected>Standard</option>
-                                <option value="high">High Quality</option>
-                                <option value="premium">Premium (4K)</option>
-                            </select>
-                            <label for="platformOptimization">Platform:</label>
-                            <select id="platformOptimization" aria-label="Platform optimization">
-                                <option value="">Auto-detect</option>
-                                <option value="tiktok">TikTok</option>
-                                <option value="instagram">Instagram</option>
-                                <option value="youtube_shorts">YouTube Shorts</option>
-                                <option value="twitter">Twitter</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="preview-area">
-                        <div class="preview-player" id="previewPlayer">
-                            <div class="preview-placeholder">
-                                <div class="placeholder-icon">🎬</div>
-                                <p>Select a segment on the timeline to generate instant preview</p>
-                            </div>
-                        </div>
-                        <div class="preview-info" id="previewInfo"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Processing Status -->
-            <section class="processing-status" id="processingStatus" style="display: none;">
-                <div class="processing-header">
-                    <h3>Live Processing Status</h3>
-                    <div class="processing-controls">
-                        <button class="processing-btn" id="cancelProcessing" aria-label="Cancel processing">Cancel</button>
-                    </div>
-                </div>
-                <div class="processing-content">
-                    <div class="current-task">
-                        <div class="task-icon" id="taskIcon">⚡</div>
-                        <div class="task-details">
-                            <div class="task-name" id="taskName">Initializing...</div>
-                            <div class="task-description" id="taskDescription">Setting up Netflix-level processing pipeline</div>
-                        </div>
-                        <div class="task-progress">
-                            <div class="progress-ring" id="progressRing">
-                                <svg class="progress-svg" width="60" height="60" aria-hidden="true">
-                                    <circle class="progress-circle-bg" cx="30" cy="30" r="25"></circle>
-                                    <circle class="progress-circle-fill" cx="30" cy="30" r="25" id="progressCircle"></circle>
-                                </svg>
-                                <div class="progress-text" id="progressPercentage">0%</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="entertainment-section">
-                        <div class="entertainment-content" id="entertainmentContent">
-                            <div class="entertainment-icon">🎭</div>
-                            <div class="entertainment-text" id="entertainmentText">
-                                Did you know? Netflix processes over 1 billion hours of content daily! 📺
-                            </div>
-                        </div>
-                    </div>
-                    <div class="processing-queue" id="processingQueue"></div>
-                </div>
-            </section>
-        </main>
-
-        <!-- Footer -->
-        <footer class="app-footer">
-            <div class="footer-content">
-                <div class="performance-stats" id="performanceStats"></div>
-                <div class="version-info">
-                    ViralClip Pro v5.0 | Netflix-Level AI Processing | 
-                    <span id="uptime">Uptime: 0s</span>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <!-- Service Worker Registration -->
-    <script>
-        // Register service worker for PWA functionality
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/public/sw.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registered: ', registration);
-                    })
-                    .catch(registrationError => {
-                        console.log('ServiceWorker registration failed: ', registrationError);
-                    });
-            });
+        .main-content {
+            flex: 1;
+            padding: 1rem;
         }
-    </script>
-
-    <!-- Main Application Script -->
-    <script src="/static/app.js" defer></script>
-
-    <!-- Initialize app when DOM is ready -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Mark DOM content loaded
-            window.perfMetrics.domContentLoaded = performance.now();
-            performance.mark('dom-content-loaded');
-
-            // Hide loading screen and show app
-            const loadingScreen = document.getElementById('loadingScreen');
-            const appContainer = document.getElementById('app-container');
-
-            setTimeout(() => {
-                loadingScreen.classList.add('hidden');
-                appContainer.style.display = 'flex';
-
-                // Mark app visible
-                performance.mark('app-visible');
-
-                // Initialize uptime counter
-                const startTime = Date.now();
-                const updateUptime = () => {
-                    const uptime = Math.floor((Date.now() - startTime) / 1000);
-                    const uptimeElement = document.getElementById('uptime');
-                    if (uptimeElement) {
-                        uptimeElement.textContent = `Uptime: ${uptime}s`;
-                    }
-                };
-
-                updateUptime();
-                setInterval(updateUptime, 1000);
-
-                // Log performance metrics
-                setTimeout(() => {
-                    const metrics = {
-                        pageStart: window.perfMetrics.pageStart,
-                        domContentLoaded: window.perfMetrics.domContentLoaded,
-                        firstPaint: window.perfMetrics.firstPaint,
-                        firstContentfulPaint: window.perfMetrics.firstContentfulPaint,
-                        largestContentfulPaint: window.perfMetrics.largestContentfulPaint
-                    };
-
-                    console.log('Netflix-Level Performance Metrics:', metrics);
-
-                    // Send metrics to analytics (if configured)
-                    if (window.analytics && typeof window.analytics.track === 'function') {
-                        window.analytics.track('Page Performance', metrics);
-                    }
-                }, 1000);
-
-            }, 1500); // Show loading screen for 1.5 seconds minimum
-        });
-
-        // Handle page visibility changes
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden') {
-                console.log('Page hidden - pausing non-critical operations');
-            } else {
-                console.log('Page visible - resuming operations');
-            }
-        });
-
-        // Handle offline/online events
-        window.addEventListener('online', () => {
-            console.log('Connection restored');
-            // Show notification or update UI
-        });
-
-        window.addEventListener('offline', () => {
-            console.log('Connection lost');
-            // Show offline notification
-        });
-
-        // Error handling for unhandled errors
-        window.addEventListener('error', (event) => {
-            console.error('Unhandled error:', event.error);
-            // Log to error tracking service
-        });
-
-        window.addEventListener('unhandledrejection', (event) => {
-            console.error('Unhandled promise rejection:', event.reason);
-            // Log to error tracking service
-        });
-    </script>
-
-    <!-- Critical inline styles for above-the-fold content -->
-    <style>
-        .upload-info {
-            margin-top: 1rem;
-            font-size: 0.85rem;
-            color: #808080;
+        .app-footer {
+            background: rgba(0,0,0,0.1);
+            padding: 1rem;
             text-align: center;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.9rem;
         }
-
-        .upload-info p {
-            margin: 0.25rem 0;
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
         }
-
-        /* Ensure proper loading experience */
-        .netflix-app {
-            opacity: 0;
-            animation: fadeIn 0.5s ease-in-out forwards;
-            animation-delay: 0.1s;
+        .performance-stats {
+            display: flex;
+            gap: 1rem;
         }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .footer-text {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-
-        /* Accessibility improvements */
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
+        .heart {
+            animation: heartbeat 2s infinite;
         }
-
-        /* High contrast mode support */
-        @media (prefers-contrast: high) {
-            .app-header {
-                border-bottom: 2px solid #ffffff;
-            }
-
-            .upload-zone {
-                border: 3px solid #ffffff;
-            }
+        @keyframes heartbeat {
+            0%, 50%, 100% { transform: scale(1); }
+            25%, 75% { transform: scale(1.1); }
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .modal-body {
+            padding: 1rem;
+        }
+        .modal-footer {
+            padding: 1rem;
+            border-top: 1px solid #e2e8f0;
+            text-align: right;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
         }
     </style>
-</body>
+</head>
 </html>
