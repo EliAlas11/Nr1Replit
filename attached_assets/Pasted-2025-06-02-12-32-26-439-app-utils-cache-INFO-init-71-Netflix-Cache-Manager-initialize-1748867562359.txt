@@ -1,0 +1,66 @@
+2025-06-02 12:32:26,439 - app.utils.cache - INFO - __init__:71 - 🚀 Netflix Cache Manager initialized (ready for async startup)
+2025-06-02 12:32:26,440 - app.utils.health - INFO - __init__:97 - 💚 Netflix-Grade HealthMonitor initialized with advanced diagnostics and self-healing
+2025-06-02 12:32:26,441 - app.utils.metrics - INFO - __init__:83 - 📊 Netflix-Level MetricsCollector initialized (ready for async startup)
+2025-06-02 12:32:26,441 - app.utils - WARNING - <module>:35 - Metrics collector import failed: cannot import name 'MetricsCollector' from 'app.utils.metrics' (/home/runner/workspace/nr1copilot/nr1-main/app/utils/metrics.py)
+2025-06-02 12:32:26,444 - app.utils - INFO - <module>:42 - ✅ PerformanceMonitor imported successfully
+2025-06-02 12:32:26,445 - app.utils - INFO - <module>:103 - 🚀 Netflix utilities loaded: ['cache', 'health', 'performance']
+2025-06-02 12:32:26,446 - app.main - INFO - __init__:58 - 🚀 ApplicationState created (async initialization pending)
+INFO:     Started server process [1754]
+INFO:     Waiting for application startup.
+2025-06-02 12:32:26,453 - app.middleware.error_handler - INFO - __init__:33 - 🛡️ Netflix-grade Error Handler initialized
+2025-06-02 12:32:26,453 - app.middleware.performance - INFO - __init__:26 - 🚀 Netflix-grade Performance Middleware initialized
+2025-06-02 12:32:26,453 - app.middleware.security - INFO - __init__:59 - 🛡️ Netflix-grade Security Middleware initialized
+2025-06-02 12:32:26,453 - app.main - INFO - lifespan:237 - 🚀 Starting ViralClip Pro v10.0 - Netflix Enterprise Edition
+2025-06-02 12:32:26,453 - app.netflix_health_monitor - INFO - initialize:59 - 🏥 NetflixHealthMonitor initialized
+2025-06-02 12:32:26,453 - app.main - INFO - initialize:67 - 🔄 Initializing ApplicationState components...
+2025-06-02 12:32:26,454 - app.main - ERROR - initialize:76 - MetricsCollector initialization failed: 'NoneType' object is not callable
+2025-06-02 12:32:26,454 - app.utils.performance_monitor - INFO - initialize:67 - 📊 PerformanceMonitor async initialization completed
+2025-06-02 12:32:26,454 - app.main - INFO - initialize:84 - ✅ PerformanceMonitor initialized
+2025-06-02 12:32:26,454 - app.utils.health - INFO - __init__:97 - 💚 Netflix-Grade HealthMonitor initialized with advanced diagnostics and self-healing
+2025-06-02 12:32:26,454 - app.utils.health - INFO - initialize:111 - ✅ HealthMonitor async initialization completed
+2025-06-02 12:32:26,454 - app.main - INFO - initialize:94 - ✅ HealthMonitor initialized
+2025-06-02 12:32:26,454 - app.main - INFO - initialize:100 - 🚀 ApplicationState async initialization completed
+2025-06-02 12:32:26,454 - app.main - INFO - initialize_core_services:142 - 🚀 Initializing Netflix-grade services...
+2025-06-02 12:32:26,454 - app.main - ERROR - initialize_core_services:183 - Service initialization error: 'NoneType' object has no attribute 'timing'
+2025-06-02 12:32:26,454 - app.main - ERROR - lifespan:296 - Startup failed: 'NoneType' object has no attribute 'increment'
+2025-06-02 12:32:26,454 - app.main - INFO - lifespan:304 - 🔄 Initiating Netflix-grade graceful shutdown
+2025-06-02 12:32:26,455 - app.utils.performance_monitor - INFO - stop_monitoring:86 - ⏹️ Performance monitoring stopped
+2025-06-02 12:32:26,455 - app.utils.cache - INFO - shutdown:354 - 🔄 Shutting down Netflix cache system...
+2025-06-02 12:32:26,455 - app.utils.cache - INFO - shutdown:366 - 📊 Final cache stats: 0 hits, 0 misses
+2025-06-02 12:32:26,455 - app.utils.cache - INFO - clear:299 - 🧹 Netflix cache cleared successfully
+2025-06-02 12:32:26,455 - app.utils.cache - INFO - shutdown:372 - ✅ Netflix cache shutdown completed
+2025-06-02 12:32:26,455 - app.main - INFO - shutdown_services:195 - 🔄 Initiating Netflix-grade service shutdown...
+2025-06-02 12:32:26,455 - app.main - ERROR - shutdown_services:209 - Shutdown error: 'NoneType' object has no attribute '_cleanup_old_metrics'
+2025-06-02 12:32:26,455 - app.main - INFO - lifespan:320 - ✅ Netflix-grade shutdown completed
+ERROR:    Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 177, in initialize_core_services
+    app_state.metrics.timing('startup.duration', self._startup_time)
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'timing'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 250, in lifespan
+    await service_manager.initialize_core_services()
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 184, in initialize_core_services
+    app_state.metrics.increment('startup.error')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'increment'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/nb21sc3npfc8gvazwnrjxpvb5d48jysx-python3-3.12.7/lib/python3.12/contextlib.py", line 210, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/nr1copilot/nr1-main/app/main.py", line 298, in lifespan
+    app_state.metrics.increment('application.startup_error')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'increment'
+
+ERROR:    Application startup failed. Exiting.
+2025-06-02 12:32:26,625 - app.utils.health - INFO - _periodic_health_check:150 - Health monitoring task cancelled
