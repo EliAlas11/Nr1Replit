@@ -59,31 +59,31 @@ class NetflixGradeSettings:
         self.app_name = "ViralClip Pro v10.0"
         self.app_version = "10.0.0"
         self.environment = Environment(os.getenv("ENV", "production").lower())
-        
+
         # Server configuration
         self.host = "0.0.0.0"
         self.port = int(os.getenv("PORT", "5000"))
         self.debug = self._get_debug_mode()
-        
+
         # CORS configuration
         self.cors_origins = self._get_cors_origins()
-        
+
         # Component configurations
         self.database = DatabaseConfig(
             url=os.getenv("DATABASE_URL", "sqlite:///./viralclip.db")
         )
-        
+
         self.redis = RedisConfig(
             url=os.getenv("REDIS_URL"),
             ttl=int(os.getenv("CACHE_TTL", "3600"))
         )
-        
+
         self.security = SecurityConfig(
             secret_key=os.getenv("SECRET_KEY", self._generate_secret_key())
         )
-        
+
         self.performance = PerformanceConfig()
-        
+
         # Feature flags
         self.features = {
             "analytics": self._get_bool_env("ENABLE_ANALYTICS", True),
@@ -93,7 +93,7 @@ class NetflixGradeSettings:
             "real_time": self._get_bool_env("ENABLE_REAL_TIME", True),
             "monitoring": self._get_bool_env("ENABLE_MONITORING", True)
         }
-        
+
         # AI configuration
         self.ai_config = {
             "openai_api_key": os.getenv("OPENAI_API_KEY"),
@@ -101,11 +101,11 @@ class NetflixGradeSettings:
             "processing_timeout": int(os.getenv("PROCESSING_TIMEOUT", "300")),
             "model_cache_size": int(os.getenv("MODEL_CACHE_SIZE", "100"))
         }
-        
+
         # Logging configuration
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
         self.log_format = "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
-        
+
         # Initialize directories and logging
         self._initialize_system()
 
@@ -152,7 +152,7 @@ class NetflixGradeSettings:
         ]
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
-        
+
         # Configure logging
         logging.basicConfig(
             level=getattr(logging, self.log_level),

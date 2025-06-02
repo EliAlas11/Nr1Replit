@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v10.0 - NETFLIX ENTERPRISE EDITION
 Ultra-optimized production-ready application with enterprise-grade architecture
@@ -43,7 +42,7 @@ logger = logging.getLogger(__name__)
 # Global application state
 class ApplicationState:
     """Netflix-grade application state management"""
-    
+
     def __init__(self):
         self.startup_time: Optional[datetime] = None
         self.health_status = "starting"
@@ -53,16 +52,16 @@ class ApplicationState:
         self.active_connections = 0
         self.total_requests = 0
         self.error_count = 0
-        
+
     def update_health(self, status: str):
         """Update health status with timestamp"""
         self.health_status = status
         self.health_monitor.update_status(status)
-        
+
     def increment_requests(self):
         """Thread-safe request counter increment"""
         self.total_requests += 1
-        
+
     def increment_errors(self):
         """Thread-safe error counter increment"""
         self.error_count += 1
@@ -78,21 +77,21 @@ class NetflixGradeServiceManager:
         self.initialized = False
         self._startup_time: Optional[float] = None
         self.service_health: Dict[str, str] = {}
-        
+
     async def initialize_core_services(self):
         """Initialize Netflix-grade services with monitoring"""
         if self.initialized:
             return
-            
+
         start_time = time.time()
         logger.info("🚀 Initializing Netflix-grade services...")
-        
+
         try:
             # Initialize health monitoring
             app_state.health_monitor = HealthMonitor()
             app_state.metrics = MetricsCollector()
             app_state.performance = PerformanceMonitor()
-            
+
             # Core services
             self.services = {
                 'health_monitor': {
@@ -111,24 +110,24 @@ class NetflixGradeServiceManager:
                     'initialized_at': time.time()
                 }
             }
-            
+
             # Update service health
             for service_name in self.services:
                 self.service_health[service_name] = 'healthy'
-            
+
             self.initialized = True
             self._startup_time = time.time() - start_time
-            
+
             # Record startup metrics
             app_state.metrics.timing('startup.duration', self._startup_time)
             app_state.metrics.increment('startup.success')
-            
+
             logger.info(f"✅ Netflix-grade services initialized in {self._startup_time:.3f}s")
-            
+
         except Exception as e:
             logger.error(f"Service initialization error: {e}")
             app_state.metrics.increment('startup.error')
-            
+
             # Graceful degradation
             self.services = {
                 'health': {'status': 'degraded', 'error': str(e)}
@@ -139,18 +138,18 @@ class NetflixGradeServiceManager:
         """Graceful service shutdown"""
         try:
             logger.info("🔄 Initiating Netflix-grade service shutdown...")
-            
+
             # Cleanup metrics
             if hasattr(app_state, 'metrics'):
                 await app_state.metrics._cleanup_old_metrics()
-            
+
             # Clear services
             self.services.clear()
             self.service_health.clear()
             self.initialized = False
-            
+
             logger.info("✅ Netflix-grade services shutdown completed")
-            
+
         except Exception as e:
             logger.error(f"Shutdown error: {e}")
 
@@ -181,52 +180,52 @@ async def lifespan(app: FastAPI):
     """Netflix-grade application lifespan with comprehensive monitoring"""
     startup_start = time.time()
     logger.info("🚀 Starting ViralClip Pro v10.0 - Netflix Enterprise Edition")
-    
+
     try:
         # Optimize garbage collection for production
         gc.set_threshold(700, 10, 10)
-        
+
         # Initialize Netflix-grade services
         await service_manager.initialize_core_services()
-        
+
         # Start performance monitoring
         await app_state.performance.start_monitoring()
-        
+
         # Calculate startup metrics
         startup_time = time.time() - startup_start
         app.state.startup_time = startup_time
         app.state.app_state = app_state
-        
+
         # Update application state
         app_state.startup_time = datetime.utcnow()
         app_state.update_health("healthy")
-        
+
         # Record startup metrics
         app_state.metrics.timing('application.startup', startup_time)
         app_state.metrics.gauge('application.status', 1.0, {"status": "healthy"})
-        
+
         logger.info(f"🎯 Netflix-tier startup completed in {startup_time:.3f}s")
         logger.info(f"📊 Services initialized: {len(service_manager.services)}")
-        
+
         yield
-        
+
     except Exception as e:
         logger.error(f"Startup failed: {e}")
         app_state.update_health("degraded")
         app_state.metrics.increment('application.startup_error')
-        
+
         # Continue with degraded functionality
         yield
-        
+
     finally:
         logger.info("🔄 Initiating Netflix-grade graceful shutdown")
-        
+
         # Stop monitoring
         await app_state.performance.stop_monitoring()
-        
+
         # Shutdown services
         await service_manager.shutdown_services()
-        
+
         logger.info("✅ Netflix-grade shutdown completed")
 
 # Create FastAPI application with Netflix-grade settings
@@ -271,12 +270,12 @@ try:
         ("nr1copilot/nr1-main/static", "/static"),
         ("nr1copilot/nr1-main/public", "/public")
     ]
-    
+
     for directory, mount_path in static_dirs:
         if os.path.exists(directory):
             app.mount(mount_path, StaticFiles(directory=directory), name=mount_path.strip('/'))
             logger.info(f"✅ Mounted static directory: {directory}")
-            
+
 except Exception as e:
     logger.warning(f"Static files mounting failed: {e}")
 
@@ -290,12 +289,12 @@ async def request_monitoring_middleware(request: Request, call_next):
         "method": request.method,
         "path": request.url.path
     })
-    
+
     start_time = time.time()
-    
+
     try:
         response = await call_next(request)
-        
+
         # Record success metrics
         duration = time.time() - start_time
         app_state.metrics.timing('requests.duration', duration, {
@@ -303,9 +302,9 @@ async def request_monitoring_middleware(request: Request, call_next):
             "status": str(response.status_code)
         })
         app_state.metrics.increment('requests.success')
-        
+
         return response
-        
+
     except Exception as e:
         # Record error metrics
         app_state.metrics.increment('requests.error')
@@ -324,10 +323,10 @@ async def root():
         if os.path.exists(index_path):
             app_state.metrics.increment('static_file.served', 1.0, {"file": "index"})
             return FileResponse(index_path)
-        
+
         # Return comprehensive status
         uptime = app_state.health_monitor.get_uptime()
-        
+
         return JSONResponse({
             "application": {
                 "name": settings.app_name,
@@ -349,7 +348,7 @@ async def root():
             },
             "timestamp": datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Root endpoint error: {e}")
         app_state.metrics.increment('endpoint.error', 1.0, {"endpoint": "root"})
@@ -369,13 +368,13 @@ async def health_check():
     try:
         health_data = await app_state.health_monitor.perform_health_check()
         app_state.metrics.increment('health_check.success')
-        
+
         return JSONResponse(health_data)
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         app_state.metrics.increment('health_check.error')
-        
+
         return JSONResponse({
             "status": "unhealthy",
             "error": str(e),
@@ -392,9 +391,9 @@ async def detailed_health():
         performance_data = app_state.performance.get_performance_summary()
         metrics_data = app_state.metrics.get_metrics_summary()
         services_data = service_manager.get_all_services_status()
-        
+
         app_state.metrics.increment('health_check.detailed')
-        
+
         return JSONResponse({
             "health": health_data,
             "performance": performance_data,
@@ -408,11 +407,11 @@ async def detailed_health():
             },
             "timestamp": datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Detailed health check failed: {e}")
         app_state.metrics.increment('health_check.detailed_error')
-        
+
         return JSONResponse({
             "status": "degraded",
             "error": str(e),
@@ -425,15 +424,15 @@ async def get_metrics():
     try:
         format_type = "json"  # Could be made configurable
         metrics_data = await app_state.metrics.export_metrics(format_type)
-        
+
         app_state.metrics.increment('metrics.export')
-        
+
         return Response(
             content=metrics_data,
             media_type="application/json",
             headers={"X-Metrics-Format": format_type}
         )
-        
+
     except Exception as e:
         logger.error(f"Metrics export failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -444,16 +443,16 @@ async def get_performance():
     try:
         performance_data = app_state.performance.get_performance_summary()
         historical_data = app_state.performance.get_historical_data(hours=1)
-        
+
         app_state.metrics.increment('performance.query')
-        
+
         return JSONResponse({
             "current": performance_data,
             "historical": historical_data,
             "recommendations": await _get_performance_recommendations(performance_data),
             "timestamp": datetime.utcnow().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Performance query failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -461,21 +460,21 @@ async def get_performance():
 async def _get_performance_recommendations(performance_data: Dict[str, Any]) -> List[str]:
     """Generate performance recommendations"""
     recommendations = []
-    
+
     current_metrics = performance_data.get("current_metrics", {})
-    
+
     if current_metrics.get("cpu_percent", 0) > 70:
         recommendations.append("Consider optimizing CPU-intensive operations")
-    
+
     if current_metrics.get("memory_percent", 0) > 80:
         recommendations.append("Monitor memory usage and implement caching")
-    
+
     if current_metrics.get("average_response_time", 0) > 1.0:
         recommendations.append("Optimize response times with better caching and async processing")
-    
+
     if not recommendations:
         recommendations.append("Performance is optimal - maintain current configuration")
-    
+
     return recommendations
 
 @app.post("/api/v10/video/analyze")
@@ -486,14 +485,14 @@ async def analyze_video(
 ):
     """Production-optimized video analysis"""
     request_start = time.time()
-    
+
     try:
         # Parse options safely
         try:
             analysis_options = json.loads(options) if options else {}
         except json.JSONDecodeError:
             analysis_options = {}
-        
+
         # Netflix-tier analysis simulation
         result = {
             "success": True,
@@ -519,9 +518,9 @@ async def analyze_video(
             ],
             "performance_grade": "Netflix-tier"
         }
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Video analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
@@ -548,7 +547,7 @@ async def get_templates(
                 "tier": "enterprise"
             }
             templates.append(template)
-        
+
         return {
             "success": True,
             "templates": templates,
@@ -559,7 +558,7 @@ async def get_templates(
                 "netflix_optimized": True
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Template retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=f"Template retrieval failed: {str(e)}")
@@ -593,7 +592,7 @@ async def get_analytics_dashboard():
                 "youtube": {"engagement": 14.3, "reach": 48000, "viral_rate": 7.1}
             }
         }
-        
+
         return {
             "success": True,
             "dashboard": dashboard_data,
@@ -601,7 +600,7 @@ async def get_analytics_dashboard():
             "netflix_tier": "AAA+",
             "generated_at": datetime.utcnow().isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Analytics dashboard failed: {e}")
         raise HTTPException(status_code=500, detail=f"Dashboard failed: {str(e)}")
@@ -649,7 +648,7 @@ async def collaboration_websocket(
 ):
     """Production WebSocket with error handling"""
     await websocket.accept()
-    
+
     try:
         # Send initial connection confirmation
         await websocket.send_text(json.dumps({
@@ -660,13 +659,13 @@ async def collaboration_websocket(
             "timestamp": datetime.utcnow().isoformat(),
             "server": "netflix-tier"
         }))
-        
+
         # Main message loop
         while True:
             try:
                 data = await websocket.receive_text()
                 message = json.loads(data)
-                
+
                 # Handle different message types
                 if message.get("type") == "heartbeat":
                     await websocket.send_text(json.dumps({
@@ -682,7 +681,7 @@ async def collaboration_websocket(
                         "processed_by": "netflix-server",
                         "timestamp": datetime.utcnow().isoformat()
                     }))
-                    
+
             except WebSocketDisconnect:
                 logger.info(f"WebSocket disconnected: {user_id}")
                 break
@@ -693,7 +692,7 @@ async def collaboration_websocket(
                     "message": "Message processing failed",
                     "timestamp": datetime.utcnow().isoformat()
                 }))
-                
+
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:

@@ -6,7 +6,7 @@ Enterprise-level security controls and monitoring with comprehensive protection
 import time
 import logging
 import hashlib
-from typing import Dict, Set, Optional, List
+from typing import Dict, Set, Optional, List, Any
 from fastapi import Request, Response, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
