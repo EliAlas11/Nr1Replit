@@ -51,6 +51,7 @@ from app.middleware.security import SecurityMiddleware
 from app.services.captions_service import NetflixLevelCaptionService, JobType as CaptionJobType
 from app.services.template_service import NetflixLevelTemplateService, TemplateCategory, PlatformType
 from app.services.batch_processor import NetflixLevelBatchProcessor, JobType, JobPriority
+from app.services.social_publisher import NetflixLevelSocialPublisher
 
 # Initialize enterprise logging
 logger = setup_logging()
@@ -773,7 +774,7 @@ async def get_trending_insights():
     """Get current trending viral factors and insights"""
     try:
         trending_data = await container.ai_analyzer.get_trending_viral_factors()
-        
+
         return {
             "success": True,
             "trending_factors": trending_data.get("factors", []),
@@ -1211,6 +1212,10 @@ async def submit_batch_job(
         if not hasattr(container, 'batch_processor'):
             container.batch_processor = NetflixLevelBatchProcessor()
 
+        # Initialize social publisher if not exists
+        if not hasattr(container, 'social_publisher'):
+            container.social_publisher = NetflixLevelSocialPublisher()
+
         # Convert job type
         job_type_str = data.get("job_type", "")
         try:
@@ -1268,6 +1273,10 @@ async def get_batch_status(
         if not hasattr(container, 'batch_processor'):
             container.batch_processor = NetflixLevelBatchProcessor()
 
+        # Initialize social publisher if not exists
+        if not hasattr(container, 'social_publisher'):
+            container.social_publisher = NetflixLevelSocialPublisher()
+
         status_data = await container.batch_processor.get_queue_status()
 
         return {
@@ -1294,6 +1303,10 @@ async def get_job_status(
         # Initialize batch processor if not exists
         if not hasattr(container, 'batch_processor'):
             container.batch_processor = NetflixLevelBatchProcessor()
+
+        # Initialize social publisher if not exists
+        if not hasattr(container, 'social_publisher'):
+            container.social_publisher = NetflixLevelSocialPublisher()
 
         job_status = await container.batch_processor.get_job_status(job_id)
 
@@ -1329,6 +1342,10 @@ async def cancel_batch_job(
         if not hasattr(container, 'batch_processor'):
             container.batch_processor = NetflixLevelBatchProcessor()
 
+        # Initialize social publisher if not exists
+        if not hasattr(container, 'social_publisher'):
+            container.social_publisher = NetflixLevelSocialPublisher()
+
         cancelled = await container.batch_processor.cancel_job(job_id)
 
         if not cancelled:
@@ -1363,6 +1380,10 @@ async def get_user_jobs(
         # Initialize batch processor if not exists
         if not hasattr(container, 'batch_processor'):
             container.batch_processor = NetflixLevelBatchProcessor()
+
+        # Initialize social publisher if not exists
+        if not hasattr(container, 'social_publisher'):
+            container.social_publisher = NetflixLevelSocialPublisher()
 
         user_jobs = await container.batch_processor.get_user_jobs(
             user_id=user.get("user_id", ""),
