@@ -85,15 +85,18 @@ def get_available_components():
     """Get list of available utility components"""
     return [name for name, available in COMPONENT_AVAILABILITY.items() if available]
 
-def initialize_async_components():
+async def initialize_async_components():
     """Initialize async components when event loop is available"""
-    async def _init():
+    try:
         if cache and hasattr(cache, 'initialize'):
             await cache.initialize()
             logger.info("✅ Cache async components initialized")
         
         # Initialize other async components as needed
+        logger.info("✅ All utility async components initialized")
         
-    return _init()
+    except Exception as e:
+        logger.error(f"Async component initialization failed: {e}")
+        raise
 
 logger.info(f"🚀 Netflix utilities loaded: {get_available_components()}")

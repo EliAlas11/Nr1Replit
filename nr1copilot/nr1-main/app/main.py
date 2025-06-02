@@ -50,6 +50,25 @@ class ApplicationState:
         self.active_connections = 0
         self.total_requests = 0
         self.error_count = 0
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize async components when event loop is available"""
+        if self._initialized:
+            return
+            
+        try:
+            # Initialize all async components
+            await self.metrics.initialize()
+            await self.performance.initialize()
+            await self.health_monitor.initialize()
+            
+            self._initialized = True
+            logger.info("🚀 ApplicationState async initialization completed")
+            
+        except Exception as e:
+            logger.error(f"ApplicationState async initialization failed: {e}")
+            raise
 
     def update_health(self, status: str):
         """Update health status with timestamp"""
@@ -183,6 +202,9 @@ async def lifespan(app: FastAPI):
         # Optimize garbage collection for production
         gc.set_threshold(700, 10, 10)
 
+        # Initialize ApplicationState async components
+        await app_state.initialize()
+
         # Initialize Netflix-grade services
         await service_manager.initialize_core_services()
 
@@ -190,8 +212,9 @@ async def lifespan(app: FastAPI):
         if hasattr(cache, 'initialize'):
             await cache.initialize()
 
-        # Start performance monitoring
-        await app_state.performance.start_monitoring()
+        # Start performance monitoring (if it has this method)
+        if hasattr(app_state.performance, 'start_monitoring'):
+            await app_state.performance.start_monitoring()
 
         # Calculate startup metrics
         startup_time = time.time() - startup_start
