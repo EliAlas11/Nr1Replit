@@ -28,11 +28,11 @@ except Exception as e:
     health_available = False
 
 try:
-    from .metrics import metrics_collector, NetflixLevelMetricsCollector
+    from .metrics import metrics_collector, NetflixEnterpriseMetricsCollector
     # Create proper alias for backward compatibility
-    MetricsCollector = NetflixLevelMetricsCollector
+    MetricsCollector = NetflixEnterpriseMetricsCollector
     metrics_available = True
-    logger.info("✅ Netflix-Level MetricsCollector imported successfully")
+    logger.info("✅ Netflix Enterprise MetricsCollector imported successfully")
 except ImportError as e:
     logger.warning(f"Metrics collector import failed: {e}")
     MetricsCollector = None
