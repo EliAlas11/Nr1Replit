@@ -1,4 +1,4 @@
-run = "python3 nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/main.py"
+run = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000"
 modules = ["python-3.12", "web", "nodejs-20"]
 [nix]
 channel = "stable-24_05"
@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uvicorn python-multipart websockets pydantic-settings psutil && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info"]
 
 [workflows]
-runButton = "Render Deployment"
+runButton = "Netflix Production Deploy"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -226,6 +226,19 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uvicorn python-multipart websockets pydantic-settings psutil"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info"
+
+[[workflows.workflow]]
+name = "Netflix Production Deploy"
+author = 43392883
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --break-system-packages -r requirements.txt"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"

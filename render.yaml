@@ -1,10 +1,16 @@
 
 services:
   - type: web
-    name: viral-clip-generator
+    name: viralclip-pro-v10
     env: python
-    buildCommand: cd nr1copilot/nr1-main && python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt
-    startCommand: cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30
+    plan: starter
+    buildCommand: |
+      cd nr1copilot/nr1-main &&
+      python3 -m pip install --upgrade pip &&
+      python3 -m pip install -r requirements.txt
+    startCommand: |
+      cd nr1copilot/nr1-main &&
+      python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 30 --log-level info
     envVars:
       - key: ENV
         value: production
@@ -12,5 +18,11 @@ services:
         value: '1'
       - key: PYTHONPATH
         value: /opt/render/project/src/nr1copilot/nr1-main
+      - key: PYTHONDONTWRITEBYTECODE
+        value: '1'
     healthCheckPath: /health
     autoDeploy: true
+    disk:
+      name: viralclip-data
+      sizeGB: 1
+      mountPath: /data
