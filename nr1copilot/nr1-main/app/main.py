@@ -31,10 +31,7 @@ from .config import get_settings
 from .middleware.performance import PerformanceMiddleware
 from .middleware.security import SecurityMiddleware
 from .middleware.error_handler import ErrorHandlerMiddleware
-from .utils.health import HealthMonitor
-from .utils.metrics import MetricsCollector
-from .utils.performance_monitor import PerformanceMonitor
-from .utils.cache import cache
+from .utils import HealthMonitor, MetricsCollector, PerformanceMonitor, cache
 
 # Initialize settings
 settings = get_settings()

@@ -1,9 +1,8 @@
-
 """
 Utility modules for ViralClip Pro
 """
 
-from .cache import CacheManager
+from .cache import cache, CacheManager
 from .metrics import MetricsCollector
 
 try:
@@ -22,6 +21,7 @@ except ImportError:
     HealthChecker = None
 
 __all__ = [
+    'cache',
     'CacheManager',
     'MetricsCollector',
     'SecurityManager',

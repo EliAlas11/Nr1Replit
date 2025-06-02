@@ -461,7 +461,7 @@ import logging
 import json
 import hashlib
 from typing import Any, Optional, Dict, Union, Callable
-from dataclasses import dataclass, field
+from dataclasses importdataclass, field
 from collections import OrderedDict
 from datetime import datetime, timedelta
 
@@ -477,9 +477,9 @@ class CacheEntry:
     last_accessed: float = field(default_factory=time.time)
     size_bytes: int = 0
 
-class NetflixGradeCache:
+class NetflixCacheManager:
     """Netflix-tier caching system with advanced features"""
-    
+
     def __init__(self, max_size: int = 10000, default_ttl: float = 3600):
         self.max_size = max_size
         self.default_ttl = default_ttl
@@ -490,144 +490,144 @@ class NetflixGradeCache:
             "evictions": 0,
             "total_size": 0
         }
-        
+
         # Start cleanup task
         asyncio.create_task(self._cleanup_expired())
-    
+
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache with hit/miss tracking"""
         cache_key = self._normalize_key(key)
-        
+
         if cache_key not in self.cache:
             self.stats["misses"] += 1
             return None
-        
+
         entry = self.cache[cache_key]
-        
+
         # Check if expired
         if self._is_expired(entry):
             del self.cache[cache_key]
             self.stats["misses"] += 1
             return None
-        
+
         # Update access metadata
         entry.access_count += 1
         entry.last_accessed = time.time()
-        
+
         # Move to end (LRU)
         self.cache.move_to_end(cache_key)
-        
+
         self.stats["hits"] += 1
         return entry.value
-    
+
     async def set(self, key: str, value: Any, ttl: Optional[float] = None) -> bool:
         """Set value in cache with optional TTL"""
         cache_key = self._normalize_key(key)
-        
+
         # Calculate size
         size_bytes = self._calculate_size(value)
-        
+
         # Check if we need to evict
         await self._ensure_space(size_bytes)
-        
+
         # Create cache entry
         entry = CacheEntry(
             value=value,
             ttl=ttl or self.default_ttl,
             size_bytes=size_bytes
         )
-        
+
         # Remove existing entry if present
         if cache_key in self.cache:
             old_entry = self.cache[cache_key]
             self.stats["total_size"] -= old_entry.size_bytes
-        
+
         # Add new entry
         self.cache[cache_key] = entry
         self.stats["total_size"] += size_bytes
-        
+
         return True
-    
+
     async def delete(self, key: str) -> bool:
         """Delete key from cache"""
         cache_key = self._normalize_key(key)
-        
+
         if cache_key in self.cache:
             entry = self.cache[cache_key]
             self.stats["total_size"] -= entry.size_bytes
             del self.cache[cache_key]
             return True
-        
+
         return False
-    
+
     async def clear(self):
         """Clear entire cache"""
         self.cache.clear()
         self.stats["total_size"] = 0
         logger.info("Cache cleared")
-    
+
     def _normalize_key(self, key: str) -> str:
         """Normalize cache key"""
         if isinstance(key, str):
             return key
         return str(key)
-    
+
     def _is_expired(self, entry: CacheEntry) -> bool:
         """Check if cache entry is expired"""
         if entry.ttl is None:
             return False
         return time.time() - entry.created_at > entry.ttl
-    
+
     def _calculate_size(self, value: Any) -> int:
         """Estimate size of cached value"""
         try:
             return len(json.dumps(value, default=str).encode('utf-8'))
         except:
             return 1024  # Default estimate
-    
+
     async def _ensure_space(self, needed_bytes: int):
         """Ensure enough space in cache"""
         while (len(self.cache) >= self.max_size or 
                self.stats["total_size"] + needed_bytes > self.max_size * 10000):
-            
+
             if not self.cache:
                 break
-            
+
             # Remove least recently used item
             oldest_key, oldest_entry = self.cache.popitem(last=False)
             self.stats["total_size"] -= oldest_entry.size_bytes
             self.stats["evictions"] += 1
-    
+
     async def _cleanup_expired(self):
         """Periodic cleanup of expired entries"""
         while True:
             try:
                 current_time = time.time()
                 expired_keys = []
-                
+
                 for key, entry in self.cache.items():
                     if self._is_expired(entry):
                         expired_keys.append(key)
-                
+
                 for key in expired_keys:
                     entry = self.cache[key]
                     self.stats["total_size"] -= entry.size_bytes
                     del self.cache[key]
-                
+
                 if expired_keys:
                     logger.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
-                
+
                 await asyncio.sleep(300)  # Clean every 5 minutes
-                
+
             except Exception as e:
                 logger.error(f"Cache cleanup error: {e}")
                 await asyncio.sleep(60)
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
         total_requests = self.stats["hits"] + self.stats["misses"]
         hit_rate = self.stats["hits"] / total_requests if total_requests > 0 else 0
-        
+
         return {
             "hits": self.stats["hits"],
             "misses": self.stats["misses"],
@@ -640,5 +640,8 @@ class NetflixGradeCache:
             "netflix_grade": "Enterprise AAA+"
         }
 
-# Global cache instance
-cache = NetflixGradeCache()
+# Export the singleton instance and class for compatibility
+cache = NetflixCacheManager()
+CacheManager = NetflixCacheManager  # Alias for backward compatibility
+
+__all__ = ["cache", "CacheManager", "NetflixCacheManager"]
