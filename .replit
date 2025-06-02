@@ -5,7 +5,7 @@ channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 
 [deployment]
-run = ["sh", "-c", "python3 nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/main.py"]
+run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"]
 
 [workflows]
 runButton = "Netflix ViralClip Pro v10.0 Optimized"
