@@ -1,4 +1,3 @@
-
 class AdvancedAnalyticsDashboard {
     constructor() {
         this.currentTimeframe = '24h';
@@ -6,7 +5,7 @@ class AdvancedAnalyticsDashboard {
         this.dashboardData = null;
         this.updateInterval = null;
         this.charts = {};
-        
+
         this.initializeEventListeners();
         this.connectWebSocket();
         this.loadDashboard();
@@ -40,7 +39,7 @@ class AdvancedAnalyticsDashboard {
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             this.websocket = new WebSocket(`${protocol}//${window.location.host}/ws/analytics/real-time`);
-            
+
             this.websocket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 this.handleRealtimeUpdate(data);
@@ -79,20 +78,20 @@ class AdvancedAnalyticsDashboard {
     async loadDashboard() {
         try {
             this.showLoading();
-            
+
             const response = await fetch(`/api/v7/analytics/dashboard?timeframe=${this.currentTimeframe}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.dashboardData = data.dashboard;
                 this.renderDashboard();
@@ -114,9 +113,9 @@ class AdvancedAnalyticsDashboard {
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showVideoAnalysis(data.analysis);
             } else {
@@ -137,9 +136,9 @@ class AdvancedAnalyticsDashboard {
                 },
                 body: JSON.stringify(contentData)
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showViralPrediction(data.prediction);
             } else {
@@ -164,9 +163,9 @@ class AdvancedAnalyticsDashboard {
                     metrics: ['views', 'engagement_rate', 'viral_score', 'roi']
                 })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showABComparison(data.comparison);
             } else {
@@ -187,9 +186,9 @@ class AdvancedAnalyticsDashboard {
                 },
                 body: JSON.stringify(revenueData)
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.updateROIDisplay(data.roi_metrics);
             } else {
@@ -209,9 +208,9 @@ class AdvancedAnalyticsDashboard {
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showUnderperformanceAlerts(data.monitoring_report);
             } else {
@@ -231,9 +230,9 @@ class AdvancedAnalyticsDashboard {
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             const data = await response.json();
-            
+
             if (data.success) {
                 this.showTrendAnalysis(data.trend_report);
             } else {
@@ -281,26 +280,26 @@ class AdvancedAnalyticsDashboard {
                     <h3 class="card-title">⚡ Real-Time Metrics</h3>
                     <div class="status-indicator"></div>
                 </div>
-                
+
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-value">${this.formatNumber(data.engagement_metrics?.total_views || 0)}</div>
                         <div class="metric-label">Live Views</div>
                         <div class="metric-change positive">+${((Math.random() * 10) + 2).toFixed(1)}%</div>
                     </div>
-                    
+
                     <div class="metric-item">
                         <div class="metric-value">${(data.engagement_metrics?.engagement_rate * 100 || 0).toFixed(1)}%</div>
                         <div class="metric-label">Engagement</div>
                         <div class="metric-change positive">+${((Math.random() * 5) + 1).toFixed(1)}%</div>
                     </div>
-                    
+
                     <div class="metric-item">
                         <div class="metric-value">${(data.viral_insights?.viral_probability * 100 || 0).toFixed(0)}</div>
                         <div class="metric-label">Viral Score</div>
                         <div class="metric-change neutral">${((Math.random() * 4) - 2).toFixed(1)}%</div>
                     </div>
-                    
+
                     <div class="metric-item">
                         <div class="metric-value">$${(data.roi_tracking?.total_revenue || 0).toFixed(0)}</div>
                         <div class="metric-label">Revenue</div>
@@ -324,22 +323,22 @@ class AdvancedAnalyticsDashboard {
                 ${this.renderPerformanceCharts(data.performance_analytics)}
                 ${this.renderQuickInsights(data)}
             </div>
-            
+
             <div class="tab-content" data-tab-content="viral">
                 ${this.renderViralAnalysis(data.viral_insights)}
                 ${this.renderViralPredictionTools()}
             </div>
-            
+
             <div class="tab-content" data-tab-content="roi">
                 ${this.renderROIAnalysis(data.roi_tracking)}
                 ${this.renderRevenueBreakdown(data.roi_tracking)}
             </div>
-            
+
             <div class="tab-content" data-tab-content="trends">
                 ${this.renderTrendDashboard(data.trend_analysis)}
                 ${this.renderContentOpportunities(data.trend_analysis)}
             </div>
-            
+
             <div class="tab-content" data-tab-content="competitive">
                 ${this.renderCompetitiveAnalysis(data.competitive_insights)}
                 ${this.renderMarketPosition(data.competitive_insights)}
@@ -353,7 +352,7 @@ class AdvancedAnalyticsDashboard {
                 <div class="card-header">
                     <h3 class="card-title">🔮 Viral Prediction Tools</h3>
                 </div>
-                
+
                 <div class="prediction-form">
                     <div class="form-group">
                         <label>Content Type</label>
@@ -364,7 +363,7 @@ class AdvancedAnalyticsDashboard {
                             <option value="lifestyle">Lifestyle</option>
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>Target Platform</label>
                         <select id="targetPlatform">
@@ -373,12 +372,12 @@ class AdvancedAnalyticsDashboard {
                             <option value="youtube">YouTube Shorts</option>
                         </select>
                     </div>
-                    
+
                     <button class="predict-btn" onclick="dashboard.predictContent()">
                         🚀 Predict Viral Potential
                     </button>
                 </div>
-                
+
                 <div id="predictionResults" class="prediction-results"></div>
             </div>
         `;
@@ -390,7 +389,7 @@ class AdvancedAnalyticsDashboard {
                 <div class="card-header">
                     <h3 class="card-title">🧪 A/B Testing Suite</h3>
                 </div>
-                
+
                 <div class="ab-test-form">
                     <div class="form-row">
                         <div class="form-group">
@@ -402,7 +401,7 @@ class AdvancedAnalyticsDashboard {
                             <input type="text" id="videoBId" placeholder="Enter video ID">
                         </div>
                     </div>
-                    
+
                     <div class="metrics-selector">
                         <label>Compare Metrics:</label>
                         <div class="checkbox-group">
@@ -412,12 +411,12 @@ class AdvancedAnalyticsDashboard {
                             <label><input type="checkbox" value="roi" checked> ROI</label>
                         </div>
                     </div>
-                    
+
                     <button class="compare-btn" onclick="dashboard.runABTest()">
                         📊 Run Comparison
                     </button>
                 </div>
-                
+
                 <div id="abResults" class="ab-results"></div>
             </div>
         `;
@@ -435,7 +434,7 @@ class AdvancedAnalyticsDashboard {
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
-        
+
         // Sample data for demonstration
         const data = {
             labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -517,7 +516,7 @@ class AdvancedAnalyticsDashboard {
             alertItem.className = 'activity-item new';
             alertItem.textContent = `🚀 ${insight.message}`;
             alertsContainer.prepend(alertItem);
-            
+
             // Remove oldest items if too many
             const items = alertsContainer.querySelectorAll('.activity-item');
             if (items.length > 5) {
@@ -538,9 +537,9 @@ class AdvancedAnalyticsDashboard {
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         notification.textContent = message;
-        
+
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.remove();
         }, 5000);
@@ -551,18 +550,18 @@ class AdvancedAnalyticsDashboard {
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.remove('active');
         });
-        
+
         // Remove active class from all tabs
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        
+
         // Show selected tab content
         const targetContent = document.querySelector(`[data-tab-content="${tabName}"]`);
         if (targetContent) {
             targetContent.classList.add('active');
         }
-        
+
         // Mark selected tab as active
         const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
         if (targetTab) {
@@ -573,7 +572,7 @@ class AdvancedAnalyticsDashboard {
     async predictContent() {
         const contentType = document.getElementById('contentType')?.value;
         const targetPlatform = document.getElementById('targetPlatform')?.value;
-        
+
         const contentData = {
             content_type: contentType,
             target_platform: targetPlatform,
@@ -584,19 +583,19 @@ class AdvancedAnalyticsDashboard {
                 format: 'vertical'
             }
         };
-        
+
         await this.predictViralPotential(contentData);
     }
 
     async runABTest() {
         const videoAId = document.getElementById('videoAId')?.value;
         const videoBId = document.getElementById('videoBId')?.value;
-        
+
         if (!videoAId || !videoBId) {
             this.showError('Please enter both video IDs');
             return;
         }
-        
+
         await this.generateABComparison(videoAId, videoBId);
     }
 
@@ -646,11 +645,11 @@ class AdvancedAnalyticsDashboard {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
         }
-        
+
         if (this.websocket) {
             this.websocket.close();
         }
-        
+
         // Destroy charts
         Object.values(this.charts).forEach(chart => {
             if (chart && chart.destroy) {
@@ -658,6 +657,124 @@ class AdvancedAnalyticsDashboard {
             }
         });
     }
+}
+
+// Netflix-Level Analytics Dashboard v6.0
+let socket = null;
+let charts = {};
+let metricsData = {};
+let realTimeMetrics = new Map();
+let performanceTracker = new Map();
+let alertSystem = new AlertManager();
+
+function createViralPredictionChart(canvasId, data) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+
+    return new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Viral Score',
+                data: data.values,
+                borderColor: '#FF6B6B',
+                backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#FF6B6B',
+                pointBorderColor: '#FFFFFF',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }, {
+                label: 'Predicted Performance',
+                data: data.predictions,
+                borderColor: '#4ECDC4',
+                backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.4
+            }, {
+                label: 'Industry Benchmark',
+                data: Array(data.labels.length).fill(75),
+                borderColor: '#95A5A6',
+                backgroundColor: 'rgba(149, 165, 166, 0.05)',
+                borderWidth: 1,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Netflix-Level Viral Prediction Analysis',
+                    font: { size: 16, weight: 'bold' },
+                    color: '#2C3E50'
+                },
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#FFFFFF',
+                    bodyColor: '#FFFFFF',
+                    borderColor: '#4ECDC4',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    callbacks: {
+                        afterBody: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            const score = data.values[dataIndex];
+                            let performance = 'Low';
+                            if (score >= 90) performance = 'Viral Potential';
+                            else if (score >= 75) performance = 'High';
+                            else if (score >= 60) performance = 'Medium';
+
+                            return `Performance Level: ${performance}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        color: '#7F8C8D'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    },
+                    ticks: {
+                        color: '#7F8C8D',
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
+            animation: {
+                duration: 2000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    });
 }
 
 // Global dashboard instance

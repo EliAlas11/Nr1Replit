@@ -188,6 +188,9 @@ class NetflixLevelTemplateService:
         self.brand_kits: Dict[str, BrandKit] = {}
         self.analytics: Dict[str, TemplateAnalytics] = {}
         self.template_relationships: Dict[str, List[str]] = {}
+        self.ai_suggestions_cache: Dict[str, Any] = {}
+        self.performance_optimizer = TemplatePerformanceOptimizer()
+        self.collaborative_editor = CollaborativeTemplateEditor()
 
         # Initialize viral template library
         asyncio.create_task(self._initialize_viral_templates())
