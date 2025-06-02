@@ -5,10 +5,10 @@ channel = "stable-24_05"
 packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 
 [deployment]
-run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"]
+run = ["sh", "-c", "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uvicorn python-multipart websockets pydantic-settings psutil && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info"]
 
 [workflows]
-runButton = "Netflix ViralClip Pro v10.0 Optimized"
+runButton = "Render Deployment"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -217,6 +217,19 @@ args = "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uv
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload --log-level info --workers 1"
+
+[[workflows.workflow]]
+name = "Render Deployment"
+author = 43392883
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --break-system-packages fastapi uvicorn python-multipart websockets pydantic-settings psutil"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info"
 
 [[ports]]
 localPort = 5000

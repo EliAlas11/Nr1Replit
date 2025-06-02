@@ -1,14 +1,12 @@
 """
-Pydantic schemas for API validation and serialization
-Netflix-level data validation and type safety
+Optimized Pydantic schemas for deployment performance
+Streamlined data validation with minimal overhead
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field, validator
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel, Field
 from enum import Enum
-import uuid
-
 
 class StatusEnum(str, Enum):
     """Status enumeration"""
@@ -17,7 +15,6 @@ class StatusEnum(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
-
 
 class PlatformEnum(str, Enum):
     """Social media platforms"""
@@ -28,51 +25,39 @@ class PlatformEnum(str, Enum):
     FACEBOOK = "facebook"
     LINKEDIN = "linkedin"
 
-
 class VideoRequest(BaseModel):
     """Video processing request schema"""
-    file_url: Optional[str] = Field(None, description="URL of the video file")
-    file_name: Optional[str] = Field(None, description="Name of the uploaded file")
-    session_id: str = Field(..., description="Session ID for tracking")
-    platforms: List[PlatformEnum] = Field(default=[], description="Target platforms")
+    session_id: str = Field(..., description="Session identifier", min_length=8)
     options: Dict[str, Any] = Field(default_factory=dict, description="Processing options")
-
-    @validator('session_id')
-    def validate_session_id(cls, v):
-        if not v or len(v) < 8:
-            raise ValueError('Session ID must be at least 8 characters')
-        return v
-
+    file_size: Optional[int] = Field(None, description="File size in bytes", ge=0)
+    file_type: Optional[str] = Field(None, description="File MIME type")
+    platforms: List[PlatformEnum] = Field(default_factory=list, description="Target platforms")
 
 class AnalysisResponse(BaseModel):
     """Video analysis response schema"""
-    success: bool = Field(..., description="Success status")
-    session_id: str = Field(..., description="Session ID")
+    success: bool = Field(..., description="Operation success status")
+    session_id: str = Field(..., description="Session identifier")
     analysis: Dict[str, Any] = Field(default_factory=dict, description="Analysis results")
     viral_score: Optional[float] = Field(None, ge=0, le=100, description="Viral potential score")
-    processing_time: Optional[float] = Field(None, ge=0, description="Processing time in seconds")
+    processing_time: float = Field(..., ge=0, description="Processing time in seconds")
     recommendations: List[str] = Field(default_factory=list, description="Optimization recommendations")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-
+    performance_grade: str = Field(default="A+", description="Performance grade")
 
 class ErrorResponse(BaseModel):
     """Error response schema"""
-    success: bool = Field(False, description="Success status")
-    error: str = Field(..., description="Error message")
-    error_code: Optional[str] = Field(None, description="Error code")
-    details: Optional[Dict[str, Any]] = Field(None, description="Error details")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
-
+    success: bool = Field(default=False, description="Operation success status")
+    error: str = Field(..., description="Error type")
+    message: str = Field(..., description="Error message")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Error timestamp")
+    support_id: Optional[str] = Field(None, description="Support ticket ID")
 
 class HealthResponse(BaseModel):
     """Health check response schema"""
     status: str = Field(..., description="Health status")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Check timestamp")
-    uptime: float = Field(..., ge=0, description="Uptime in seconds")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Check timestamp")
     version: str = Field(..., description="Application version")
-    metrics: Dict[str, Any] = Field(default_factory=dict, description="Health metrics")
+    startup_time: Optional[float] = Field(None, ge=0, description="Startup time in seconds")
     services: Dict[str, str] = Field(default_factory=dict, description="Service statuses")
-
 
 class TemplateRequest(BaseModel):
     """Template request schema"""
@@ -81,24 +66,12 @@ class TemplateRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=100, description="Maximum number of templates")
     search: Optional[str] = Field(None, description="Search query")
 
-
 class TemplateResponse(BaseModel):
     """Template response schema"""
     success: bool = Field(..., description="Success status")
     templates: List[Dict[str, Any]] = Field(default_factory=list, description="Template list")
     total: int = Field(default=0, ge=0, description="Total number of templates")
-    page: int = Field(default=1, ge=1, description="Current page")
-    has_more: bool = Field(default=False, description="More templates available")
-
-
-class CollaborationRequest(BaseModel):
-    """Collaboration request schema"""
-    workspace_id: str = Field(..., description="Workspace ID")
-    project_id: str = Field(..., description="Project ID")
-    user_id: str = Field(..., description="User ID")
-    action: str = Field(..., description="Collaboration action")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Action data")
-
+    enterprise_features: bool = Field(default=True, description="Enterprise features enabled")
 
 class AIRequest(BaseModel):
     """AI processing request schema"""
@@ -107,129 +80,38 @@ class AIRequest(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict, description="Context data")
     customization_level: str = Field(default="high", description="Customization level")
 
-
-class BatchJobRequest(BaseModel):
-    """Batch job request schema"""
-    job_type: str = Field(..., description="Job type")
-    input_data: Dict[str, Any] = Field(..., description="Input data")
-    priority: str = Field(default="normal", description="Job priority")
-    callback_url: Optional[str] = Field(None, description="Callback URL")
-
-
-class BatchJobResponse(BaseModel):
-    """Batch job response schema"""
+class AIResponse(BaseModel):
+    """AI processing response schema"""
     success: bool = Field(..., description="Success status")
-    job_id: str = Field(..., description="Job ID")
-    status: StatusEnum = Field(..., description="Job status")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
-    estimated_completion: Optional[datetime] = Field(None, description="Estimated completion")
-
-
-class MetricsResponse(BaseModel):
-    """Metrics response schema"""
-    success: bool = Field(..., description="Success status")
-    metrics: Dict[str, Any] = Field(..., description="Metrics data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Metrics timestamp")
-    period: str = Field(..., description="Metrics period")
-
+    content: Dict[str, Any] = Field(..., description="Generated content")
+    model_version: str = Field(default="v10.0", description="Model version")
 
 class WebSocketMessage(BaseModel):
     """WebSocket message schema"""
     type: str = Field(..., description="Message type")
     data: Dict[str, Any] = Field(default_factory=dict, description="Message data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Message timestamp")
     user_id: Optional[str] = Field(None, description="User ID")
-
-
-class PaginationParams(BaseModel):
-    """Pagination parameters schema"""
-    page: int = Field(default=1, ge=1, description="Page number")
-    limit: int = Field(default=20, ge=1, le=100, description="Items per page")
-    sort_by: Optional[str] = Field(None, description="Sort field")
-    sort_order: str = Field(default="desc", description="Sort order")
-
-    @validator('sort_order')
-    def validate_sort_order(cls, v):
-        if v not in ['asc', 'desc']:
-            raise ValueError('Sort order must be "asc" or "desc"')
-        return v
-
 
 class APIResponse(BaseModel):
     """Generic API response schema"""
     success: bool = Field(..., description="Success status")
     data: Optional[Any] = Field(None, description="Response data")
     message: Optional[str] = Field(None, description="Response message")
-    meta: Optional[Dict[str, Any]] = Field(None, description="Response metadata")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Response timestamp")
 
-
-# Custom validators
-def validate_uuid(v: str) -> str:
-    """Validate UUID format"""
-    try:
-        uuid.UUID(v)
-        return v
-    except ValueError:
-        raise ValueError('Invalid UUID format')
-
-
-def validate_platform_list(v: List[str]) -> List[PlatformEnum]:
-    """Validate platform list"""
-    return [PlatformEnum(platform) for platform in v]
-
-
-# Export all schemas
+# Export schemas
 __all__ = [
     'StatusEnum',
-    'PlatformEnum',
+    'PlatformEnum', 
     'VideoRequest',
     'AnalysisResponse',
     'ErrorResponse',
     'HealthResponse',
     'TemplateRequest',
     'TemplateResponse',
-    'CollaborationRequest',
     'AIRequest',
-    'BatchJobRequest',
-    'BatchJobResponse',
-    'MetricsResponse',
+    'AIResponse',
     'WebSocketMessage',
-    'PaginationParams',
-    'APIResponse',
-    'validate_uuid',
-    'validate_platform_list'
+    'APIResponse'
 ]
-"""
-Core data schemas for ViralClip Pro
-"""
-
-from typing import Dict, List, Any, Optional
-from pydantic import BaseModel, Field
-from datetime import datetime
-
-
-class VideoRequest(BaseModel):
-    """Video processing request schema"""
-    session_id: str = Field(..., description="Session identifier")
-    options: Dict[str, Any] = Field(default_factory=dict, description="Processing options")
-    file_size: Optional[int] = Field(None, description="File size in bytes")
-    file_type: Optional[str] = Field(None, description="File MIME type")
-
-
-class AnalysisResponse(BaseModel):
-    """Video analysis response schema"""
-    success: bool = Field(..., description="Operation success status")
-    analysis: Dict[str, Any] = Field(default_factory=dict, description="Analysis results")
-    processing_time: float = Field(..., description="Processing time in seconds")
-    session_id: str = Field(..., description="Session identifier")
-    performance_score: str = Field(default="A+", description="Performance grade")
-
-
-class ErrorResponse(BaseModel):
-    """Error response schema"""
-    success: bool = Field(default=False, description="Operation success status")
-    error: str = Field(..., description="Error type")
-    message: str = Field(..., description="Error message")
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-    support_id: Optional[str] = Field(None, description="Support ticket ID")
