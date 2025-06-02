@@ -1,4 +1,3 @@
-
 /*
 ViralClip Pro v7.0 - Netflix-Level Upload System
 Production-ready with enterprise-grade performance, security, and reliability
@@ -42,13 +41,13 @@ class EnterpriseEventBus {
 
     async on(event, callback, options = {}) {
         const { priority = 0, debounce = 0 } = options;
-        
+
         if (!this.listeners.has(event)) {
             this.listeners.set(event, []);
         }
 
         let wrappedCallback = callback;
-        
+
         if (debounce > 0) {
             wrappedCallback = this.debounce(callback, debounce);
         }
@@ -245,7 +244,7 @@ class ConnectionPoolManager {
 
     async getConnection(poolId, options = {}) {
         const { maxRetries = 3, timeout = UPLOAD_CONFIG.CONNECTION_TIMEOUT } = options;
-        
+
         let pool = this.pools.get(poolId);
         if (!pool) {
             pool = this.createPool(poolId);
@@ -259,11 +258,11 @@ class ConnectionPoolManager {
                 return connection;
             } catch (error) {
                 this.recordConnectionHealth(poolId, false);
-                
+
                 if (attempt === maxRetries) {
                     throw new Error(`Failed to acquire connection after ${maxRetries} attempts: ${error.message}`);
                 }
-                
+
                 await this.delay(Math.pow(2, attempt) * 1000);
             }
         }
@@ -290,7 +289,7 @@ class ConnectionPoolManager {
                 clearTimeout(timeoutId);
                 const connectionId = `conn_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                 pool.activeCount++;
-                
+
                 resolve({
                     id: connectionId,
                     pool: pool.id,
@@ -310,7 +309,7 @@ class ConnectionPoolManager {
         if (!this.connectionHealth.has(poolId)) {
             this.connectionHealth.set(poolId, { healthy: 0, failed: 0 });
         }
-        
+
         const health = this.connectionHealth.get(poolId);
         if (healthy) {
             health.healthy++;
@@ -446,7 +445,7 @@ class EnterpriseFileValidator {
     async validateMimeType(file) {
         const detectedMime = await this.mimeDetector.detect(file);
         const expectedMime = this.getExpectedMimeType(file.name);
-        
+
         if (detectedMime !== expectedMime) {
             return {
                 warnings: [{
@@ -463,7 +462,7 @@ class EnterpriseFileValidator {
         // Basic file header validation
         const header = await this.readFileHeader(file, 512);
         const extension = this.getFileExtension(file.name);
-        
+
         if (!this.isValidFileHeader(header, extension)) {
             return {
                 errors: [{
@@ -545,7 +544,7 @@ class EnterpriseFileValidator {
             '.mp3': 'audio/mpeg',
             '.wav': 'audio/wav'
         };
-        
+
         return mimeMap[this.getFileExtension(filename)] || 'application/octet-stream';
     }
 
@@ -573,7 +572,7 @@ class EnterpriseFileValidator {
             const video = document.createElement('video');
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            
+
             video.addEventListener('loadedmetadata', () => {
                 canvas.width = 320;
                 canvas.height = 180;
@@ -588,7 +587,7 @@ class EnterpriseFileValidator {
             });
 
             video.addEventListener('error', () => resolve(null));
-            
+
             video.src = URL.createObjectURL(file);
             video.load();
         });
@@ -597,7 +596,7 @@ class EnterpriseFileValidator {
     async extractMediaMetadata(file) {
         return new Promise((resolve) => {
             const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
-            
+
             media.addEventListener('loadedmetadata', () => {
                 resolve({
                     duration: media.duration,
@@ -611,7 +610,7 @@ class EnterpriseFileValidator {
             });
 
             media.addEventListener('error', () => resolve({}));
-            
+
             media.src = URL.createObjectURL(file);
         });
     }
@@ -643,7 +642,7 @@ class SecurityScanner {
             // Read file sample for scanning
             const sampleSize = Math.min(file.size, 64 * 1024); // 64KB sample
             const sample = await this.readFileSample(file, sampleSize);
-            
+
             // Pattern matching
             let threatsFound = 0;
             for (const pattern of this.maliciousPatterns) {
@@ -692,7 +691,7 @@ class MimeTypeDetector {
     async detect(file) {
         // Read file header for detection
         const header = await this.readFileHeader(file, 32);
-        
+
         // Common file signatures
         const signatures = {
             'video/mp4': [[0x66, 0x74, 0x79, 0x70]],
@@ -734,12 +733,12 @@ class NetflixLevelUploadManager {
         this.metricsCollector = new MetricsCollector();
         this.connectionPool = new ConnectionPoolManager();
         this.fileValidator = new EnterpriseFileValidator();
-        
+
         this.activeUploads = new Map();
         this.uploadQueue = [];
         this.chunkCache = new Map();
         this.retryManager = new RetryManager();
-        
+
         this.config = UPLOAD_CONFIG;
         this.initialized = false;
     }
@@ -753,7 +752,7 @@ class NetflixLevelUploadManager {
 
         // Setup event handlers
         this.setupEventHandlers();
-        
+
         // Start background processes
         this.startQueueProcessor();
         this.startHealthMonitoring();
@@ -786,12 +785,12 @@ class NetflixLevelUploadManager {
 
     async handleFileSelection(files) {
         const startTime = performance.now();
-        
+
         for (const file of files) {
             try {
                 // Validate file
                 const validation = await this.fileValidator.validateFile(file);
-                
+
                 if (!validation.valid) {
                     await this.eventBus.emit('file:validation:failed', { file, validation });
                     continue;
@@ -799,12 +798,12 @@ class NetflixLevelUploadManager {
 
                 // Create upload session
                 const uploadSession = await this.createUploadSession(file, validation.metadata);
-                
+
                 // Add to queue
                 this.uploadQueue.push(uploadSession);
-                
+
                 await this.eventBus.emit('upload:queued', uploadSession);
-                
+
             } catch (error) {
                 this.metricsCollector.recordError(error, { file: file.name });
                 await this.eventBus.emit('file:processing:error', { file, error });
@@ -817,7 +816,7 @@ class NetflixLevelUploadManager {
 
     async createUploadSession(file, metadata) {
         const sessionId = this.generateSessionId();
-        
+
         return {
             id: sessionId,
             file,
@@ -857,7 +856,7 @@ class NetflixLevelUploadManager {
 
     async initializeServerSession(uploadSession) {
         const connection = await this.connectionPool.getConnection('upload');
-        
+
         try {
             const formData = new FormData();
             formData.append('filename', uploadSession.file.name);
@@ -876,10 +875,10 @@ class NetflixLevelUploadManager {
             }
 
             const result = await response.json();
-            
+
             // Initialize WebSocket connection for real-time updates
             await this.initializeWebSocket(uploadSession, result.session_id);
-            
+
             return result;
 
         } finally {
@@ -891,38 +890,38 @@ class NetflixLevelUploadManager {
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/upload/${sessionId}`;
-            
+
             uploadSession.websocket = new WebSocket(wsUrl);
-            
+
             uploadSession.websocket.onopen = () => {
                 console.log(`WebSocket connected for session: ${sessionId}`);
                 uploadSession.realtimeConnected = true;
             };
-            
+
             uploadSession.websocket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 this.handleWebSocketMessage(uploadSession, data);
             };
-            
+
             uploadSession.websocket.onclose = () => {
                 console.log(`WebSocket closed for session: ${sessionId}`);
                 uploadSession.realtimeConnected = false;
                 // Attempt to reconnect after 3 seconds
                 setTimeout(() => this.reconnectWebSocket(uploadSession, sessionId), 3000);
             };
-            
+
             uploadSession.websocket.onerror = (error) => {
                 console.error(`WebSocket error for session ${sessionId}:`, error);
                 uploadSession.realtimeConnected = false;
             };
-            
+
             // Send periodic ping to keep connection alive
             uploadSession.pingInterval = setInterval(() => {
                 if (uploadSession.websocket?.readyState === WebSocket.OPEN) {
                     uploadSession.websocket.send(JSON.stringify({ type: 'ping' }));
                 }
             }, 30000);
-            
+
         } catch (error) {
             console.error('WebSocket initialization failed:', error);
         }
@@ -940,27 +939,27 @@ class NetflixLevelUploadManager {
             case 'connection_established':
                 console.log('Real-time connection established');
                 break;
-                
+
             case 'chunk_uploaded':
                 this.handleRealtimeProgress(uploadSession, data);
                 break;
-                
+
             case 'processing_started':
                 uploadSession.status = 'processing';
                 this.eventBus.emit('upload:processing', uploadSession);
                 break;
-                
+
             case 'processing_completed':
                 uploadSession.status = 'completed';
                 uploadSession.results = data.results;
                 this.eventBus.emit('upload:completed', uploadSession);
                 this.cleanupUploadSession(uploadSession);
                 break;
-                
+
             case 'pong':
                 // Connection is alive
                 break;
-                
+
             default:
                 console.log('Unknown WebSocket message:', data);
         }
@@ -970,7 +969,7 @@ class NetflixLevelUploadManager {
         // Update progress from server confirmation
         uploadSession.progress = data.progress;
         uploadSession.lastActivity = Date.now();
-        
+
         this.eventBus.emit('upload:realtime_progress', {
             uploadId: uploadSession.id,
             progress: data.progress,
@@ -986,7 +985,7 @@ class NetflixLevelUploadManager {
             uploadSession.websocket.close();
             delete uploadSession.websocket;
         }
-        
+
         // Clear ping interval
         if (uploadSession.pingInterval) {
             clearInterval(uploadSession.pingInterval);
@@ -997,7 +996,7 @@ class NetflixLevelUploadManager {
     async uploadChunksWithConcurrency(uploadSession) {
         const { totalChunks, uploadedChunks } = uploadSession;
         const concurrency = this.config.MAX_CONCURRENT_CHUNKS;
-        
+
         let chunkIndex = 0;
         const activePromises = new Set();
 
@@ -1008,7 +1007,7 @@ class NetflixLevelUploadManager {
                     const promise = this.uploadChunk(uploadSession, chunkIndex);
                     activePromises.add(promise);
                     uploadSession.chunkPromises.set(chunkIndex, promise);
-                    
+
                     promise.finally(() => {
                         activePromises.delete(promise);
                         uploadSession.chunkPromises.delete(chunkIndex);
@@ -1039,11 +1038,11 @@ class NetflixLevelUploadManager {
 
     async uploadChunk(uploadSession, chunkIndex) {
         const startTime = performance.now();
-        
+
         try {
             const chunk = await this.extractChunk(uploadSession.file, chunkIndex);
             const chunkHash = await this.calculateChunkHash(chunk);
-            
+
             // Check cache first
             const cacheKey = `${uploadSession.id}_${chunkIndex}_${chunkHash}`;
             if (this.chunkCache.has(cacheKey)) {
@@ -1060,9 +1059,9 @@ class NetflixLevelUploadManager {
 
             // Cache successful chunk
             this.chunkCache.set(cacheKey, { uploaded: true, timestamp: Date.now() });
-            
+
             uploadSession.uploadedChunks.add(chunkIndex);
-            
+
             const uploadTime = performance.now() - startTime;
             this.metricsCollector.recordPerformance('chunk_upload', uploadTime, {
                 chunkIndex,
@@ -1092,7 +1091,7 @@ class NetflixLevelUploadManager {
 
     async sendChunk(uploadSession, chunk, chunkIndex, chunkHash) {
         const connection = await this.connectionPool.getConnection('upload');
-        
+
         try {
             const formData = new FormData();
             formData.append('file', chunk, `chunk_${chunkIndex}`);
@@ -1139,7 +1138,7 @@ class NetflixLevelUploadManager {
     async finalizeUpload(uploadSession) {
         try {
             uploadSession.status = 'processing';
-            
+
             const connection = await this.connectionPool.getConnection('upload');
             try {
                 const response = await fetch('/api/v7/upload/finalize', {
@@ -1189,14 +1188,14 @@ class NetflixLevelUploadManager {
         // Intelligent retry logic based on error type
         const errorType = this.classifyError(error);
         const maxRetries = this.getMaxRetriesForError(errorType);
-        
+
         if (uploadSession.retryCount < maxRetries && this.isRetryableError(error)) {
             uploadSession.retryCount++;
             uploadSession.status = 'queued';
-            
+
             // Exponential backoff with jitter
             const delay = this.calculateRetryDelay(uploadSession.retryCount, errorType);
-            
+
             setTimeout(async () => {
                 this.uploadQueue.push(uploadSession);
                 await this.eventBus.emit('upload:retry', {
@@ -1205,7 +1204,7 @@ class NetflixLevelUploadManager {
                     retryDelay: delay
                 });
             }, delay);
-            
+
         } else {
             uploadSession.status = 'failed';
             uploadSession.failureReason = errorType;
@@ -1216,7 +1215,7 @@ class NetflixLevelUploadManager {
 
     classifyError(error) {
         const message = error.message.toLowerCase();
-        
+
         if (message.includes('network') || message.includes('fetch')) {
             return 'network_error';
         } else if (message.includes('timeout')) {
@@ -1261,10 +1260,10 @@ class NetflixLevelUploadManager {
             'storage_error': 5000,
             'unknown_error': 2000
         };
-        
+
         const baseDelay = baseDelays[errorType] || 2000;
         const exponentialDelay = Math.min(baseDelay * Math.pow(2, retryCount - 1), 30000);
-        
+
         // Add jitter to prevent thundering herd
         const jitter = Math.random() * 1000;
         return exponentialDelay + jitter;
@@ -1287,7 +1286,7 @@ class NetflixLevelUploadManager {
     startQueueProcessor() {
         setInterval(async () => {
             if (this.activeUploads.size >= this.config.MAX_CONCURRENT_UPLOADS) return;
-            
+
             const nextUpload = this.uploadQueue.find(upload => upload.status === 'queued');
             if (nextUpload) {
                 this.uploadQueue = this.uploadQueue.filter(upload => upload.id !== nextUpload.id);
@@ -1343,7 +1342,7 @@ class NetflixLevelUploadManager {
         const upload = this.activeUploads.get(uploadId);
         if (upload) {
             upload.status = 'cancelled';
-            
+
             // Cancel all chunk promises
             for (const promise of upload.chunkPromises.values()) {
                 // Note: In a real implementation, you'd want to implement proper cancellation
@@ -1353,7 +1352,7 @@ class NetflixLevelUploadManager {
                     // Ignore cancellation errors
                 }
             }
-            
+
             this.activeUploads.delete(uploadId);
             await this.eventBus.emit('upload:cancelled', upload);
         }
@@ -1380,19 +1379,19 @@ class NetflixLevelUploadManager {
 class RetryManager {
     async executeWithRetry(operation, delays = [1000, 2000, 4000]) {
         let lastError;
-        
+
         for (let attempt = 0; attempt <= delays.length; attempt++) {
             try {
                 return await operation();
             } catch (error) {
                 lastError = error;
-                
+
                 if (attempt < delays.length) {
                     await this.delay(delays[attempt]);
                 }
             }
         }
-        
+
         throw lastError;
     }
 
@@ -1510,6 +1509,7 @@ class NetflixUploadUI {
             <input type="file" id="fileInput" multiple 
                    accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp,.mp3,.wav,.m4a,.flac,.aac" 
                    style="display: none;">
+            <video id="previewPlayer" style="width: 100%; max-height: 300px; display: block; margin-top: 20px;" controls></video>
         `;
     }
 
@@ -1570,7 +1570,7 @@ class NetflixUploadUI {
         uploadZone.addEventListener('drop', (e) => {
             dragCounter = 0;
             this.deactivateDragState();
-            
+
             const files = Array.from(e.dataTransfer.files);
             this.handleFileSelection(files);
         });
@@ -1599,7 +1599,7 @@ class NetflixUploadUI {
         const uploadZone = this.getElement('uploadZone');
         const zoneIcon = this.getElement('zoneIcon');
         const zoneTitle = this.getElement('zoneTitle');
-        
+
         uploadZone.classList.add('drag-active');
         zoneIcon.style.transform = 'scale(1.2) rotate(10deg)';
         zoneTitle.textContent = '🎯 Drop files to upload';
@@ -1609,7 +1609,7 @@ class NetflixUploadUI {
         const uploadZone = this.getElement('uploadZone');
         const zoneIcon = this.getElement('zoneIcon');
         const zoneTitle = this.getElement('zoneTitle');
-        
+
         uploadZone.classList.remove('drag-active');
         zoneIcon.style.transform = 'scale(1) rotate(0deg)';
         zoneTitle.textContent = 'Drop your media files here';
@@ -1632,7 +1632,7 @@ class NetflixUploadUI {
 
     renderUploadItem(uploadSession) {
         const uploadList = this.getElement('uploadList');
-        
+
         const uploadItem = this.createElement('div', {
             className: 'upload-item',
             id: `upload-${uploadSession.id}`
@@ -1640,14 +1640,14 @@ class NetflixUploadUI {
 
         uploadItem.innerHTML = this.renderUploadItemTemplate(uploadSession);
         uploadList.appendChild(uploadItem);
-        
+
         this.animateIn(uploadItem);
         this.setupUploadItemControls(uploadSession.id);
     }
 
     renderUploadItemTemplate(uploadSession) {
         const { file, metadata } = uploadSession;
-        
+
         return `
             <div class="item-header">
                 <div class="item-thumbnail">
@@ -1670,7 +1670,7 @@ class NetflixUploadUI {
                     <button class="item-btn remove" id="remove-${uploadSession.id}" title="Remove">🗑️</button>
                 </div>
             </div>
-            
+
             <div class="item-progress">
                 <div class="progress-bar">
                     <div class="progress-fill" id="progress-fill-${uploadSession.id}"></div>
@@ -1692,15 +1692,15 @@ class NetflixUploadUI {
     renderChunkIndicators(uploadSession) {
         const maxVisible = Math.min(uploadSession.totalChunks, 50);
         const indicators = [];
-        
+
         for (let i = 0; i < maxVisible; i++) {
             indicators.push(`<div class="chunk-indicator" id="chunk-${uploadSession.id}-${i}"></div>`);
         }
-        
+
         if (uploadSession.totalChunks > maxVisible) {
             indicators.push('<span class="chunk-more">...</span>');
         }
-        
+
         return indicators.join('');
     }
 
@@ -1733,15 +1733,15 @@ class NetflixUploadUI {
             progressFill.style.width = `${progress}%`;
             progressFill.className = `progress-fill ${this.getSpeedClass(speed)}`;
         }
-        
+
         if (progressText) {
             progressText.textContent = `${Math.round(progress)}%`;
         }
-        
+
         if (speedElement) {
             speedElement.textContent = this.formatSpeed(speed);
         }
-        
+
         if (etaElement) {
             const eta = this.calculateETA(progress, speed);
             etaElement.textContent = this.formatTime(eta);
@@ -1818,7 +1818,7 @@ class NetflixUploadUI {
     animateIn(element) {
         element.style.opacity = '0';
         element.style.transform = 'translateY(20px)';
-        
+
         requestAnimationFrame(() => {
             element.style.transition = 'all 0.3s ease';
             element.style.opacity = '1';
@@ -1830,7 +1830,7 @@ class NetflixUploadUI {
         element.style.transition = 'all 0.3s ease';
         element.style.opacity = '0';
         element.style.transform = 'translateY(-20px)';
-        
+
         setTimeout(callback, 300);
     }
 
@@ -1848,7 +1848,7 @@ class NetflixUploadUI {
             this.updatePerformanceIndicator();
             this.updateConnectionStatus();
         }, 1000);
-        
+
         // Create performance indicator
         this.createPerformanceIndicator();
         this.createConnectionStatus();
@@ -1856,7 +1856,7 @@ class NetflixUploadUI {
 
     updateGlobalMetrics() {
         const status = this.uploadManager.getSystemStatus();
-        
+
         // Update any global UI elements based on system status
         const globalSpeed = this.getElement('globalSpeed');
         if (globalSpeed && status.metrics) {
@@ -1869,7 +1869,7 @@ class NetflixUploadUI {
             className: 'performance-indicator',
             id: 'performanceIndicator'
         });
-        
+
         indicator.innerHTML = `
             <div class="metric">
                 <span>FPS:</span>
@@ -1888,9 +1888,9 @@ class NetflixUploadUI {
                 <span class="value" id="perfUploads">0</span>
             </div>
         `;
-        
+
         document.body.appendChild(indicator);
-        
+
         // Show/hide with Ctrl+Shift+P
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'P') {
@@ -1902,7 +1902,7 @@ class NetflixUploadUI {
     updatePerformanceIndicator() {
         const indicator = document.getElementById('performanceIndicator');
         if (!indicator || !indicator.classList.contains('visible')) return;
-        
+
         // Update FPS
         const fps = this.measureFPS();
         const fpsElement = document.getElementById('perfFPS');
@@ -1910,7 +1910,7 @@ class NetflixUploadUI {
             fpsElement.textContent = Math.round(fps);
             fpsElement.className = `value ${this.getPerformanceClass(fps, 60, 45, 30)}`;
         }
-        
+
         // Update Memory
         if (performance.memory) {
             const memoryMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
@@ -1920,7 +1920,7 @@ class NetflixUploadUI {
                 memoryElement.className = `value ${this.getPerformanceClass(memoryMB, 50, 100, 200, true)}`;
             }
         }
-        
+
         // Update Network Status
         const networkElement = document.getElementById('perfNetwork');
         if (networkElement) {
@@ -1928,7 +1928,7 @@ class NetflixUploadUI {
             networkElement.textContent = isOnline ? 'Online' : 'Offline';
             networkElement.className = `value ${isOnline ? 'excellent' : 'critical'}`;
         }
-        
+
         // Update Active Uploads
         const uploadsElement = document.getElementById('perfUploads');
         if (uploadsElement) {
@@ -1946,16 +1946,16 @@ class NetflixUploadUI {
                 fps: 60
             };
         }
-        
+
         const now = performance.now();
         this.fpsCounter.frames++;
-        
+
         if (now >= this.fpsCounter.lastTime + 1000) {
             this.fpsCounter.fps = Math.round((this.fpsCounter.frames * 1000) / (now - this.fpsCounter.lastTime));
             this.fpsCounter.frames = 0;
             this.fpsCounter.lastTime = now;
         }
-        
+
         requestAnimationFrame(() => this.measureFPS());
         return this.fpsCounter.fps;
     }
@@ -1979,26 +1979,26 @@ class NetflixUploadUI {
             className: 'connection-status connected',
             id: 'connectionStatus'
         });
-        
+
         status.innerHTML = `
             <div class="connection-indicator"></div>
             <span id="connectionText">Real-time Connected</span>
         `;
-        
+
         document.body.appendChild(status);
     }
 
     updateConnectionStatus() {
         const status = document.getElementById('connectionStatus');
         const text = document.getElementById('connectionText');
-        
+
         if (!status || !text) return;
-        
+
         const activeConnections = Object.keys(this.uploadManager.activeUploads).length;
         const hasRealtimeConnection = Object.values(this.uploadManager.activeUploads).some(
             upload => upload.realtimeConnected
         );
-        
+
         if (activeConnections === 0) {
             status.className = 'connection-status connected';
             text.textContent = 'Ready';
@@ -2027,7 +2027,7 @@ class NetflixUploadUI {
     insertIntoDOM(element) {
         const mainContent = document.querySelector('main') || document.body;
         const existingUpload = document.querySelector('#netflix-upload-v7, #enhanced-upload-section, #upload-section');
-        
+
         if (existingUpload) {
             existingUpload.replaceWith(element);
         } else {
@@ -2063,16 +2063,16 @@ class NetflixUploadUI {
             .success-flash {
                 animation: successFlash 1s ease-in-out;
             }
-            
+
             @keyframes successFlash {
                 0%, 100% { background-color: transparent; }
                 50% { background-color: rgba(76, 175, 80, 0.2); }
             }
-            
+
             .chunk-indicator.completed {
                 animation: chunkComplete 0.3s ease;
             }
-            
+
             @keyframes chunkComplete {
                 0% { transform: scale(1); }
                 50% { transform: scale(1.2); }
@@ -2110,11 +2110,11 @@ class NetflixUploadUI {
 
     formatTime(seconds) {
         if (!isFinite(seconds) || seconds <= 0) return '--:--';
-        
+
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
-        
+
         if (hours > 0) {
             return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
@@ -2123,7 +2123,7 @@ class NetflixUploadUI {
 
     calculateETA(progress, speed) {
         if (speed <= 0 || progress >= 100) return 0;
-        
+
         const remainingPercent = 100 - progress;
         const estimatedTime = (remainingPercent / 100) * (1 / speed) * 100;
         return estimatedTime;
@@ -2136,8 +2136,392 @@ class NetflixUploadUI {
         if (mbps > 5) return 'speed-average';
         return 'speed-slow';
     }
+
+    // Add the following function to the NetflixUploadUI class
+    updateTimelineVisualization(timelineData) {
+        const timeline = document.querySelector('.timeline-container');
+        if (!timeline || !timelineData.segments) return;
+
+        // Clear existing elements
+        const existingSegments = timeline.querySelectorAll('.timeline-segment, .heatmap-overlay, .engagement-peak');
+        existingSegments.forEach(segment => segment.remove());
+
+        // Create advanced heatmap overlay
+        const heatmapOverlay = document.createElement('div');
+        heatmapOverlay.className = 'heatmap-overlay';
+        timeline.appendChild(heatmapOverlay);
+
+        // Create viral score segments with enhanced visualization
+        timelineData.segments.forEach((segment, index) => {
+            const segmentEl = document.createElement('div');
+            segmentEl.className = 'timeline-segment';
+            segmentEl.style.left = `${(segment.start_time / timelineData.duration) * 100}%`;
+            segmentEl.style.width = `${((segment.end_time - segment.start_time) / timelineData.duration) * 100}%`;
+
+            // Enhanced viral score visualization
+            const intensity = segment.viral_score / 100;
+            const hotspotIntensity = segment.hotspot_intensity || 0.5;
+
+            segmentEl.style.background = `linear-gradient(45deg, 
+                rgba(255, ${255 - (intensity * 150)}, 0, ${intensity * 0.9}),
+                rgba(255, ${100 - (hotspotIntensity * 50)}, 0, ${intensity * 0.7})
+            )`;
+
+            // Add viral score indicator
+            const scoreIndicator = document.createElement('div');
+            scoreIndicator.className = 'viral-score-indicator';
+            scoreIndicator.textContent = Math.round(segment.viral_score);
+            scoreIndicator.style.color = intensity > 0.7 ? '#fff' : '#333';
+            segmentEl.appendChild(scoreIndicator);
+
+            // Add engagement peaks
+            if (segment.engagement_factors && segment.engagement_factors.length > 0) {
+                const peakIndicator = document.createElement('div');
+                peakIndicator.className = 'engagement-peak';
+                peakIndicator.title = `Engagement factors: ${segment.engagement_factors.join(', ')}`;
+                segmentEl.appendChild(peakIndicator);
+            }
+
+            // Interactive hover effects
+            segmentEl.addEventListener('mouseenter', () => {
+                this.showSegmentTooltip(segment, segmentEl);
+            });
+
+            segmentEl.addEventListener('mouseleave', () => {
+                this.hideSegmentTooltip();
+            });
+
+            // Click to preview segment
+            segmentEl.addEventListener('click', () => {
+                this.previewSegment(segment);
+            });
+
+            timeline.appendChild(segmentEl);
+        });
+
+        // Add heatmap gradient overlay
+        this.createHeatmapGradient(timelineData.heatmap, heatmapOverlay);
+    }
+
+    createHeatmapGradient(heatmapData, container) {
+        if (!heatmapData || !heatmapData.points) return;
+
+        const gradientStops = heatmapData.points.map(point => {
+            const position = (point.time / this.videoDuration) * 100;
+            const intensity = point.intensity;
+            return `rgba(255, ${255 - intensity * 200}, 0, ${intensity * 0.3}) ${position}%`;
+        }).join(', ');
+
+        container.style.background = `linear-gradient(90deg, ${gradientStops})`;
+        container.style.height = '100%';
+        container.style.pointerEvents = 'none';
+    }
+
+    showSegmentTooltip(segment, element) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'segment-tooltip';
+        tooltip.innerHTML = `
+            <div class="tooltip-header">Viral Score: ${Math.round(segment.viral_score)}/100</div>
+            <div class="tooltip-confidence">Confidence: ${Math.round(segment.confidence * 100)}%</div>
+            <div class="tooltip-factors">
+                <strong>Engagement Factors:</strong>
+                <ul>
+                    ${segment.engagement_factors.map(factor => `<li>${factor}</li>`).join('')}
+                </ul>
+            </div>
+            <div class="tooltip-platforms">
+                <strong>Recommended for:</strong>
+                <span class="platform-tags">
+                    ${segment.recommended_for_platforms.map(platform => 
+                        `<span class="platform-tag">${platform}</span>`
+                    ).join('')}
+                </span>
+            </div>
+        `;
+
+        document.body.appendChild(tooltip);
+
+        const rect = element.getBoundingClientRect();
+        tooltip.style.position = 'absolute';
+        tooltip.style.left = `${rect.left}px`;
+        tooltip.style.top = `${rect.top - tooltip.offsetHeight - 10}px`;
+        tooltip.style.zIndex = '1000';
+    }
+
+    hideSegmentTooltip() {
+        const tooltip = document.querySelector('.segment-tooltip');
+        if (tooltip) {
+            tooltip.remove();
+        }
+    }
+
+    previewSegment(segment) {
+        if (this.previewPlayer) {
+            this.previewPlayer.currentTime = segment.start_time;
+            this.previewPlayer.play();
+
+            // Auto-pause at segment end
+            const handleTimeUpdate = () => {
+                if (this.previewPlayer.currentTime >= segment.end_time) {
+                    this.previewPlayer.pause();
+                    this.previewPlayer.removeEventListener('timeupdate', handleTimeUpdate);
+                }
+            };
+
+            this.previewPlayer.addEventListener('timeupdate', handleTimeUpdate);
+        }
+    }
+    // New method to initialize video preview
+    initializeVideoPreview() {
+        this.previewPlayer = document.getElementById('previewPlayer');
+        if (!this.previewPlayer) return;
+
+        // Enable hardware acceleration
+        this.previewPlayer.setAttribute('webkit-playsinline', 'true');
+        this.previewPlayer.setAttribute('playsinline', 'true');
+
+        // Advanced buffering strategy
+        this.previewPlayer.preload = 'metadata';
+        this.bufferManager = new VideoBufferManager(this.previewPlayer);
+
+        this.previewPlayer.addEventListener('loadeddata', () => {
+            this.videoDuration = this.previewPlayer.duration;
+            this.updateTimelineDuration();
+            this.initializeViralScoreOverlay();
+        });
+
+        // Real-time playback monitoring
+        this.previewPlayer.addEventListener('timeupdate', () => {
+            this.updateViralScoreInRealTime();
+            this.updateEngagementMetrics();
+        });
+
+        // Quality adaptation
+        this.previewPlayer.addEventListener('loadstart', () => {
+            this.adaptPreviewQuality();
+        });
+    }
+
+    initializeViralScoreOverlay() {
+        const overlay = document.createElement('div');
+        overlay.className = 'viral-score-overlay';
+        overlay.innerHTML = `
+            <div class="live-viral-score">
+                <span class="score-label">Live Viral Score</span>
+                <span class="score-value" id="liveViralScore">--</span>
+                <div class="score-trend" id="scoreTrend"></div>
+            </div>
+            <div class="engagement-meter">
+                <div class="meter-bar" id="engagementBar"></div>
+                <span class="meter-label">Engagement Intensity</span>
+            </div>
+            <div class="platform-indicators">
+                <div class="platform-score tiktok" data-platform="tiktok">
+                    <span class="platform-icon">🎵</span>
+                    <span class="platform-score-value">--</span>
+                </div>
+                <div class="platform-score instagram" data-platform="instagram">
+                    <span class="platform-icon">📷</span>
+                    <span class="platform-score-value">--</span>
+                </div>
+                <div class="platform-score youtube" data-platform="youtube">
+                    <span class="platform-icon">📺</span>
+                    <span class="platform-score-value">--</span>
+                </div>
+            </div>
+        `;
+
+        this.previewPlayer.parentElement.appendChild(overlay);
+        this.viralScoreOverlay = overlay;
+    }
+
+    updateViralScoreInRealTime() {
+        if (!this.currentViralData || !this.previewPlayer) return;
+
+        const currentTime = this.previewPlayer.currentTime;
+        const currentSegment = this.findSegmentAtTime(currentTime);
+
+        if (currentSegment) {
+            // Update live viral score
+            const liveScore = document.getElementById('liveViralScore');
+            if (liveScore) {
+                liveScore.textContent = Math.round(currentSegment.viral_score);
+                liveScore.className = `score-value ${this.getScoreClass(currentSegment.viral_score)}`;
+            }
+
+            // Update trend indicator
+            const trendElement = document.getElementById('scoreTrend');
+            if (trendElement) {
+                const trend = this.calculateScoreTrend(currentTime);
+                trendElement.textContent = trend.direction > 0 ? '📈' : trend.direction < 0 ? '📉' : '➡️';
+                trendElement.title = `Trend: ${trend.direction > 0 ? 'Improving' : trend.direction < 0 ? 'Declining' : 'Stable'}`;
+            }
+
+            // Update engagement meter
+            this.updateEngagementMeter(currentSegment.hotspot_intensity);
+
+            // Update platform scores
+            this.updatePlatformScores(currentSegment.recommended_for_platforms);
+        }
+    }
+
+    updateEngagementMeter(intensity) {
+        const meterBar = document.getElementById('engagementBar');
+        if (meterBar) {
+            const percentage = Math.round(intensity * 100);
+            meterBar.style.width = `${percentage}%`;
+            meterBar.style.background = `linear-gradient(90deg, 
+                ${percentage > 70 ? '#ff4444' : percentage > 40 ? '#ffaa00' : '#4CAF50'} 0%, 
+                ${percentage > 70 ? '#ff6666' : percentage > 40 ? '#ffcc44' : '#66BB6A'} 100%
+            )`;
+        }
+    }
+
+    updatePlatformScores(recommendedPlatforms) {
+        const platformElements = document.querySelectorAll('.platform-score');
+        platformElements.forEach(element => {
+            const platform = element.dataset.platform;
+            const scoreElement = element.querySelector('.platform-score-value');
+
+            if (recommendedPlatforms.includes(platform)) {
+                const score = Math.round(75 + Math.random() * 20); // Mock dynamic scoring
+                scoreElement.textContent = score;
+                element.classList.add('recommended');
+            } else {
+                const score = Math.round(40 + Math.random() * 30);
+                scoreElement.textContent = score;
+                element.classList.remove('recommended');
+            }
+        });
+    }
+
+    findSegmentAtTime(currentTime) {
+        if (!this.currentViralData || !this.currentViralData.segments) return null;
+
+        return this.currentViralData.segments.find(segment => 
+            currentTime >= segment.start_time && currentTime <= segment.end_time
+        );
+    }
+
+    calculateScoreTrend(currentTime) {
+        const windowSize = 5; // 5 second window
+        const segments = this.currentViralData?.segments || [];
+
+        const currentSegment = this.findSegmentAtTime(currentTime);
+        const previousSegment = this.findSegmentAtTime(Math.max(0, currentTime - windowSize));
+
+        if (currentSegment && previousSegment) {
+            const direction = currentSegment.viral_score - previousSegment.viral_score;
+            return { direction, magnitude: Math.abs(direction) };
+        }
+
+        return { direction: 0, magnitude: 0 };
+    }
+
+    getScoreClass(score) {
+        if (score >= 80) return 'excellent';
+        if (score >= 60) return 'good';
+        if (score >= 40) return 'average';
+        return 'needs-improvement';
+    }
+
+    adaptPreviewQuality() {
+        // Adapt preview quality based on connection and device capabilities
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+        if (connection) {
+            const effectiveType = connection.effectiveType;
+
+            if (effectiveType === '4g' || effectiveType === '3g') {
+                this.previewPlayer.setAttribute('data-quality', 'high');
+            } else {
+                this.previewPlayer.setAttribute('data-quality', 'adaptive');
+            }
+        }
+    }
+
+    showBufferingIndicator() {
+        const indicator = document.createElement('div');
+        indicator.className = 'buffering-indicator';
+        indicator.innerHTML = `
+            <div class="spinner"></div>
+            <span>Optimizing preview...</span>
+        `;
+        this.previewPlayer.parentElement.appendChild(indicator);
+    }
+
+    hideBufferingIndicator() {
+        const indicator = document.querySelector('.buffering-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+
+    updatePreviewQuality() {
+        // Auto-adjust preview quality based on performance
+        const performanceNow = performance.now();
+        if (this.lastQualityCheck) {
+            const timeDiff = performanceNow - this.lastQualityCheck;
+            if (timeDiff > 100) { // Slow performance detected
+                this.previewPlayer.setAttribute('data-quality', 'performance');
+            }
+        }
+        this.lastQualityCheck = performanceNow;
+    }
+
+    // The following functions have been added to address "Real-time clip preview"
+
+    updateViralScoreOverlay(sessionData) {
+        // Example function to update viral score overlay (replace with your logic)
+        if (sessionData && sessionData.viral_score) {
+            const viralScoreElement = document.getElementById('viralScore');
+            if (viralScoreElement) {
+                viralScoreElement.textContent = `Viral Score: ${sessionData.viral_score}`;
+            }
+        }
+    }
+
+    updateEngagementMetrics() {
+        // Example function to update engagement metrics (replace with your logic)
+        const engagementRate = Math.random() * 100; // Simulate engagement rate
+        const engagementRateElement = document.getElementById('engagementRate');
+
+        if (engagementRateElement) {
+            engagementRateElement.textContent = `Engagement: ${engagementRate.toFixed(2)}%`;
+        }
+    }
 }
 
+// ================================
+// Video Buffer Manager
+// ================================
+class VideoBufferManager {
+    constructor(videoElement) {
+        this.video = videoElement;
+        this.bufferThreshold = 5; // Seconds
+        this.checkInterval = 1000; // Milliseconds
+
+        this.video.addEventListener('timeupdate', this.checkBuffer.bind(this));
+    }
+
+    checkBuffer() {
+        const buffered = this.video.buffered;
+        if (buffered.length === 0) return;
+
+        const currentTime = this.video.currentTime;
+        const bufferEnd = buffered.end(buffered.length - 1);
+        const timeUntilEnd = bufferEnd - currentTime;
+
+        if (timeUntilEnd < this.bufferThreshold) {
+            this.loadMoreData();
+        }
+    }
+
+    loadMoreData() {
+        // You could trigger an event or call a function to fetch more video data
+        console.log("Requesting more video data...");
+    }
+}
 // ================================
 // Touch Handler for Mobile
 // ================================
@@ -2155,7 +2539,7 @@ class TouchHandler {
             e.preventDefault();
             this.touchStartTime = Date.now();
             element.style.transform = 'scale(0.98)';
-            
+
             if (navigator.vibrate) {
                 navigator.vibrate(50);
             }
@@ -2164,7 +2548,7 @@ class TouchHandler {
         element.addEventListener('touchend', (e) => {
             e.preventDefault();
             element.style.transform = 'scale(1)';
-            
+
             const touchDuration = Date.now() - this.touchStartTime;
             if (touchDuration < 500) {
                 setTimeout(clickHandler, 100);
@@ -2184,24 +2568,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Initialize the Netflix-level upload system
         const uploadManager = new NetflixLevelUploadManager();
         const ui = new NetflixUploadUI(uploadManager);
-        
+
         // Start the system
         await uploadManager.initialize();
         await ui.initialize();
-        
+
+        // Initialize video preview
+        ui.initializeVideoPreview();
+
         // Store global reference
         uploadSystem = { manager: uploadManager, ui };
-        
+
         console.log('🚀 Netflix-Level Upload System v7.0 initialized successfully');
-        
+
         // Add system to window for debugging
         if (typeof window !== 'undefined') {
             window.uploadSystem = uploadSystem;
         }
-        
+
     } catch (error) {
         console.error('❌ Failed to initialize upload system:', error);
-        
+
         // Show fallback UI
         document.body.innerHTML = `
             <div class="error-fallback">
