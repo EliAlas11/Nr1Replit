@@ -123,6 +123,8 @@ class PerformanceSettings(BaseSettings):
     connection_timeout: int = Field(default=60, ge=5, description="Connection timeout")
     read_timeout: int = Field(default=300, ge=30, description="Read timeout")
     worker_processes: int = Field(default=4, ge=1, le=32, description="Worker processes")
+    async_pool_size: int = Field(default=100, ge=10, le=1000, description="Async pool size")
+    cache_max_entries: int = Field(default=10000, ge=1000, description="Max cache entries")
 
     class Config:
         env_prefix = "PERFORMANCE_"
@@ -145,12 +147,14 @@ class Settings(BaseSettings):
     static_path: str = Field(default="./static", description="Static files directory")
     log_path: str = Field(default="./logs", description="Log files directory")
 
-    # Feature flags
+    # Feature flags for performance optimization
     enable_analytics: bool = Field(default=True, description="Enable analytics")
     enable_collaboration: bool = Field(default=True, description="Enable collaboration")
     enable_realtime: bool = Field(default=True, description="Enable real-time features")
     enable_ai_processing: bool = Field(default=True, description="Enable AI processing")
     enable_social_publishing: bool = Field(default=True, description="Enable social publishing")
+    enable_caching: bool = Field(default=True, description="Enable caching")
+    enable_compression: bool = Field(default=True, description="Enable compression")
 
     # Sub-configurations
     security: SecuritySettings = Field(default_factory=SecuritySettings)
@@ -208,6 +212,16 @@ class Settings(BaseSettings):
             "path": self.log_path
         }
 
+    def get_performance_config(self) -> Dict[str, Any]:
+        """Get performance configuration"""
+        return {
+            "async_pool_size": self.performance.async_pool_size,
+            "cache_max_entries": self.performance.cache_max_entries,
+            "worker_processes": self.performance.worker_processes,
+            "enable_compression": self.enable_compression,
+            "enable_caching": self.enable_caching
+        }
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
@@ -215,7 +229,7 @@ class Settings(BaseSettings):
         validate_assignment = True
 
 
-# Global settings instance
+# Global settings instance with environment-specific optimizations
 settings = Settings()
 
 # Environment-specific optimizations
@@ -225,11 +239,13 @@ if settings.is_production():
     settings.security.cors_origins = settings.get_cors_origins()
     settings.cache.default_ttl = 7200
     settings.performance.worker_processes = 4
+    settings.performance.async_pool_size = 200
 elif settings.is_development():
     settings.debug = True
     settings.monitoring.log_level = LogLevel.DEBUG
     settings.security.cors_origins = ["*"]
     settings.performance.worker_processes = 1
+    settings.performance.async_pool_size = 50
 
 # Logging configuration
 logging.basicConfig(

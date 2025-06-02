@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v10.0 - NETFLIX ENTERPRISE EDITION
 Ultra-optimized production-ready application with enterprise-grade architecture
@@ -7,12 +6,10 @@ Ultra-optimized production-ready application with enterprise-grade architecture
 import asyncio
 import logging
 import time
-import uuid
 import gc
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-import weakref
 
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
@@ -28,10 +25,10 @@ import psutil
 
 # Core configuration and logging
 from .config import settings
-from .logging_config import setup_logging, set_correlation_id
+from .logging_config import setup_logging
 from .schemas import VideoRequest, AnalysisResponse, ErrorResponse
 
-# Enterprise services - Dependency injection pattern
+# Service dependencies
 from .services.dependency_container import DependencyContainer
 from .services.analytics_engine import NetflixLevelAnalyticsEngine
 from .services.realtime_engine import NetflixLevelRealtimeEngine
@@ -42,36 +39,93 @@ from .services.captions_service import NetflixLevelCaptionService
 from .services.batch_processor import NetflixLevelBatchProcessor
 from .services.ai_intelligence_engine import NetflixLevelAIIntelligenceEngine
 
-# Enterprise middleware stack
+# Middleware
 from .middleware.security import NetflixLevelSecurityMiddleware
 from .middleware.performance import NetflixLevelPerformanceMiddleware
 from .middleware.error_handler import NetflixLevelErrorHandler
 
-# Enterprise utilities
+# Utilities
 from .utils.enterprise_optimizer import EnterpriseOptimizer
 from .utils.performance_monitor import NetflixLevelPerformanceMonitor
 from .utils.cache import EnterpriseCache
 
-# Initialize logging
 logger = setup_logging()
 
-# Service container for dependency injection
-service_container = DependencyContainer()
+class ServiceManager:
+    """Centralized service management with dependency injection"""
 
-# Initialize core services with lazy loading
-analytics_engine = None
-realtime_engine = None
-template_service = None
-viral_optimizer = None
-collaboration_engine = None
-caption_service = None
-batch_processor = None
-ai_intelligence_engine = None
-performance_monitor = None
-enterprise_optimizer = None
-enterprise_cache = None
+    def __init__(self):
+        self.services = {}
+        self.initialized = False
 
-# Health check status
+    async def initialize_all(self):
+        """Initialize all services concurrently"""
+        if self.initialized:
+            return
+
+        try:
+            # Core services
+            self.services.update({
+                'container': DependencyContainer(),
+                'analytics': NetflixLevelAnalyticsEngine(),
+                'realtime': NetflixLevelRealtimeEngine(),
+                'templates': NetflixLevelTemplateService(),
+                'viral_optimizer': NetflixLevelViralOptimizer(),
+                'collaboration': NetflixLevelCollaborationEngine(),
+                'captions': NetflixLevelCaptionService(),
+                'batch_processor': NetflixLevelBatchProcessor(),
+                'ai_intelligence': NetflixLevelAIIntelligenceEngine(),
+                'performance_monitor': NetflixLevelPerformanceMonitor(),
+                'enterprise_optimizer': EnterpriseOptimizer(),
+                'cache': EnterpriseCache()
+            })
+
+            # Initialize services concurrently
+            init_tasks = [
+                self.services['container'].initialize_all_services(),
+                self.services['analytics'].enterprise_warm_up(),
+                self.services['realtime'].enterprise_warm_up(),
+                self.services['collaboration'].enterprise_warm_up(),
+                self.services['templates'].initialize_enterprise_features(),
+                self.services['viral_optimizer'].warm_up_ml_models(),
+                self.services['captions'].initialize_ai_models(),
+                self.services['batch_processor'].initialize_distributed_processing(),
+                self.services['ai_intelligence'].enterprise_warm_up(),
+                self.services['performance_monitor'].start_monitoring(),
+                self.services['cache'].initialize_cache_clusters(),
+                self.services['enterprise_optimizer'].optimize_system_performance()
+            ]
+
+            results = await asyncio.gather(*init_tasks, return_exceptions=True)
+
+            success_count = sum(1 for r in results if not isinstance(r, Exception))
+            logger.info(f"✅ Services initialized: {success_count}/{len(results)}")
+
+            self.initialized = True
+
+        except Exception as e:
+            logger.error(f"Service initialization failed: {e}", exc_info=True)
+            raise
+
+    async def shutdown_all(self):
+        """Gracefully shutdown all services"""
+        shutdown_tasks = []
+
+        for service_name, service in self.services.items():
+            if hasattr(service, 'graceful_shutdown'):
+                shutdown_tasks.append(service.graceful_shutdown())
+
+        await asyncio.gather(*shutdown_tasks, return_exceptions=True)
+        logger.info("✅ All services shutdown completed")
+
+    def get_service(self, name: str):
+        """Get service by name"""
+        return self.services.get(name)
+
+# Global service manager
+service_manager = ServiceManager()
+
+# Health tracking
 app_health = {
     "status": "starting",
     "startup_time": None,
@@ -79,74 +133,30 @@ app_health = {
     "performance_metrics": {}
 }
 
-
-async def initialize_services():
-    """Initialize services with proper dependency injection"""
-    global analytics_engine, realtime_engine, template_service, viral_optimizer
-    global collaboration_engine, caption_service, batch_processor, ai_intelligence_engine
-    global performance_monitor, enterprise_optimizer, enterprise_cache
-    
-    analytics_engine = NetflixLevelAnalyticsEngine()
-    realtime_engine = NetflixLevelRealtimeEngine()
-    template_service = NetflixLevelTemplateService()
-    viral_optimizer = NetflixLevelViralOptimizer()
-    collaboration_engine = NetflixLevelCollaborationEngine()
-    caption_service = NetflixLevelCaptionService()
-    batch_processor = NetflixLevelBatchProcessor()
-    ai_intelligence_engine = NetflixLevelAIIntelligenceEngine()
-    performance_monitor = NetflixLevelPerformanceMonitor()
-    enterprise_optimizer = EnterpriseOptimizer()
-    enterprise_cache = EnterpriseCache()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Netflix-grade application lifespan with optimized startup and shutdown"""
+    """Netflix-grade application lifespan management"""
     startup_start = time.time()
     logger.info("🚀 Starting ViralClip Pro v10.0 - NETFLIX ENTERPRISE EDITION")
 
     try:
-        # Phase 1: System optimization
+        # System optimization
         gc.set_threshold(700, 10, 10)
         gc.collect()
 
-        # Phase 2: Initialize services
-        await initialize_services()
-        
-        # Phase 3: Initialize services concurrently
-        initialization_tasks = [
-            service_container.initialize_all_services(),
-            analytics_engine.enterprise_warm_up(),
-            realtime_engine.enterprise_warm_up(),
-            collaboration_engine.enterprise_warm_up(),
-            template_service.initialize_enterprise_features(),
-            viral_optimizer.warm_up_ml_models(),
-            caption_service.initialize_ai_models(),
-            batch_processor.initialize_distributed_processing(),
-            ai_intelligence_engine.enterprise_warm_up(),
-            performance_monitor.start_monitoring(),
-            enterprise_cache.initialize_cache_clusters(),
-            enterprise_optimizer.optimize_system_performance()
-        ]
+        # Initialize services
+        await service_manager.initialize_all()
 
-        results = await asyncio.gather(*initialization_tasks, return_exceptions=True)
-
-        # Log initialization results
-        success_count = sum(1 for r in results if not isinstance(r, Exception))
-        logger.info(f"✅ Services initialized: {success_count}/{len(results)}")
-
-        # Phase 4: Start background monitoring
-        monitoring_tasks = [
+        # Start background tasks
+        background_tasks = [
             asyncio.create_task(_continuous_health_monitoring()),
             asyncio.create_task(_performance_optimization_loop()),
-            asyncio.create_task(_memory_management_loop()),
-            asyncio.create_task(_security_monitoring_loop())
+            asyncio.create_task(_memory_management_loop())
         ]
 
-        app.state.background_tasks = monitoring_tasks
+        app.state.background_tasks = background_tasks
         app.state.startup_time = time.time() - startup_start
 
-        # Update health status
         app_health.update({
             "status": "healthy",
             "startup_time": app.state.startup_time,
@@ -170,26 +180,11 @@ async def lifespan(app: FastAPI):
                     task.cancel()
 
         # Shutdown services
-        shutdown_tasks = []
-        if analytics_engine:
-            shutdown_tasks.append(analytics_engine.graceful_shutdown())
-        if realtime_engine:
-            shutdown_tasks.append(realtime_engine.graceful_shutdown())
-        if collaboration_engine:
-            shutdown_tasks.append(collaboration_engine.graceful_shutdown())
-        if ai_intelligence_engine:
-            shutdown_tasks.append(ai_intelligence_engine.graceful_shutdown())
-        if performance_monitor:
-            shutdown_tasks.append(performance_monitor.stop_monitoring())
-        if enterprise_cache:
-            shutdown_tasks.append(enterprise_cache.shutdown_cache_clusters())
-
-        await asyncio.gather(*shutdown_tasks, return_exceptions=True)
+        await service_manager.shutdown_all()
         logger.info("✅ Graceful shutdown completed")
 
-
 async def _continuous_health_monitoring():
-    """Continuous health monitoring with automatic recovery"""
+    """Continuous health monitoring with auto-recovery"""
     while True:
         try:
             await asyncio.sleep(30)
@@ -202,25 +197,27 @@ async def _continuous_health_monitoring():
 
             # Auto-recovery for degraded performance
             if health_metrics.get("cpu_usage", 0) > 85:
-                await enterprise_optimizer.optimize_system_performance()
+                optimizer = service_manager.get_service('enterprise_optimizer')
+                if optimizer:
+                    await optimizer.optimize_system_performance()
 
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"Health monitoring error: {e}")
 
-
 async def _performance_optimization_loop():
     """Continuous performance optimization"""
     while True:
         try:
             await asyncio.sleep(120)
-            await enterprise_optimizer.optimize_system_performance()
+            optimizer = service_manager.get_service('enterprise_optimizer')
+            if optimizer:
+                await optimizer.optimize_system_performance()
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"Performance optimization error: {e}")
-
 
 async def _memory_management_loop():
     """Intelligent memory management"""
@@ -232,26 +229,15 @@ async def _memory_management_loop():
             if memory_percent > 80:
                 logger.info("🧹 Triggering memory optimization...")
                 gc.collect()
-                await enterprise_cache.optimize_cache_performance()
+
+                cache = service_manager.get_service('cache')
+                if cache:
+                    await cache.optimize_cache_performance()
 
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"Memory management error: {e}")
-
-
-async def _security_monitoring_loop():
-    """Continuous security monitoring"""
-    while True:
-        try:
-            await asyncio.sleep(60)
-            # Security monitoring implementation
-            pass
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Security monitoring error: {e}")
-
 
 async def _collect_health_metrics() -> Dict[str, Any]:
     """Collect comprehensive health metrics"""
@@ -268,12 +254,16 @@ async def _collect_health_metrics() -> Dict[str, Any]:
             "response_time_avg": 150
         }
 
-        if realtime_engine:
-            metrics["active_connections"] = len(getattr(realtime_engine, 'connections', {}))
-        
-        if enterprise_cache:
-            metrics["cache_hit_rate"] = await enterprise_cache.get_hit_rate()
-        
+        # Get real-time metrics from services
+        realtime_service = service_manager.get_service('realtime')
+        if realtime_service:
+            metrics["active_connections"] = len(getattr(realtime_service, 'connections', {}))
+
+        cache_service = service_manager.get_service('cache')
+        if cache_service:
+            metrics["cache_hit_rate"] = await cache_service.get_hit_rate()
+
+        performance_monitor = service_manager.get_service('performance_monitor')
         if performance_monitor:
             metrics["response_time_avg"] = await performance_monitor.get_avg_response_time()
 
@@ -282,8 +272,7 @@ async def _collect_health_metrics() -> Dict[str, Any]:
         logger.error(f"Health metrics collection failed: {e}")
         return {}
 
-
-# Create FastAPI application with enterprise configuration
+# Create FastAPI application
 app = FastAPI(
     title="ViralClip Pro v10.0 - Netflix Enterprise Edition",
     description="Production-ready AI video platform with enterprise architecture",
@@ -294,7 +283,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json" if settings.debug else None
 )
 
-# Enterprise middleware stack - Optimized order
+# Middleware stack (order matters for performance)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"] if settings.debug else ["*.replit.app", "*.replit.dev"])
 app.add_middleware(NetflixLevelSecurityMiddleware)
 app.add_middleware(NetflixLevelPerformanceMiddleware)
@@ -310,17 +299,15 @@ app.add_middleware(
     max_age=86400
 )
 
-# Static file serving
+# Static files
 app.mount("/static", StaticFiles(directory="nr1copilot/nr1-main/static"), name="static")
 app.mount("/public", StaticFiles(directory="nr1copilot/nr1-main/public"), name="public")
 
-
-# Core API Routes
+# API Routes
 @app.get("/")
 async def root():
     """Root endpoint serving main application"""
     return FileResponse("nr1copilot/nr1-main/index.html")
-
 
 @app.get("/api/v10/health")
 async def health_check():
@@ -335,10 +322,10 @@ async def health_check():
             "version": "10.0.0",
             "metrics": health_metrics,
             "services": {
-                "analytics": "healthy",
-                "realtime": "healthy",
-                "collaboration": "healthy",
-                "ai_processing": "healthy"
+                "analytics": "healthy" if service_manager.get_service('analytics') else "unavailable",
+                "realtime": "healthy" if service_manager.get_service('realtime') else "unavailable",
+                "collaboration": "healthy" if service_manager.get_service('collaboration') else "unavailable",
+                "ai_processing": "healthy" if service_manager.get_service('ai_intelligence') else "unavailable"
             },
             "performance_grade": "A+",
             "netflix_compliance": True
@@ -346,7 +333,6 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail="Health check failed")
-
 
 @app.post("/api/v10/video/analyze")
 async def analyze_video(
@@ -357,16 +343,19 @@ async def analyze_video(
     """Enterprise video analysis with comprehensive insights"""
     try:
         request_start = time.time()
-
-        # Parse options
         analysis_options = json.loads(options) if options else {}
+
+        # Get services
+        analytics = service_manager.get_service('analytics')
+        viral_optimizer = service_manager.get_service('viral_optimizer')
+        captions = service_manager.get_service('captions')
 
         # Parallel analysis execution
         tasks = []
-        
-        if analytics_engine:
-            tasks.append(analytics_engine.analyze_video_comprehensive(file, session_id, True))
-        
+
+        if analytics:
+            tasks.append(analytics.analyze_video_comprehensive(file, session_id, True))
+
         if viral_optimizer:
             tasks.append(viral_optimizer.optimize_content_for_virality(
                 {"file": file}, 
@@ -374,8 +363,8 @@ async def analyze_video(
                 {}
             ))
 
-        if caption_service and analysis_options.get("generate_captions", True):
-            tasks.append(caption_service.generate_captions_realtime_streaming(
+        if captions and analysis_options.get("generate_captions", True):
+            tasks.append(captions.generate_captions_realtime_streaming(
                 file, session_id, analysis_options.get("language", "en")
             ))
 
@@ -402,7 +391,6 @@ async def analyze_video(
         logger.error(f"Video analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/api/v10/templates")
 async def get_templates(
     category: Optional[str] = None,
@@ -418,10 +406,8 @@ async def get_templates(
             "user_tier": "enterprise"
         }
 
-        if template_service:
-            templates = await template_service.get_template_library_advanced(filters)
-        else:
-            templates = []
+        template_service = service_manager.get_service('templates')
+        templates = await template_service.get_template_library_advanced(filters) if template_service else []
 
         return {
             "success": True,
@@ -434,15 +420,12 @@ async def get_templates(
         logger.error(f"Template retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/api/v10/analytics/dashboard")
 async def get_analytics_dashboard():
     """Comprehensive analytics dashboard"""
     try:
-        if analytics_engine:
-            dashboard_data = await analytics_engine.get_comprehensive_dashboard()
-        else:
-            dashboard_data = {"status": "initializing"}
+        analytics = service_manager.get_service('analytics')
+        dashboard_data = await analytics.get_comprehensive_dashboard() if analytics else {"status": "initializing"}
 
         return {
             "success": True,
@@ -455,7 +438,6 @@ async def get_analytics_dashboard():
         logger.error(f"Dashboard retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # AI Intelligence & Automation endpoints
 @app.get("/ai-intelligence")
 async def ai_intelligence_hub():
@@ -467,6 +449,7 @@ async def ai_intelligence_hub():
 async def train_custom_model(request: dict):
     """Train custom AI model for brand"""
     try:
+        ai_intelligence_engine = service_manager.get_service('ai_intelligence')
         if not ai_intelligence_engine:
             raise HTTPException(status_code=503, detail="AI Intelligence Engine not available")
             
@@ -486,6 +469,7 @@ async def train_custom_model(request: dict):
 async def generate_predictive_content(request: dict):
     """Generate predictive viral content"""
     try:
+        ai_intelligence_engine = service_manager.get_service('ai_intelligence')
         if not ai_intelligence_engine:
             raise HTTPException(status_code=503, detail="AI Intelligence Engine not available")
             
@@ -521,6 +505,7 @@ async def collaboration_hub():
 async def create_workspace(request: dict):
     """Create new team workspace"""
     try:
+        collaboration_engine = service_manager.get_service('collaboration')
         if not collaboration_engine:
             raise HTTPException(status_code=503, detail="Collaboration Engine not available")
             
@@ -548,6 +533,7 @@ async def collaboration_websocket(
     await websocket.accept()
 
     try:
+        collaboration_engine = service_manager.get_service('collaboration')
         if not collaboration_engine:
             await websocket.close(code=1003, reason="Collaboration Engine not available")
             return
@@ -590,6 +576,7 @@ async def collaboration_websocket(
 async def submit_batch_job(job_data: dict, priority: str = "normal"):
     """Submit batch processing job"""
     try:
+        batch_processor = service_manager.get_service('batch_processor')
         if not batch_processor:
             raise HTTPException(status_code=503, detail="Batch Processor not available")
             
