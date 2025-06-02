@@ -70,19 +70,28 @@ class NetflixGradeSettings:
 
         # Component configurations
         self.database = DatabaseConfig(
-            url=os.getenv("DATABASE_URL", "sqlite:///./viralclip.db")
+            url=os.getenv("DATABASE_URL", "sqlite:///./viralclip.db"),
+            pool_size=int(os.getenv("DB_POOL_SIZE", "20")),
+            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "30"))
         )
 
         self.redis = RedisConfig(
             url=os.getenv("REDIS_URL"),
-            ttl=int(os.getenv("CACHE_TTL", "3600"))
+            ttl=int(os.getenv("CACHE_TTL", "3600")),
+            max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", "100"))
         )
 
         self.security = SecurityConfig(
-            secret_key=os.getenv("SECRET_KEY", self._generate_secret_key())
+            secret_key=os.getenv("SECRET_KEY", self._generate_secret_key()),
+            access_token_expire_minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
         )
 
-        self.performance = PerformanceConfig()
+        self.performance = PerformanceConfig(
+            max_upload_size=int(os.getenv("MAX_UPLOAD_SIZE", str(500 * 1024 * 1024))),
+            request_timeout=int(os.getenv("REQUEST_TIMEOUT", "300")),
+            worker_processes=int(os.getenv("WORKER_PROCESSES", "1")),
+            max_connections=int(os.getenv("MAX_CONNECTIONS", "1000"))
+        )
 
         # Feature flags
         self.features = {

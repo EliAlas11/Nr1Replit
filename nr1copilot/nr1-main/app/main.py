@@ -12,13 +12,13 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import traceback
 
 # Core FastAPI imports
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -34,6 +34,7 @@ from .middleware.error_handler import ErrorHandlerMiddleware
 from .utils.health import HealthMonitor
 from .utils.metrics import MetricsCollector
 from .utils.performance_monitor import PerformanceMonitor
+from .utils.cache import cache
 
 # Initialize settings
 settings = get_settings()
@@ -206,6 +207,19 @@ async def lifespan(app: FastAPI):
 
         logger.info(f"🎯 Netflix-tier startup completed in {startup_time:.3f}s")
         logger.info(f"📊 Services initialized: {len(service_manager.services)}")
+
+        # Perform startup validation
+        try:
+            from .startup_validator import StartupValidator
+            validator = StartupValidator()
+            validation_result = await validator.perform_complete_validation()
+            
+            if validation_result["validation_status"] != "PASSED":
+                logger.warning(f"Startup validation: {validation_result['validation_status']}")
+                if validation_result.get("critical_errors"):
+                    logger.error(f"Critical errors: {validation_result['critical_errors']}")
+        except Exception as e:
+            logger.warning(f"Startup validation failed: {e}")
 
         yield
 
@@ -455,6 +469,58 @@ async def get_performance():
 
     except Exception as e:
         logger.error(f"Performance query failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """Netflix-grade cache statistics endpoint"""
+    try:
+        cache_stats = cache.get_stats()
+        app_state.metrics.increment('cache.stats_query')
+        
+        return JSONResponse({
+            "cache_statistics": cache_stats,
+            "timestamp": datetime.utcnow().isoformat(),
+            "netflix_tier": "Enterprise AAA+"
+        })
+        
+    except Exception as e:
+        logger.error(f"Cache stats query failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/cache/clear")
+async def clear_cache():
+    """Clear application cache"""
+    try:
+        await cache.clear()
+        app_state.metrics.increment('cache.cleared')
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Cache cleared successfully",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Cache clear failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.get("/system/diagnostics")
+async def get_system_diagnostics():
+    """Netflix-grade system diagnostics endpoint"""
+    try:
+        from .netflix_health_monitor import health_monitor
+        
+        diagnostics = await health_monitor.get_detailed_diagnostics()
+        
+        return JSONResponse({
+            "diagnostics": diagnostics,
+            "netflix_tier": "Enterprise AAA+",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"System diagnostics failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 async def _get_performance_recommendations(performance_data: Dict[str, Any]) -> List[str]:
