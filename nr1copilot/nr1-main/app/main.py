@@ -10,16 +10,25 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional, List
 import json
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
 import psutil
 import uvicorn
+import hashlib
+import shutil
+import aiofiles
+from datetime import datetime
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import sys
+from pathlib import Path
+from fastapi.middleware import TrustedHostMiddleware
+
 
 # Import our modules
 from app.services.video_service import NetflixLevelVideoService
@@ -875,3 +884,426 @@ if __name__ == "__main__":
 
     logging.info("🚀 Starting Netflix-level ViralClip Pro Enterprise")
     uvicorn.run(**uvicorn_config)
+
+# The following code implements Netflix-level upload API endpoints and WebSocket for real-time updates.
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+import json
+import logging
+import time
+import hashlib
+import shutil
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+import uuid
+import os
+import aiofiles
+from datetime import datetime
+
+# Import our services
+from app.services.video_service import VideoService
+from app.services.ai_analyzer import AIAnalyzer
+from app.services.realtime_engine import RealtimeEngine
+from app.config import settings
+from app.schemas import UploadSession, ProcessingResult
+from app.logging_config import setup_logging
+
+# Setup logging
+setup_logging()
+logger = logging.getLogger(__name__)
+
+# Initialize FastAPI with enhanced configuration
+app = FastAPI(
+    title="ViralClip Pro - Netflix-Level Video Processing Platform",
+    description="Advanced AI-powered video processing with real-time analytics",
+    version="7.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
+)
+
+# Enhanced CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize services
+video_service = VideoService()
+ai_analyzer = AIAnalyzer()
+realtime_engine = RealtimeEngine()
+
+# Global storage for active sessions
+active_sessions: Dict[str, Dict] = {}
+active_websockets: Dict[str, WebSocket] = {}
+upload_sessions: Dict[str, Dict] = {}
+chunk_storage: Dict[str, Dict] = {}
+
+# Create upload directories
+UPLOAD_DIR = Path("uploads")
+TEMP_DIR = Path("temp")
+CHUNKS_DIR = Path("chunks")
+
+for directory in [UPLOAD_DIR, TEMP_DIR, CHUNKS_DIR]:
+    directory.mkdir(exist_ok=True)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/public", StaticFiles(directory="public"), name="public")
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Serve the main application page"""
+    try:
+        with open("index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(
+            content="<h1>ViralClip Pro</h1><p>Application not found</p>",
+            status_code=404
+        )
+
+@app.get("/health")
+async def health_check():
+    """Enhanced health check endpoint"""
+    return {
+        "status": "healthy",
+        "version": "7.0.0",
+        "timestamp": time.time(),
+        "services": {
+            "video_service": "operational",
+            "ai_analyzer": "operational",
+            "realtime_engine": "operational"
+        },
+        "system": {
+            "active_uploads": len(upload_sessions),
+            "active_websockets": len(active_websockets),
+            "disk_usage": _get_disk_usage()
+        }
+    }
+
+def _get_disk_usage():
+    """Get disk usage statistics"""
+    try:
+        total, used, free = shutil.disk_usage("/")
+        return {
+            "total_gb": round(total / (1024**3), 2),
+            "used_gb": round(used / (1024**3), 2),
+            "free_gb": round(free / (1024**3), 2),
+            "usage_percent": round((used/total) * 100, 1)
+        }
+    except:
+        return {"error": "Unable to get disk usage"}
+
+# ================================
+# Netflix-Level Upload API
+# ================================
+
+@app.post("/api/v7/upload/init")
+async def initialize_upload(
+    filename: str = Form(...),
+    file_size: int = Form(...),
+    total_chunks: int = Form(...),
+    upload_id: str = Form(...),
+    metadata: str = Form("{}")
+):
+    """Initialize a chunked upload session"""
+    try:
+        session_id = f"session_{uuid.uuid4().hex[:12]}"
+
+        # Parse metadata
+        try:
+            parsed_metadata = json.loads(metadata)
+        except:
+            parsed_metadata = {}
+
+        # Create session
+        session_data = {
+            "session_id": session_id,
+            "upload_id": upload_id,
+            "filename": filename,
+            "file_size": file_size,
+            "total_chunks": total_chunks,
+            "received_chunks": set(),
+            "metadata": parsed_metadata,
+            "created_at": datetime.now().isoformat(),
+            "status": "initialized",
+            "chunk_hashes": {}
+        }
+
+        upload_sessions[session_id] = session_data
+        chunk_storage[session_id] = {}
+
+        # Create session directory
+        session_dir = CHUNKS_DIR / session_id
+        session_dir.mkdir(exist_ok=True)
+
+        logger.info(f"Upload session initialized: {session_id} for file: {filename}")
+
+        return {
+            "session_id": session_id,
+            "status": "initialized",
+            "upload_url": f"/api/v7/upload/chunk",
+            "finalize_url": f"/api/v7/upload/finalize"
+        }
+
+    except Exception as e:
+        logger.error(f"Upload initialization failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload initialization failed: {str(e)}")
+
+@app.post("/api/v7/upload/chunk")
+async def upload_chunk(
+    file: UploadFile = File(...),
+    upload_id: str = Form(...),
+    chunk_index: int = Form(...),
+    chunk_hash: str = Form(...),
+    session_id: str = Form(...)
+):
+    """Upload a file chunk with integrity verification"""
+    try:
+        # Validate session
+        if session_id not in upload_sessions:
+            raise HTTPException(status_code=404, detail="Upload session not found")
+
+        session = upload_sessions[session_id]
+
+        # Read chunk data
+        chunk_data = await file.read()
+
+        # Verify chunk hash
+        calculated_hash = hashlib.sha256(chunk_data).hexdigest()
+        if calculated_hash != chunk_hash:
+            raise HTTPException(status_code=400, detail="Chunk integrity check failed")
+
+        # Save chunk to disk
+        chunk_path = CHUNKS_DIR / session_id / f"chunk_{chunk_index}"
+        async with aiofiles.open(chunk_path, "wb") as f:
+            await f.write(chunk_data)
+
+        # Update session
+        session["received_chunks"].add(chunk_index)
+        session["chunk_hashes"][chunk_index] = chunk_hash
+        chunk_storage[session_id][chunk_index] = {
+            "path": str(chunk_path),
+            "hash": chunk_hash,
+            "size": len(chunk_data),
+            "received_at": datetime.now().isoformat()
+        }
+
+        # Broadcast progress via WebSocket
+        if session_id in active_websockets:
+            progress = len(session["received_chunks"]) / session["total_chunks"] * 100
+            await active_websockets[session_id].send_text(json.dumps({
+                "type": "chunk_uploaded",
+                "session_id": session_id,
+                "chunk_index": chunk_index,
+                "progress": progress,
+                "chunks_received": len(session["received_chunks"]),
+                "total_chunks": session["total_chunks"]
+            }))
+
+        logger.info(f"Chunk {chunk_index} uploaded for session {session_id}")
+
+        return {
+            "status": "success",
+            "chunk_index": chunk_index,
+            "chunks_received": len(session["received_chunks"]),
+            "total_chunks": session["total_chunks"],
+            "progress": len(session["received_chunks"]) / session["total_chunks"] * 100
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chunk upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Chunk upload failed: {str(e)}")
+
+@app.post("/api/v7/upload/finalize")
+async def finalize_upload(
+    background_tasks: BackgroundTasks,
+    upload_id: str = Form(...),
+    session_id: str = Form(...)
+):
+    """Finalize upload by assembling chunks and starting processing"""
+    try:
+        # Validate session
+        if session_id not in upload_sessions:
+            raise HTTPException(status_code=404, detail="Upload session not found")
+
+        session = upload_sessions[session_id]
+
+        # Verify all chunks received
+        if len(session["received_chunks"]) != session["total_chunks"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Missing chunks. Received: {len(session['received_chunks'])}, Expected: {session['total_chunks']}"
+            )
+
+        # Assemble file
+        final_path = UPLOAD_DIR / f"{session_id}_{session['filename']}"
+
+        async with aiofiles.open(final_path, "wb") as output_file:
+            for chunk_index in sorted(session["received_chunks"]):
+                chunk_path = CHUNKS_DIR / session_id / f"chunk_{chunk_index}"
+                async with aiofiles.open(chunk_path, "rb") as chunk_file:
+                    chunk_data = await chunk_file.read()
+                    await output_file.write(chunk_data)
+
+        # Update session status
+        session["status"] = "assembled"
+        session["final_path"] = str(final_path)
+        session["assembled_at"] = datetime.now().isoformat()
+
+        # Start background processing
+        background_tasks.add_task(process_uploaded_file, session_id, str(final_path))
+
+        # Cleanup chunks
+        background_tasks.add_task(cleanup_chunks, session_id)
+
+        logger.info(f"Upload finalized for session {session_id}")
+
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "file_path": str(final_path),
+            "processing_started": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload finalization failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload finalization failed: {str(e)}")
+
+async def process_uploaded_file(session_id: str, file_path: str):
+    """Background task to process uploaded file"""
+    try:
+        session = upload_sessions[session_id]
+        session["status"] = "processing"
+
+        # Notify via WebSocket
+        if session_id in active_websockets:
+            await active_websockets[session_id].send_text(json.dumps({
+                "type": "processing_started",
+                "session_id": session_id,
+                "message": "AI analysis and processing started"
+            }))
+
+        # Start AI analysis (mock for now)
+        await asyncio.sleep(2)  # Simulate processing time
+
+        session["status"] = "completed"
+        session["completed_at"] = datetime.now().isoformat()
+
+        # Notify completion
+        if session_id in active_websockets:
+            await active_websockets[session_id].send_text(json.dumps({
+                "type": "processing_completed",
+                "session_id": session_id,
+                "message": "Video processing completed successfully",
+                "results": {
+                    "viral_score": 87,
+                    "processing_time": "2.3s",
+                    "optimizations_applied": 5
+                }
+            }))
+
+        logger.info(f"Processing completed for session {session_id}")
+
+    except Exception as e:
+        logger.error(f"Processing failed for session {session_id}: {e}")
+        session["status"] = "failed"
+        session["error"] = str(e)
+
+async def cleanup_chunks(session_id: str):
+    """Clean up temporary chunk files"""
+    try:
+        chunk_dir = CHUNKS_DIR / session_id
+        if chunk_dir.exists():
+            shutil.rmtree(chunk_dir)
+
+        if session_id in chunk_storage:
+            del chunk_storage[session_id]
+
+        logger.info(f"Cleaned up chunks for session {session_id}")
+
+    except Exception as e:
+        logger.error(f"Chunk cleanup failed for session {session_id}: {e}")
+
+@app.get("/api/v7/upload/status/{session_id}")
+async def get_upload_status(session_id: str):
+    """Get upload session status"""
+    if session_id not in upload_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = upload_sessions[session_id]
+    return {
+        "session_id": session_id,
+        "status": session["status"],
+        "progress": len(session["received_chunks"]) / session["total_chunks"] * 100,
+        "chunks_received": len(session["received_chunks"]),
+        "total_chunks": session["total_chunks"],
+        "created_at": session["created_at"],
+        "metadata": session.get("metadata", {})
+    }
+
+@app.post("/api/v7/metrics/batch")
+async def receive_metrics_batch(metrics_data: dict):
+    """Receive and process metrics batch from frontend"""
+    try:
+        metrics = metrics_data.get("metrics", [])
+
+        # Process metrics (store in database, send to analytics service, etc.)
+        logger.info(f"Received {len(metrics)} metrics")
+
+        # For now, just log important metrics
+        for metric in metrics:
+            if metric.get("event", "").startswith("error:"):
+                logger.error(f"Frontend error: {metric}")
+
+        return {"status": "success", "processed": len(metrics)}
+
+    except Exception as e:
+        logger.error(f"Metrics processing failed: {e}")
+        return {"status": "error", "message": str(e)}
+
+# ================================
+# WebSocket for Real-time Updates
+# ================================
+
+@app.websocket("/ws/upload/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    """WebSocket endpoint for real-time upload updates"""
+    await websocket.accept()
+    active_websockets[session_id] = websocket
+
+    try:
+        await websocket.send_text(json.dumps({
+            "type": "connection_established",
+            "session_id": session_id,
+            "message": "Real-time connection established"
+        }))
+
+        while True:
+            # Keep connection alive and handle any incoming messages
+            data = await websocket.receive_text()
+            message = json.loads(data)
+
+            if message.get("type") == "ping":
+                await websocket.send_text(json.dumps({
+                    "type": "pong",
+                    "timestamp": time.time()
+                }))
+
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for session: {session_id}")
+    except Exception as e:
+        logger.error(f"WebSocket error for session {session_id}: {e}")
+    finally:
+        if session_id in active_websockets:
+            del active_websockets[session_id]

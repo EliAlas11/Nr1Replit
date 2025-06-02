@@ -1031,26 +1031,297 @@ body {
 }
 
 /* ================================
-   Touch Device Optimizations
+   Enhanced Touch Device Optimizations
    ================================ */
 .touch-device .upload-btn {
   min-height: 48px;
   min-width: 48px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .touch-device .item-btn {
   min-width: 44px;
   min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .touch-device .control-btn {
   min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .touch-device .upload-zone {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  touch-action: manipulation;
+}
+
+/* Touch feedback */
+.touch-device .upload-btn:active,
+.touch-device .item-btn:active,
+.touch-device .control-btn:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
+
+/* Improved touch targets */
+@media (max-width: 768px) {
+  .upload-btn,
+  .item-btn,
+  .control-btn {
+    padding: var(--space-md) var(--space-lg);
+  }
+  
+  .chunk-indicator {
+    width: 12px;
+    height: 12px;
+    margin: 1px;
+  }
+  
+  .progress-bar {
+    height: 16px;
+  }
+}
+
+/* ================================
+   Performance Indicators
+   ================================ */
+.performance-indicator {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono);
+  font-size: 0.75rem;
+  z-index: var(--z-notification);
+  display: none;
+}
+
+.performance-indicator.visible {
+  display: block;
+}
+
+.performance-indicator .metric {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.performance-indicator .metric:last-child {
+  margin-bottom: 0;
+}
+
+.performance-indicator .value {
+  font-weight: bold;
+}
+
+.performance-indicator .value.excellent {
+  color: var(--upload-success);
+}
+
+.performance-indicator .value.good {
+  color: var(--upload-info);
+}
+
+.performance-indicator .value.poor {
+  color: var(--upload-warning);
+}
+
+.performance-indicator .value.critical {
+  color: var(--upload-error);
+}
+
+/* ================================
+   Connection Status
+   ================================ */
+.connection-status {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: 0.8rem;
+  z-index: var(--z-notification);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  transition: all var(--transition-normal);
+  backdrop-filter: blur(10px);
+}
+
+.connection-status.connected {
+  background: rgba(76, 175, 80, 0.9);
+}
+
+.connection-status.disconnected {
+  background: rgba(244, 67, 54, 0.9);
+  animation: connectionPulse 1s infinite;
+}
+
+.connection-status.reconnecting {
+  background: rgba(255, 152, 0, 0.9);
+}
+
+@keyframes connectionPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.connection-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ================================
+   Advanced Error States
+   ================================ */
+.upload-item.error {
+  border-color: var(--upload-error);
+  background: rgba(244, 67, 54, 0.1);
+}
+
+.upload-item.retry {
+  border-color: var(--upload-warning);
+  background: rgba(255, 152, 0, 0.1);
+  animation: retryPulse 2s infinite;
+}
+
+@keyframes retryPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.error-details {
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  margin-top: var(--space-sm);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.error-type {
+  font-weight: 600;
+  color: var(--upload-error);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+}
+
+.retry-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: var(--space-xs);
+}
+
+/* ================================
+   Real-time Status Indicators
+   ================================ */
+.realtime-indicator {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--upload-success);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.realtime-indicator.active {
+  opacity: 1;
+  animation: realtimePulse 2s infinite;
+}
+
+.realtime-indicator.disconnected {
+  background: var(--upload-error);
+  animation: none;
+}
+
+@keyframes realtimePulse {
+  0%, 100% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+  50% { 
+    transform: scale(1.2); 
+    opacity: 0.7; 
+  }
+}
+
+/* ================================
+   Enhanced Mobile Responsiveness
+   ================================ */
+@media (max-width: 768px) and (orientation: portrait) {
+  .netflix-upload-container {
+    padding: var(--space-sm);
+  }
+  
+  .upload-zone {
+    min-height: 250px;
+    padding: var(--space-xl);
+  }
+  
+  .performance-metrics {
+    display: none; /* Hide on small screens to save space */
+  }
+  
+  .upload-manager {
+    padding: var(--space-md);
+  }
+  
+  .item-header {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+  
+  .item-thumbnail {
+    width: 100%;
+    height: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .upload-title {
+    font-size: 1.5rem;
+    margin-bottom: var(--space-md);
+  }
+  
+  .zone-actions {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+  
+  .upload-btn {
+    width: 100%;
+  }
+  
+  .manager-controls {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+  
+  .control-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ================================

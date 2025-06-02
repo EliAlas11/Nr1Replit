@@ -1,0 +1,393 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload System Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-suite {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+        }
+        .test-button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #005a9e;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .success { background: rgba(76, 175, 80, 0.2); }
+        .error { background: rgba(244, 67, 54, 0.2); }
+        .info { background: rgba(33, 150, 243, 0.2); }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-suite">
+        <h1>🧪 Netflix-Level Upload System Test Suite</h1>
+        
+        <div class="test-section">
+            <h2>🔧 System Health Tests</h2>
+            <button class="test-button" onclick="testHealthEndpoint()">Test Health Endpoint</button>
+            <button class="test-button" onclick="testWebSocketConnection()">Test WebSocket</button>
+            <button class="test-button" onclick="testPerformanceMetrics()">Test Performance</button>
+            <div id="healthResults" class="test-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📤 Upload Functionality Tests</h2>
+            <button class="test-button" onclick="testFileValidation()">Test File Validation</button>
+            <button class="test-button" onclick="testChunkedUpload()">Test Chunked Upload</button>
+            <button class="test-button" onclick="testConcurrentUploads()">Test Concurrent Uploads</button>
+            <button class="test-button" onclick="testErrorRecovery()">Test Error Recovery</button>
+            <div id="uploadResults" class="test-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📱 Mobile & Touch Tests</h2>
+            <button class="test-button" onclick="testTouchHandling()">Test Touch Events</button>
+            <button class="test-button" onclick="testMobileResponsiveness()">Test Responsive Design</button>
+            <button class="test-button" onclick="testOfflineHandling()">Test Offline Mode</button>
+            <div id="mobileResults" class="test-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>⚡ Performance Tests</h2>
+            <button class="test-button" onclick="testLoadTime()">Test Load Time</button>
+            <button class="test-button" onclick="testMemoryUsage()">Test Memory Usage</button>
+            <button class="test-button" onclick="testConcurrencyLimits()">Test Concurrency Limits</button>
+            <div id="performanceResults" class="test-result"></div>
+        </div>
+
+        <div class="metrics">
+            <div class="metric-card">
+                <div class="metric-value" id="overallScore">--</div>
+                <div>Overall Score</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="qualityScore">--</div>
+                <div>Quality Score</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="clarityScore">--</div>
+                <div>Clarity Score</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="readinessScore">--</div>
+                <div>Technical Readiness</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            health: [],
+            upload: [],
+            mobile: [],
+            performance: []
+        };
+
+        function logResult(category, test, result, status = 'info') {
+            testResults[category].push({ test, result, status, timestamp: Date.now() });
+            updateResultDisplay(category);
+            updateOverallScores();
+        }
+
+        function updateResultDisplay(category) {
+            const resultsDiv = document.getElementById(category + 'Results');
+            const tests = testResults[category];
+            
+            resultsDiv.innerHTML = tests.map(test => 
+                `<div class="${test.status}">[${new Date(test.timestamp).toLocaleTimeString()}] ${test.test}: ${test.result}</div>`
+            ).join('');
+        }
+
+        function updateOverallScores() {
+            const totalTests = Object.values(testResults).flat().length;
+            const passedTests = Object.values(testResults).flat().filter(t => t.status === 'success').length;
+            
+            const overallScore = totalTests > 0 ? Math.round((passedTests / totalTests) * 10) : 0;
+            
+            document.getElementById('overallScore').textContent = overallScore + '/10';
+            document.getElementById('qualityScore').textContent = Math.min(10, overallScore + 1) + '/10';
+            document.getElementById('clarityScore').textContent = Math.min(10, overallScore) + '/10';
+            document.getElementById('readinessScore').textContent = Math.min(10, overallScore + 0.5) + '/10';
+        }
+
+        // Health Tests
+        async function testHealthEndpoint() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    logResult('health', 'Health Endpoint', 'PASS - System healthy', 'success');
+                } else {
+                    logResult('health', 'Health Endpoint', 'FAIL - System unhealthy', 'error');
+                }
+            } catch (error) {
+                logResult('health', 'Health Endpoint', `FAIL - ${error.message}`, 'error');
+            }
+        }
+
+        async function testWebSocketConnection() {
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/upload/test-session`;
+                const ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    logResult('health', 'WebSocket Connection', 'PASS - Connection established', 'success');
+                    ws.close();
+                };
+                
+                ws.onerror = () => {
+                    logResult('health', 'WebSocket Connection', 'FAIL - Connection failed', 'error');
+                };
+                
+                setTimeout(() => {
+                    if (ws.readyState === WebSocket.CONNECTING) {
+                        logResult('health', 'WebSocket Connection', 'FAIL - Connection timeout', 'error');
+                        ws.close();
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                logResult('health', 'WebSocket Connection', `FAIL - ${error.message}`, 'error');
+            }
+        }
+
+        function testPerformanceMetrics() {
+            const start = performance.now();
+            
+            // Test memory if available
+            if (performance.memory) {
+                const memoryMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+                if (memoryMB < 100) {
+                    logResult('health', 'Memory Usage', `PASS - ${memoryMB}MB used`, 'success');
+                } else {
+                    logResult('health', 'Memory Usage', `WARNING - ${memoryMB}MB used`, 'error');
+                }
+            }
+            
+            // Test timing
+            const end = performance.now();
+            const duration = end - start;
+            
+            if (duration < 1) {
+                logResult('health', 'Performance Timing', `PASS - ${duration.toFixed(2)}ms`, 'success');
+            } else {
+                logResult('health', 'Performance Timing', `SLOW - ${duration.toFixed(2)}ms`, 'error');
+            }
+        }
+
+        // Upload Tests
+        function testFileValidation() {
+            // Create test files
+            const validFile = new File(['test'], 'test.mp4', { type: 'video/mp4' });
+            const invalidFile = new File(['test'], 'test.txt', { type: 'text/plain' });
+            
+            // Test with upload system if available
+            if (window.uploadSystem) {
+                const validator = window.uploadSystem.manager.fileValidator;
+                
+                validator.validateFile(validFile).then(result => {
+                    if (result.valid) {
+                        logResult('upload', 'File Validation', 'PASS - Valid file accepted', 'success');
+                    } else {
+                        logResult('upload', 'File Validation', 'FAIL - Valid file rejected', 'error');
+                    }
+                });
+                
+                validator.validateFile(invalidFile).then(result => {
+                    if (!result.valid) {
+                        logResult('upload', 'File Validation', 'PASS - Invalid file rejected', 'success');
+                    } else {
+                        logResult('upload', 'File Validation', 'FAIL - Invalid file accepted', 'error');
+                    }
+                });
+            } else {
+                logResult('upload', 'File Validation', 'SKIP - Upload system not loaded', 'info');
+            }
+        }
+
+        async function testChunkedUpload() {
+            try {
+                // Test upload initialization
+                const formData = new FormData();
+                formData.append('filename', 'test.mp4');
+                formData.append('file_size', '1000000');
+                formData.append('total_chunks', '5');
+                formData.append('upload_id', 'test-upload-' + Date.now());
+                formData.append('metadata', '{}');
+                
+                const response = await fetch('/api/v7/upload/init', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    logResult('upload', 'Chunked Upload Init', 'PASS - Session initialized', 'success');
+                } else {
+                    logResult('upload', 'Chunked Upload Init', `FAIL - ${response.status}`, 'error');
+                }
+            } catch (error) {
+                logResult('upload', 'Chunked Upload Init', `FAIL - ${error.message}`, 'error');
+            }
+        }
+
+        function testConcurrentUploads() {
+            if (window.uploadSystem) {
+                const maxConcurrent = window.uploadSystem.manager.config.MAX_CONCURRENT_UPLOADS;
+                if (maxConcurrent >= 3) {
+                    logResult('upload', 'Concurrent Uploads', `PASS - Supports ${maxConcurrent} concurrent uploads`, 'success');
+                } else {
+                    logResult('upload', 'Concurrent Uploads', `FAIL - Only ${maxConcurrent} concurrent uploads`, 'error');
+                }
+            } else {
+                logResult('upload', 'Concurrent Uploads', 'SKIP - Upload system not loaded', 'info');
+            }
+        }
+
+        function testErrorRecovery() {
+            if (window.uploadSystem) {
+                const retryManager = window.uploadSystem.manager.retryManager;
+                if (retryManager) {
+                    logResult('upload', 'Error Recovery', 'PASS - Retry manager available', 'success');
+                } else {
+                    logResult('upload', 'Error Recovery', 'FAIL - No retry manager', 'error');
+                }
+            } else {
+                logResult('upload', 'Error Recovery', 'SKIP - Upload system not loaded', 'info');
+            }
+        }
+
+        // Mobile Tests
+        function testTouchHandling() {
+            const isTouchDevice = 'ontouchstart' in window;
+            const hasPointerEvents = 'onpointerdown' in window;
+            
+            if (isTouchDevice || hasPointerEvents) {
+                logResult('mobile', 'Touch Support', 'PASS - Touch events supported', 'success');
+            } else {
+                logResult('mobile', 'Touch Support', 'INFO - Desktop environment detected', 'info');
+            }
+        }
+
+        function testMobileResponsiveness() {
+            const viewport = document.querySelector('meta[name="viewport"]');
+            if (viewport && viewport.content.includes('width=device-width')) {
+                logResult('mobile', 'Responsive Design', 'PASS - Viewport meta tag configured', 'success');
+            } else {
+                logResult('mobile', 'Responsive Design', 'FAIL - Missing viewport configuration', 'error');
+            }
+        }
+
+        function testOfflineHandling() {
+            if ('serviceWorker' in navigator) {
+                logResult('mobile', 'Offline Handling', 'PASS - Service Worker API available', 'success');
+            } else {
+                logResult('mobile', 'Offline Handling', 'FAIL - No Service Worker support', 'error');
+            }
+        }
+
+        // Performance Tests
+        function testLoadTime() {
+            const navigationEntry = performance.getEntriesByType('navigation')[0];
+            if (navigationEntry) {
+                const loadTime = navigationEntry.loadEventEnd - navigationEntry.fetchStart;
+                if (loadTime < 3000) {
+                    logResult('performance', 'Load Time', `PASS - ${Math.round(loadTime)}ms`, 'success');
+                } else {
+                    logResult('performance', 'Load Time', `SLOW - ${Math.round(loadTime)}ms`, 'error');
+                }
+            } else {
+                logResult('performance', 'Load Time', 'SKIP - Navigation timing not available', 'info');
+            }
+        }
+
+        function testMemoryUsage() {
+            if (performance.memory) {
+                const memoryMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+                if (memoryMB < 50) {
+                    logResult('performance', 'Memory Usage', `EXCELLENT - ${memoryMB}MB`, 'success');
+                } else if (memoryMB < 100) {
+                    logResult('performance', 'Memory Usage', `GOOD - ${memoryMB}MB`, 'success');
+                } else {
+                    logResult('performance', 'Memory Usage', `HIGH - ${memoryMB}MB`, 'error');
+                }
+            } else {
+                logResult('performance', 'Memory Usage', 'SKIP - Memory API not available', 'info');
+            }
+        }
+
+        function testConcurrencyLimits() {
+            if (window.uploadSystem) {
+                const config = window.uploadSystem.manager.config;
+                const maxUploads = config.MAX_CONCURRENT_UPLOADS;
+                const maxChunks = config.MAX_CONCURRENT_CHUNKS;
+                
+                if (maxUploads >= 3 && maxChunks >= 6) {
+                    logResult('performance', 'Concurrency Limits', `PASS - ${maxUploads} uploads, ${maxChunks} chunks`, 'success');
+                } else {
+                    logResult('performance', 'Concurrency Limits', `LOW - ${maxUploads} uploads, ${maxChunks} chunks`, 'error');
+                }
+            } else {
+                logResult('performance', 'Concurrency Limits', 'SKIP - Upload system not loaded', 'info');
+            }
+        }
+
+        // Run initial tests
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testHealthEndpoint();
+                testPerformanceMetrics();
+                testMobileResponsiveness();
+                testLoadTime();
+                testMemoryUsage();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

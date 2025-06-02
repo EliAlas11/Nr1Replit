@@ -859,26 +859,138 @@ class NetflixLevelUploadManager {
         const connection = await this.connectionPool.getConnection('upload');
         
         try {
+            const formData = new FormData();
+            formData.append('filename', uploadSession.file.name);
+            formData.append('file_size', uploadSession.file.size);
+            formData.append('total_chunks', uploadSession.totalChunks);
+            formData.append('upload_id', uploadSession.id);
+            formData.append('metadata', JSON.stringify(uploadSession.metadata));
+
             const response = await fetch('/api/v7/upload/init', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    filename: uploadSession.file.name,
-                    file_size: uploadSession.file.size,
-                    total_chunks: uploadSession.totalChunks,
-                    upload_id: uploadSession.id,
-                    metadata: uploadSession.metadata
-                })
+                body: formData
             });
 
             if (!response.ok) {
                 throw new Error(`Server session initialization failed: ${response.status}`);
             }
 
-            return await response.json();
+            const result = await response.json();
+            
+            // Initialize WebSocket connection for real-time updates
+            await this.initializeWebSocket(uploadSession, result.session_id);
+            
+            return result;
 
         } finally {
             connection.release();
+        }
+    }
+
+    async initializeWebSocket(uploadSession, sessionId) {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/upload/${sessionId}`;
+            
+            uploadSession.websocket = new WebSocket(wsUrl);
+            
+            uploadSession.websocket.onopen = () => {
+                console.log(`WebSocket connected for session: ${sessionId}`);
+                uploadSession.realtimeConnected = true;
+            };
+            
+            uploadSession.websocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                this.handleWebSocketMessage(uploadSession, data);
+            };
+            
+            uploadSession.websocket.onclose = () => {
+                console.log(`WebSocket closed for session: ${sessionId}`);
+                uploadSession.realtimeConnected = false;
+                // Attempt to reconnect after 3 seconds
+                setTimeout(() => this.reconnectWebSocket(uploadSession, sessionId), 3000);
+            };
+            
+            uploadSession.websocket.onerror = (error) => {
+                console.error(`WebSocket error for session ${sessionId}:`, error);
+                uploadSession.realtimeConnected = false;
+            };
+            
+            // Send periodic ping to keep connection alive
+            uploadSession.pingInterval = setInterval(() => {
+                if (uploadSession.websocket?.readyState === WebSocket.OPEN) {
+                    uploadSession.websocket.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000);
+            
+        } catch (error) {
+            console.error('WebSocket initialization failed:', error);
+        }
+    }
+
+    async reconnectWebSocket(uploadSession, sessionId) {
+        if (uploadSession.status === 'uploading' && !uploadSession.realtimeConnected) {
+            console.log('Attempting WebSocket reconnection...');
+            await this.initializeWebSocket(uploadSession, sessionId);
+        }
+    }
+
+    handleWebSocketMessage(uploadSession, data) {
+        switch (data.type) {
+            case 'connection_established':
+                console.log('Real-time connection established');
+                break;
+                
+            case 'chunk_uploaded':
+                this.handleRealtimeProgress(uploadSession, data);
+                break;
+                
+            case 'processing_started':
+                uploadSession.status = 'processing';
+                this.eventBus.emit('upload:processing', uploadSession);
+                break;
+                
+            case 'processing_completed':
+                uploadSession.status = 'completed';
+                uploadSession.results = data.results;
+                this.eventBus.emit('upload:completed', uploadSession);
+                this.cleanupUploadSession(uploadSession);
+                break;
+                
+            case 'pong':
+                // Connection is alive
+                break;
+                
+            default:
+                console.log('Unknown WebSocket message:', data);
+        }
+    }
+
+    handleRealtimeProgress(uploadSession, data) {
+        // Update progress from server confirmation
+        uploadSession.progress = data.progress;
+        uploadSession.lastActivity = Date.now();
+        
+        this.eventBus.emit('upload:realtime_progress', {
+            uploadId: uploadSession.id,
+            progress: data.progress,
+            chunksReceived: data.chunks_received,
+            totalChunks: data.total_chunks,
+            serverConfirmed: true
+        });
+    }
+
+    cleanupUploadSession(uploadSession) {
+        // Close WebSocket connection
+        if (uploadSession.websocket) {
+            uploadSession.websocket.close();
+            delete uploadSession.websocket;
+        }
+        
+        // Clear ping interval
+        if (uploadSession.pingInterval) {
+            clearInterval(uploadSession.pingInterval);
+            delete uploadSession.pingInterval;
         }
     }
 
@@ -1063,23 +1175,99 @@ class NetflixLevelUploadManager {
         uploadSession.errors.push({
             error: error.message,
             timestamp: Date.now(),
-            stack: error.stack
+            stack: error.stack,
+            errorType: this.classifyError(error),
+            retryable: this.isRetryableError(error)
         });
 
         this.metricsCollector.recordError(error, {
             uploadId: uploadSession.id,
-            filename: uploadSession.file.name
+            filename: uploadSession.file.name,
+            errorType: this.classifyError(error)
         });
 
-        if (uploadSession.retryCount < 3) {
+        // Intelligent retry logic based on error type
+        const errorType = this.classifyError(error);
+        const maxRetries = this.getMaxRetriesForError(errorType);
+        
+        if (uploadSession.retryCount < maxRetries && this.isRetryableError(error)) {
             uploadSession.retryCount++;
             uploadSession.status = 'queued';
-            this.uploadQueue.push(uploadSession);
-            await this.eventBus.emit('upload:retry', uploadSession);
+            
+            // Exponential backoff with jitter
+            const delay = this.calculateRetryDelay(uploadSession.retryCount, errorType);
+            
+            setTimeout(async () => {
+                this.uploadQueue.push(uploadSession);
+                await this.eventBus.emit('upload:retry', {
+                    ...uploadSession,
+                    retryReason: errorType,
+                    retryDelay: delay
+                });
+            }, delay);
+            
         } else {
             uploadSession.status = 'failed';
+            uploadSession.failureReason = errorType;
             await this.eventBus.emit('upload:failed', uploadSession);
+            this.cleanupUploadSession(uploadSession);
         }
+    }
+
+    classifyError(error) {
+        const message = error.message.toLowerCase();
+        
+        if (message.includes('network') || message.includes('fetch')) {
+            return 'network_error';
+        } else if (message.includes('timeout')) {
+            return 'timeout_error';
+        } else if (message.includes('server') || message.includes('500')) {
+            return 'server_error';
+        } else if (message.includes('permission') || message.includes('401') || message.includes('403')) {
+            return 'permission_error';
+        } else if (message.includes('storage') || message.includes('space')) {
+            return 'storage_error';
+        } else if (message.includes('validation') || message.includes('400')) {
+            return 'validation_error';
+        } else {
+            return 'unknown_error';
+        }
+    }
+
+    isRetryableError(error) {
+        const errorType = this.classifyError(error);
+        const retryableErrors = ['network_error', 'timeout_error', 'server_error', 'storage_error'];
+        return retryableErrors.includes(errorType);
+    }
+
+    getMaxRetriesForError(errorType) {
+        const retryConfig = {
+            'network_error': 5,
+            'timeout_error': 4,
+            'server_error': 3,
+            'storage_error': 2,
+            'permission_error': 1,
+            'validation_error': 0,
+            'unknown_error': 2
+        };
+        return retryConfig[errorType] || 2;
+    }
+
+    calculateRetryDelay(retryCount, errorType) {
+        const baseDelays = {
+            'network_error': 1000,
+            'timeout_error': 2000,
+            'server_error': 3000,
+            'storage_error': 5000,
+            'unknown_error': 2000
+        };
+        
+        const baseDelay = baseDelays[errorType] || 2000;
+        const exponentialDelay = Math.min(baseDelay * Math.pow(2, retryCount - 1), 30000);
+        
+        // Add jitter to prevent thundering herd
+        const jitter = Math.random() * 1000;
+        return exponentialDelay + jitter;
     }
 
     async handleChunkError(uploadSession, chunkIndex, error) {
@@ -1657,7 +1845,13 @@ class NetflixUploadUI {
         // Update UI every second
         setInterval(() => {
             this.updateGlobalMetrics();
+            this.updatePerformanceIndicator();
+            this.updateConnectionStatus();
         }, 1000);
+        
+        // Create performance indicator
+        this.createPerformanceIndicator();
+        this.createConnectionStatus();
     }
 
     updateGlobalMetrics() {
@@ -1667,6 +1861,153 @@ class NetflixUploadUI {
         const globalSpeed = this.getElement('globalSpeed');
         if (globalSpeed && status.metrics) {
             globalSpeed.textContent = this.formatSpeed(status.metrics.averageSpeed || 0);
+        }
+    }
+
+    createPerformanceIndicator() {
+        const indicator = this.createElement('div', {
+            className: 'performance-indicator',
+            id: 'performanceIndicator'
+        });
+        
+        indicator.innerHTML = `
+            <div class="metric">
+                <span>FPS:</span>
+                <span class="value" id="perfFPS">60</span>
+            </div>
+            <div class="metric">
+                <span>Memory:</span>
+                <span class="value" id="perfMemory">0MB</span>
+            </div>
+            <div class="metric">
+                <span>Network:</span>
+                <span class="value" id="perfNetwork">Online</span>
+            </div>
+            <div class="metric">
+                <span>Uploads:</span>
+                <span class="value" id="perfUploads">0</span>
+            </div>
+        `;
+        
+        document.body.appendChild(indicator);
+        
+        // Show/hide with Ctrl+Shift+P
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                indicator.classList.toggle('visible');
+            }
+        });
+    }
+
+    updatePerformanceIndicator() {
+        const indicator = document.getElementById('performanceIndicator');
+        if (!indicator || !indicator.classList.contains('visible')) return;
+        
+        // Update FPS
+        const fps = this.measureFPS();
+        const fpsElement = document.getElementById('perfFPS');
+        if (fpsElement) {
+            fpsElement.textContent = Math.round(fps);
+            fpsElement.className = `value ${this.getPerformanceClass(fps, 60, 45, 30)}`;
+        }
+        
+        // Update Memory
+        if (performance.memory) {
+            const memoryMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+            const memoryElement = document.getElementById('perfMemory');
+            if (memoryElement) {
+                memoryElement.textContent = `${memoryMB}MB`;
+                memoryElement.className = `value ${this.getPerformanceClass(memoryMB, 50, 100, 200, true)}`;
+            }
+        }
+        
+        // Update Network Status
+        const networkElement = document.getElementById('perfNetwork');
+        if (networkElement) {
+            const isOnline = navigator.onLine;
+            networkElement.textContent = isOnline ? 'Online' : 'Offline';
+            networkElement.className = `value ${isOnline ? 'excellent' : 'critical'}`;
+        }
+        
+        // Update Active Uploads
+        const uploadsElement = document.getElementById('perfUploads');
+        if (uploadsElement) {
+            const activeUploads = this.uploadManager.activeUploads.size;
+            uploadsElement.textContent = activeUploads.toString();
+            uploadsElement.className = `value ${this.getPerformanceClass(activeUploads, 0, 3, 8, true)}`;
+        }
+    }
+
+    measureFPS() {
+        if (!this.fpsCounter) {
+            this.fpsCounter = {
+                frames: 0,
+                lastTime: performance.now(),
+                fps: 60
+            };
+        }
+        
+        const now = performance.now();
+        this.fpsCounter.frames++;
+        
+        if (now >= this.fpsCounter.lastTime + 1000) {
+            this.fpsCounter.fps = Math.round((this.fpsCounter.frames * 1000) / (now - this.fpsCounter.lastTime));
+            this.fpsCounter.frames = 0;
+            this.fpsCounter.lastTime = now;
+        }
+        
+        requestAnimationFrame(() => this.measureFPS());
+        return this.fpsCounter.fps;
+    }
+
+    getPerformanceClass(value, excellent, good, poor, reverse = false) {
+        if (reverse) {
+            if (value <= excellent) return 'excellent';
+            if (value <= good) return 'good';
+            if (value <= poor) return 'poor';
+            return 'critical';
+        } else {
+            if (value >= excellent) return 'excellent';
+            if (value >= good) return 'good';
+            if (value >= poor) return 'poor';
+            return 'critical';
+        }
+    }
+
+    createConnectionStatus() {
+        const status = this.createElement('div', {
+            className: 'connection-status connected',
+            id: 'connectionStatus'
+        });
+        
+        status.innerHTML = `
+            <div class="connection-indicator"></div>
+            <span id="connectionText">Real-time Connected</span>
+        `;
+        
+        document.body.appendChild(status);
+    }
+
+    updateConnectionStatus() {
+        const status = document.getElementById('connectionStatus');
+        const text = document.getElementById('connectionText');
+        
+        if (!status || !text) return;
+        
+        const activeConnections = Object.keys(this.uploadManager.activeUploads).length;
+        const hasRealtimeConnection = Object.values(this.uploadManager.activeUploads).some(
+            upload => upload.realtimeConnected
+        );
+        
+        if (activeConnections === 0) {
+            status.className = 'connection-status connected';
+            text.textContent = 'Ready';
+        } else if (hasRealtimeConnection) {
+            status.className = 'connection-status connected';
+            text.textContent = `Real-time Active (${activeConnections})`;
+        } else {
+            status.className = 'connection-status disconnected';
+            text.textContent = 'Real-time Disconnected';
         }
     }
 
