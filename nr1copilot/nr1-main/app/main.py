@@ -41,6 +41,8 @@ from app.services.ultimate_perfection_engine import UltimatePerfectionEngine
 from app.services.enterprise_manager import EnterpriseManager
 from app.services.video_pipeline import NetflixLevelVideoPipeline
 from app.services.ffmpeg_processor import NetflixLevelFFmpegProcessor
+from app.routes import auth, enterprise, websocket
+from app.services.websocket_engine import websocket_engine
 
 # Application metadata
 APPLICATION_INFO = {
@@ -71,6 +73,9 @@ async def lifespan(app: FastAPI):
 
         # Initialize core services first (critical path)
         await services.initialize()
+
+        # Start WebSocket engine
+        await websocket_engine.start_engine()
 
         # Core services - initialize synchronously for reliability
         app.state.video_service = NetflixLevelVideoService()
@@ -214,6 +219,11 @@ app.add_middleware(SecurityMiddleware)
 
 # 6. Error handling (last middleware)
 app.add_middleware(ErrorHandlerMiddleware)
+
+# Include routers
+app.include_router(auth.router)
+app.include_router(enterprise.router)
+app.include_router(websocket.router)
 
 
 # Production health endpoints
@@ -450,6 +460,21 @@ def _generate_enterprise_html() -> str:
     </body>
     </html>
     """
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Handle application shutdown"""
+    try:
+        logger.info("🔄 Shutting down ViralClip Pro v10.0...")
+
+        # Shutdown WebSocket engine
+        await websocket_engine.graceful_shutdown()
+
+        # Cleanup code here
+
+        logger.info("✅ Shutdown complete")
+    except Exception as e:
+        logger.error(f"❌ Shutdown error: {e}")
 
 
 # Development server
