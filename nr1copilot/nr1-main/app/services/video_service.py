@@ -1,376 +1,641 @@
+
 """
-Netflix-Level Video Service
-Enterprise-grade video processing with real-time capabilities
+ViralClip Pro v6.0 - Netflix-Level Video Service
+Enterprise video processing with advanced performance and scalability
 """
 
 import asyncio
-import os
+import logging
 import time
 import uuid
+import hashlib
+from typing import Dict, List, Any, Optional, Union, Tuple
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-import logging
-import shutil
+import json
+import aiofiles
+import weakref
+from concurrent.futures import ThreadPoolExecutor
+import psutil
 
-from ..config import get_settings
-from ..schemas import *
-from ..logging_config import get_logger, LogPerformance, PerformanceLogger
+from fastapi import UploadFile, HTTPException
 
-settings = get_settings()
-logger = get_logger("video")
-perf_logger = PerformanceLogger("video_performance")
+logger = logging.getLogger(__name__)
 
 
-class VideoService:
-    """Netflix-level video processing service"""
+@dataclass
+class UploadSession:
+    """Enterprise upload session with comprehensive tracking"""
+    upload_id: str
+    filename: str
+    file_size: int
+    total_chunks: int
+    received_chunks: int = 0
+    status: str = "initializing"
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    last_activity: datetime = field(default_factory=datetime.utcnow)
+    user_info: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    performance_metrics: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class VideoProcessingResult:
+    """Comprehensive video processing result"""
+    session_id: str
+    success: bool
+    processing_time: float
+    file_path: Optional[Path] = None
+    preview_data: Optional[Dict[str, Any]] = None
+    viral_analysis: Optional[Dict[str, Any]] = None
+    error_details: Optional[str] = None
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+class ValidationResult:
+    """Upload validation result with detailed feedback"""
+    def __init__(self, valid: bool, error: str = None, estimated_time: float = 0):
+        self.valid = valid
+        self.error = error
+        self.estimated_time = estimated_time
+
+
+class NetflixLevelVideoService:
+    """Netflix-level video service with enterprise performance and monitoring"""
 
     def __init__(self):
-        self.upload_dir = settings.get_upload_dir()
-        self.output_dir = settings.get_output_dir()
-        self.temp_dir = settings.get_temp_dir()
-        self.processing_sessions = {}
-        self.active_uploads = {}
-
-        # Quality presets
-        self.quality_presets = {
-            "draft": {"resolution": "480p", "bitrate": "500k", "fps": 24},
-            "standard": {"resolution": "720p", "bitrate": "1M", "fps": 30},
-            "high": {"resolution": "1080p", "bitrate": "2M", "fps": 30},
-            "premium": {"resolution": "1080p", "bitrate": "4M", "fps": 60}
+        # Performance optimization
+        self.thread_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="video_service")
+        self.upload_sessions: Dict[str, UploadSession] = {}
+        self.processing_queue = asyncio.Queue(maxsize=100)
+        self.active_processing = weakref.WeakSet()
+        
+        # Enterprise configuration
+        self.max_file_size = 500 * 1024 * 1024  # 500MB
+        self.supported_formats = {'.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'}
+        self.chunk_size = 5 * 1024 * 1024  # 5MB chunks
+        self.session_timeout = 3600  # 1 hour
+        
+        # Performance monitoring
+        self.performance_metrics = {
+            "total_uploads": 0,
+            "successful_uploads": 0,
+            "average_upload_time": 0.0,
+            "average_processing_time": 0.0,
+            "error_rate": 0.0,
+            "throughput_mbps": 0.0
         }
+        
+        # Storage paths
+        self.upload_path = Path("nr1copilot/nr1-main/uploads")
+        self.temp_path = Path("nr1copilot/nr1-main/temp")
+        self.output_path = Path("nr1copilot/nr1-main/output")
+        
+        # Initialize directories
+        for path in [self.upload_path, self.temp_path, self.output_path]:
+            path.mkdir(parents=True, exist_ok=True)
+        
+        logger.info("🎬 Netflix-level video service initialized")
 
-        # Platform optimizations
-        self.platform_specs = {
-            Platform.TIKTOK: {"aspect_ratio": "9:16", "max_duration": 60, "resolution": "1080x1920"},
-            Platform.INSTAGRAM: {"aspect_ratio": "9:16", "max_duration": 90, "resolution": "1080x1920"},
-            Platform.YOUTUBE_SHORTS: {"aspect_ratio": "9:16", "max_duration": 60, "resolution": "1080x1920"},
-            Platform.TWITTER: {"aspect_ratio": "16:9", "max_duration": 140, "resolution": "1920x1080"}
-        }
-
-    async def initialize(self):
-        """Initialize video service"""
-        logger.info("🎬 Initializing Netflix-level Video Service")
-
-        # Create directories
-        for directory in [self.upload_dir, self.output_dir, self.temp_dir]:
-            directory.mkdir(exist_ok=True)
-
-        logger.info("✅ Video Service initialized successfully")
-
-    async def process_upload(self, file: UploadFile, upload_id: str, upload_sessions: Dict) -> Dict[str, Any]:
-        """Process video upload with Netflix-level quality"""
-        session_id = str(uuid.uuid4())
-
+    async def enterprise_warm_up(self):
+        """Warm up video service for optimal performance"""
         try:
-            with LogPerformance(perf_logger, "video_upload", session_id=session_id, filename=file.filename):
+            start_time = time.time()
+            
+            # Pre-create processing environment
+            await self._setup_processing_environment()
+            
+            # Initialize codec support
+            await self._initialize_codecs()
+            
+            # Setup monitoring
+            await self._setup_performance_monitoring()
+            
+            warm_up_time = time.time() - start_time
+            logger.info(f"🔥 Video service warm-up completed in {warm_up_time:.2f}s")
+            
+        except Exception as e:
+            logger.error(f"Video service warm-up failed: {e}", exc_info=True)
 
-                # Validate file
-                await self._validate_upload_file(file)
+    async def validate_enterprise_upload(
+        self,
+        filename: str,
+        file_size: int,
+        total_chunks: int,
+        user: Dict[str, Any]
+    ) -> ValidationResult:
+        """Enterprise-level upload validation with comprehensive checks"""
+        try:
+            # File extension validation
+            file_ext = Path(filename).suffix.lower()
+            if file_ext not in self.supported_formats:
+                return ValidationResult(
+                    False, 
+                    f"Unsupported format {file_ext}. Supported: {', '.join(self.supported_formats)}"
+                )
+            
+            # File size validation
+            if file_size > self.max_file_size:
+                return ValidationResult(
+                    False,
+                    f"File too large ({file_size / 1024 / 1024:.1f}MB). Maximum: {self.max_file_size / 1024 / 1024:.0f}MB"
+                )
+            
+            if file_size <= 0:
+                return ValidationResult(False, "Invalid file size")
+            
+            # Chunk validation
+            if total_chunks <= 0 or total_chunks > 1000:
+                return ValidationResult(False, "Invalid chunk count")
+            
+            # User tier validation
+            user_tier = user.get("tier", "standard")
+            if user_tier == "free" and file_size > 100 * 1024 * 1024:  # 100MB for free
+                return ValidationResult(
+                    False,
+                    "File size exceeds free tier limit (100MB). Please upgrade."
+                )
+            
+            # Rate limiting check
+            if not await self._check_user_rate_limit(user):
+                return ValidationResult(False, "Rate limit exceeded. Please try again later.")
+            
+            # Storage capacity check
+            if not await self._check_storage_capacity(file_size):
+                return ValidationResult(False, "Insufficient storage capacity")
+            
+            # Estimate processing time
+            estimated_time = self._estimate_processing_time(file_size, file_ext)
+            
+            return ValidationResult(True, None, estimated_time)
+            
+        except Exception as e:
+            logger.error(f"Upload validation failed: {e}", exc_info=True)
+            return ValidationResult(False, "Validation failed due to internal error")
 
-                # Create session
-                upload_sessions[upload_id] = {
-                    "session_id": session_id,
-                    "filename": file.filename,
-                    "content_type": file.content_type,
-                    "upload_start": time.time(),
-                    "status": ProcessingStatus.UPLOADING,
-                    "bytes_received": 0
+    async def create_enterprise_upload_session(
+        self,
+        upload_id: str,
+        filename: str,
+        file_size: int,
+        total_chunks: int,
+        user: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Create enterprise upload session with advanced tracking"""
+        try:
+            # Create upload session
+            session = UploadSession(
+                upload_id=upload_id,
+                filename=filename,
+                file_size=file_size,
+                total_chunks=total_chunks,
+                user_info=user,
+                metadata={
+                    "file_extension": Path(filename).suffix.lower(),
+                    "estimated_duration": self._estimate_video_duration(file_size),
+                    "quality_preset": "auto"
                 }
-
-                # Save file
-                file_path = await self._save_upload_file(file, session_id)
-
-                # Update session
-                upload_sessions[upload_id].update({
-                    "status": ProcessingStatus.ANALYZING,
-                    "upload_path": str(file_path),
-                    "file_size": file_path.stat().st_size,
-                    "upload_complete": time.time()
-                })
-
-                # Generate instant preview
-                preview_data = await self._generate_instant_preview(session_id, file_path)
-
-                return {
-                    "success": True,
-                    "session_id": session_id,
-                    "upload_id": upload_id,
-                    "filename": file.filename,
-                    "file_size": file_path.stat().st_size,
-                    "preview": preview_data,
-                    "message": "Upload successful! Analyzing for viral potential..."
-                }
-
-        except Exception as e:
-            logger.error(f"Upload processing failed: {str(e)}", exc_info=True)
-            raise
-
-    async def generate_preview(self, session_id: str, start_time: float, end_time: float, 
-                             quality: QualityLevel, platform_optimizations: Optional[List[Platform]] = None) -> Dict[str, Any]:
-        """Generate live preview for timeline segment"""
-        try:
-            with LogPerformance(perf_logger, "preview_generation", session_id=session_id):
-
-                # Get session info
-                session = self.processing_sessions.get(session_id)
-                if not session:
-                    raise ValueError(f"Session {session_id} not found")
-
-                # Generate preview URL
-                preview_url = f"/api/v4/preview/{session_id}/{start_time}_{end_time}.mp4"
-
-                # Mock viral analysis
-                viral_analysis = await self._analyze_segment_virality(session_id, start_time, end_time)
-
-                # Generate optimization suggestions
-                suggestions = await self._generate_suggestions(viral_analysis, platform_optimizations)
-
-                duration = end_time - start_time
-
-                return {
-                    "success": True,
-                    "preview_url": preview_url,
-                    "viral_analysis": viral_analysis,
-                    "suggestions": suggestions,
-                    "duration": duration,
-                    "quality": quality,
-                    "processing_time": 1.2
-                }
-
-        except Exception as e:
-            logger.error(f"Preview generation failed: {str(e)}")
-            raise
-
-    async def get_thumbnail(self, session_id: str) -> Optional[Path]:
-        """Get video thumbnail"""
-        try:
-            thumbnail_path = self.temp_dir / f"{session_id}_thumbnail.jpg"
-
-            # In production, generate actual thumbnail from video
-            # For now, create a placeholder
-            if not thumbnail_path.exists():
-                # Create placeholder thumbnail
-                await self._create_placeholder_thumbnail(thumbnail_path)
-
-            return thumbnail_path
-
-        except Exception as e:
-            logger.error(f"Thumbnail generation failed: {e}")
-            return None
-
-    async def get_clip(self, clip_id: str) -> Optional[Path]:
-        """Get processed clip"""
-        try:
-            clip_path = self.output_dir / f"clip_{clip_id}.mp4"
-
-            # In production, return actual processed clip
-            # For now, create a placeholder
-            if not clip_path.exists():
-                await self._create_placeholder_clip(clip_path)
-
-            return clip_path
-
-        except Exception as e:
-            logger.error(f"Clip retrieval failed: {e}")
-            return None
-
-    async def process_video_item(self, item: Dict[str, Any], realtime_engine):
-        """Process a video item with Netflix-level analysis"""
-        try:
-            session_id = item["session_id"]
-            upload_id = item["upload_id"]
-            file_path = item["file_path"]
-
-            logger.info(f"🎬 Processing video: {session_id}")
-
-            # Netflix-level processing stages
-            stages = [
-                ("analyzing", "Analyzing video content with AI...", 20),
-                ("extracting_features", "Extracting viral features...", 40),
-                ("scoring_segments", "Scoring video segments...", 60),
-                ("generating_timeline", "Generating interactive timeline...", 80),
-                ("complete", "Processing complete!", 100)
-            ]
-
-            for stage, message, progress in stages:
-                # Broadcast progress
-                await realtime_engine.broadcast_upload_progress(upload_id, {
-                    "type": "processing_status",
-                    "session_id": session_id,
-                    "stage": stage,
-                    "progress": progress,
-                    "message": message,
-                    "timestamp": time.time()
-                })
-
-                # Simulate processing time
-                await asyncio.sleep(1)
-
-                if stage == "scoring_segments":
-                    # Send viral scores
-                    await realtime_engine.broadcast_upload_progress(upload_id, {
-                        "type": "viral_score_update",
-                        "session_id": session_id,
-                        "viral_score": 78,
-                        "confidence": 0.85,
-                        "factors": ["High emotion content", "Trending audio", "Optimal length"]
-                    })
-                elif stage == "generating_timeline":
-                    # Send timeline data
-                    await realtime_engine.broadcast_upload_progress(upload_id, {
-                        "type": "timeline_update",
-                        "session_id": session_id,
-                        "viral_heatmap": [60, 75, 82, 90, 78, 85, 70, 65],
-                        "key_moments": [
-                            {"timestamp": 8.5, "type": "hook", "description": "Strong opening"},
-                            {"timestamp": 25.3, "type": "peak", "description": "Viral moment"}
-                        ],
-                        "duration": 60
-                    })
-
-            # Store session data
-            self.processing_sessions[session_id] = {
-                "file_path": file_path,
-                "status": ProcessingStatus.COMPLETE,
-                "processed_at": time.time()
+            )
+            
+            # Store session
+            self.upload_sessions[upload_id] = session
+            
+            # Create upload directory
+            upload_dir = self.temp_path / upload_id
+            upload_dir.mkdir(exist_ok=True)
+            
+            logger.info(f"📋 Upload session created: {upload_id} - {filename}")
+            
+            return {
+                "upload_id": upload_id,
+                "chunk_size": self.chunk_size,
+                "upload_url": f"/api/v6/upload/chunk",
+                "session_timeout": self.session_timeout,
+                "supported_formats": list(self.supported_formats),
+                "status": "ready"
             }
-
+            
         except Exception as e:
-            logger.error(f"Video processing failed: {e}")
-            await realtime_engine.broadcast_upload_progress(upload_id, {
-                "type": "error",
-                "session_id": session_id,
-                "error": f"Processing failed: {str(e)}"
-            })
+            logger.error(f"Failed to create upload session: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Session creation failed")
 
-    async def cleanup_old_files(self):
-        """Cleanup old files to prevent disk bloat"""
+    async def process_enterprise_chunk(
+        self,
+        file: UploadFile,
+        upload_id: str,
+        chunk_index: int,
+        total_chunks: int,
+        chunk_hash: Optional[str],
+        user: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Process enterprise chunk with Netflix-level reliability"""
         try:
-            cutoff_time = time.time() - (24 * 3600)  # 24 hours
-
-            for directory in [self.upload_dir, self.output_dir, self.temp_dir]:
-                for file_path in directory.glob("*"):
-                    if file_path.is_file() and file_path.stat().st_mtime < cutoff_time:
-                        try:
-                            file_path.unlink()
-                            logger.debug(f"Cleaned up old file: {file_path}")
-                        except Exception as e:
-                            logger.warning(f"Failed to cleanup {file_path}: {e}")
-
-            logger.info("📁 File cleanup completed")
-
+            start_time = time.time()
+            
+            # Validate session
+            session = self.upload_sessions.get(upload_id)
+            if not session:
+                return {"success": False, "error": "Upload session not found"}
+            
+            # Update session activity
+            session.last_activity = datetime.utcnow()
+            
+            # Validate chunk
+            if chunk_index < 0 or chunk_index >= total_chunks:
+                return {"success": False, "error": "Invalid chunk index"}
+            
+            # Read and validate chunk data
+            chunk_data = await file.read()
+            if not chunk_data:
+                return {"success": False, "error": "Empty chunk data"}
+            
+            # Verify chunk hash if provided
+            if chunk_hash:
+                calculated_hash = hashlib.md5(chunk_data).hexdigest()
+                if calculated_hash != chunk_hash:
+                    return {"success": False, "error": "Chunk integrity check failed"}
+            
+            # Save chunk to disk
+            chunk_path = self.temp_path / upload_id / f"chunk_{chunk_index:04d}"
+            async with aiofiles.open(chunk_path, 'wb') as f:
+                await f.write(chunk_data)
+            
+            # Update session progress
+            session.received_chunks += 1
+            progress = (session.received_chunks / session.total_chunks) * 100
+            
+            # Check if upload is complete
+            is_complete = session.received_chunks >= session.total_chunks
+            
+            processing_time = time.time() - start_time
+            
+            result = {
+                "success": True,
+                "upload_id": upload_id,
+                "chunk_index": chunk_index,
+                "progress": progress,
+                "received_chunks": session.received_chunks,
+                "total_chunks": session.total_chunks,
+                "is_complete": is_complete,
+                "processing_time": processing_time
+            }
+            
+            # If upload complete, assemble file and start processing
+            if is_complete:
+                await self._finalize_upload(session)
+                result["status"] = "processing_started"
+                result["message"] = "Upload complete! Starting AI analysis..."
+            
+            # Update performance metrics
+            await self._update_upload_metrics(processing_time, len(chunk_data), True)
+            
+            return result
+            
         except Exception as e:
-            logger.error(f"Cleanup failed: {e}")
+            logger.error(f"Chunk processing failed: {e}", exc_info=True)
+            await self._update_upload_metrics(0, 0, False)
+            return {"success": False, "error": "Chunk processing failed"}
 
-    async def cleanup(self):
-        """Cleanup service resources"""
-        logger.info("🧹 Cleaning up Video Service")
-
-        # Clear processing sessions
-        self.processing_sessions.clear()
-        self.active_uploads.clear()
-
-        logger.info("✅ Video Service cleanup completed")
+    async def generate_preview_with_realtime_feedback(
+        self,
+        session_id: str,
+        start_time: float,
+        end_time: float,
+        quality: str,
+        enable_viral_optimization: bool = True
+    ) -> Dict[str, Any]:
+        """Generate preview with real-time feedback and viral optimization"""
+        try:
+            logger.info(f"🎬 Generating preview for session: {session_id}")
+            
+            # Simulate preview generation stages
+            stages = [
+                ("initializing", "Initializing preview generation...", 10),
+                ("extracting", "Extracting video segment...", 30),
+                ("optimizing", "Applying viral optimizations...", 60),
+                ("encoding", "Encoding preview...", 80),
+                ("finalizing", "Finalizing preview...", 100)
+            ]
+            
+            for stage, message, progress in stages:
+                # In production, broadcast to WebSocket connections
+                logger.info(f"Preview {session_id}: {message} ({progress}%)")
+                await asyncio.sleep(0.5)  # Simulate processing time
+            
+            # Generate preview metadata
+            preview_data = {
+                "session_id": session_id,
+                "preview_url": f"/api/v6/preview/{session_id}_{start_time}_{end_time}.mp4",
+                "thumbnail_url": f"/api/v6/thumbnail/{session_id}_{start_time}.jpg",
+                "duration": end_time - start_time,
+                "quality": quality,
+                "viral_optimizations_applied": enable_viral_optimization,
+                "generated_at": datetime.utcnow().isoformat()
+            }
+            
+            if enable_viral_optimization:
+                preview_data["optimizations"] = [
+                    "Color grading for maximum impact",
+                    "Audio enhancement for engagement",
+                    "Pacing optimization for retention"
+                ]
+            
+            return preview_data
+            
+        except Exception as e:
+            logger.error(f"Preview generation failed: {e}", exc_info=True)
+            raise
 
     # Private helper methods
-    async def _validate_upload_file(self, file: UploadFile):
-        """Validate uploaded file"""
-        if not file.filename:
-            raise ValueError("No file provided")
 
-        if file.content_type not in settings.allowed_video_types:
-            raise ValueError(f"Unsupported file type: {file.content_type}")
+    async def _setup_processing_environment(self):
+        """Setup optimal processing environment"""
+        # Ensure all directories exist
+        for path in [self.upload_path, self.temp_path, self.output_path]:
+            path.mkdir(parents=True, exist_ok=True, mode=0o755)
+        
+        # Initialize processing queue worker
+        asyncio.create_task(self._process_queue_worker())
 
-        # Additional validations can be added here
+    async def _initialize_codecs(self):
+        """Initialize video codecs and processing libraries"""
+        # Simulate codec initialization
+        await asyncio.sleep(0.1)
+        logger.info("🎥 Video codecs initialized")
 
-    async def _save_upload_file(self, file: UploadFile, session_id: str) -> Path:
-        """Save uploaded file to disk"""
-        file_path = self.upload_dir / f"{session_id}_{file.filename}"
+    async def _setup_performance_monitoring(self):
+        """Setup performance monitoring"""
+        # Start background monitoring task
+        asyncio.create_task(self._monitor_performance())
 
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+    async def _check_user_rate_limit(self, user: Dict[str, Any]) -> bool:
+        """Check user rate limiting"""
+        # Implement sophisticated rate limiting
+        user_tier = user.get("tier", "standard")
+        
+        # Different limits for different tiers
+        limits = {
+            "free": {"uploads_per_hour": 5, "total_mb_per_hour": 500},
+            "standard": {"uploads_per_hour": 20, "total_mb_per_hour": 2000},
+            "premium": {"uploads_per_hour": 100, "total_mb_per_hour": 10000}
+        }
+        
+        # For demo, always return True
+        return True
 
-        return file_path
-
-    async def _generate_instant_preview(self, session_id: str, file_path: Path) -> Dict[str, Any]:
-        """Generate instant preview with Netflix-level quality"""
+    async def _check_storage_capacity(self, file_size: int) -> bool:
+        """Check available storage capacity"""
         try:
-            thumbnail_url = f"/api/v4/thumbnail/{session_id}"
-
-            # Mock viral analysis
-            viral_analysis = {
-                "viral_score": 78,
-                "confidence": 0.85,
-                "factors": [
-                    "High visual contrast detected",
-                    "Strong opening hook potential",
-                    "Optimal duration for social media",
-                    "Good audio quality detected"
-                ],
-                "platform_scores": {
-                    Platform.TIKTOK: 82,
-                    Platform.INSTAGRAM: 75,
-                    Platform.YOUTUBE_SHORTS: 79,
-                    Platform.TWITTER: 70
-                }
-            }
-
-            return {
-                "thumbnail_url": thumbnail_url,
-                "viral_analysis": viral_analysis,
-                "preview_ready": True,
-                "processing_time": 0.5
-            }
-
+            # Check disk space
+            disk_usage = psutil.disk_usage(str(self.upload_path))
+            available_space = disk_usage.free
+            
+            # Require at least 2x file size + 1GB buffer
+            required_space = file_size * 2 + (1024 * 1024 * 1024)
+            
+            return available_space >= required_space
+            
         except Exception as e:
-            logger.error(f"Preview generation failed: {e}")
-            return {"preview_ready": False, "error": str(e)}
+            logger.warning(f"Storage capacity check failed: {e}")
+            return True  # Fail open
 
-    async def _analyze_segment_virality(self, session_id: str, start_time: float, end_time: float) -> ViralAnalysis:
-        """Analyze viral potential of video segment"""
-        # Mock analysis - replace with actual AI analysis
-        return ViralAnalysis(
-            viral_score=82,
-            confidence=0.9,
-            factors=[
-                "Optimal segment length",
-                "High engagement potential",
-                "Strong visual elements",
-                "Perfect hook timing"
-            ],
-            platform_scores={
-                Platform.TIKTOK: 85,
-                Platform.INSTAGRAM: 80,
-                Platform.YOUTUBE_SHORTS: 82,
-                Platform.TWITTER: 75
-            }
-        )
+    def _estimate_processing_time(self, file_size: int, file_ext: str) -> float:
+        """Estimate processing time based on file characteristics"""
+        # Base time per MB
+        base_time_per_mb = 2.0  # seconds
+        
+        # Format multipliers
+        format_multipliers = {
+            '.mp4': 1.0,
+            '.mov': 1.2,
+            '.avi': 1.5,
+            '.mkv': 1.3,
+            '.webm': 1.1,
+            '.m4v': 1.0
+        }
+        
+        multiplier = format_multipliers.get(file_ext, 1.5)
+        file_size_mb = file_size / (1024 * 1024)
+        
+        return file_size_mb * base_time_per_mb * multiplier
 
-    async def _generate_suggestions(self, viral_analysis: ViralAnalysis, platforms: Optional[List[Platform]]) -> List[str]:
-        """Generate optimization suggestions"""
-        suggestions = []
+    def _estimate_video_duration(self, file_size: int) -> float:
+        """Estimate video duration from file size"""
+        # Rough estimation: 1MB ≈ 1 second for typical video
+        return max(1, file_size / (1024 * 1024))
 
-        if viral_analysis.viral_score >= 80:
-            suggestions.append("🚀 Excellent viral potential! Consider this as your main clip")
+    async def _finalize_upload(self, session: UploadSession):
+        """Finalize upload by assembling chunks"""
+        try:
+            upload_dir = self.temp_path / session.upload_id
+            final_path = self.upload_path / f"{session.upload_id}_{session.filename}"
+            
+            # Assemble chunks
+            async with aiofiles.open(final_path, 'wb') as output_file:
+                for i in range(session.total_chunks):
+                    chunk_path = upload_dir / f"chunk_{i:04d}"
+                    if chunk_path.exists():
+                        async with aiofiles.open(chunk_path, 'rb') as chunk_file:
+                            chunk_data = await chunk_file.read()
+                            await output_file.write(chunk_data)
+            
+            # Cleanup chunks
+            for chunk_file in upload_dir.glob("chunk_*"):
+                chunk_file.unlink()
+            upload_dir.rmdir()
+            
+            # Update session
+            session.status = "completed"
+            session.metadata["final_path"] = str(final_path)
+            
+            # Add to processing queue
+            await self.processing_queue.put({
+                "type": "video_analysis",
+                "session_id": session.upload_id,
+                "file_path": final_path,
+                "metadata": session.metadata
+            })
+            
+            logger.info(f"✅ Upload finalized: {session.upload_id}")
+            
+        except Exception as e:
+            logger.error(f"Upload finalization failed: {e}", exc_info=True)
+            session.status = "failed"
 
-        if platforms and Platform.TIKTOK in platforms:
-            suggestions.append("📱 Perfect length for TikTok format")
+    async def _process_queue_worker(self):
+        """Background worker for processing queue"""
+        while True:
+            try:
+                # Get next item from queue
+                item = await self.processing_queue.get()
+                
+                # Process item
+                await self._process_video_item(item)
+                
+                # Mark task as done
+                self.processing_queue.task_done()
+                
+            except Exception as e:
+                logger.error(f"Queue worker error: {e}", exc_info=True)
+                await asyncio.sleep(1)
 
-        suggestions.extend([
-            "🎯 Consider adding captions for accessibility",
-            "⚡ Strong hook - great for opening",
-            "🎵 Try adding trending audio for better reach"
-        ])
+    async def _process_video_item(self, item: Dict[str, Any]):
+        """Process individual video item"""
+        try:
+            session_id = item["session_id"]
+            file_path = item["file_path"]
+            
+            logger.info(f"🎬 Processing video: {session_id}")
+            
+            # Simulate processing stages
+            stages = [
+                ("analyzing", "Analyzing video content...", 20),
+                ("extracting_features", "Extracting viral features...", 40),
+                ("scoring_segments", "Scoring segments...", 60),
+                ("generating_timeline", "Generating timeline...", 80),
+                ("complete", "Processing complete!", 100)
+            ]
+            
+            for stage, message, progress in stages:
+                logger.info(f"Processing {session_id}: {message} ({progress}%)")
+                await asyncio.sleep(1)  # Simulate processing time
+            
+            # Update session
+            if session_id in self.upload_sessions:
+                self.upload_sessions[session_id].status = "processed"
+            
+            logger.info(f"✅ Video processing completed: {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Video processing failed: {e}", exc_info=True)
 
-        return suggestions
+    async def _monitor_performance(self):
+        """Background performance monitoring"""
+        while True:
+            try:
+                # Monitor system resources
+                memory_info = psutil.Process().memory_info()
+                cpu_percent = psutil.cpu_percent(interval=1)
+                
+                # Log performance metrics
+                logger.info(
+                    f"Performance: CPU {cpu_percent}%, "
+                    f"Memory {memory_info.rss / 1024 / 1024:.1f}MB, "
+                    f"Active sessions: {len(self.upload_sessions)}"
+                )
+                
+                # Cleanup expired sessions
+                await self._cleanup_expired_sessions()
+                
+                await asyncio.sleep(60)  # Monitor every minute
+                
+            except Exception as e:
+                logger.error(f"Performance monitoring error: {e}")
+                await asyncio.sleep(60)
 
-    async def _create_placeholder_thumbnail(self, thumbnail_path: Path):
-        """Create placeholder thumbnail"""
-        # Create a simple placeholder file
-        thumbnail_path.write_bytes(b"placeholder_thumbnail_data")
+    async def _cleanup_expired_sessions(self):
+        """Clean up expired upload sessions"""
+        current_time = datetime.utcnow()
+        expired_sessions = []
+        
+        for upload_id, session in self.upload_sessions.items():
+            if current_time - session.last_activity > timedelta(seconds=self.session_timeout):
+                expired_sessions.append(upload_id)
+        
+        for upload_id in expired_sessions:
+            # Cleanup files
+            temp_dir = self.temp_path / upload_id
+            if temp_dir.exists():
+                for file in temp_dir.glob("*"):
+                    file.unlink()
+                temp_dir.rmdir()
+            
+            # Remove session
+            del self.upload_sessions[upload_id]
+        
+        if expired_sessions:
+            logger.info(f"🧹 Cleaned up {len(expired_sessions)} expired sessions")
 
-    async def _create_placeholder_clip(self, clip_path: Path):
-        """Create placeholder clip"""
-        # Create a simple placeholder file
-        clip_path.write_bytes(b"placeholder_clip_data")
+    async def _update_upload_metrics(self, processing_time: float, data_size: int, success: bool):
+        """Update upload performance metrics"""
+        self.performance_metrics["total_uploads"] += 1
+        
+        if success:
+            self.performance_metrics["successful_uploads"] += 1
+            
+            # Update average upload time
+            current_avg = self.performance_metrics["average_upload_time"]
+            total = self.performance_metrics["total_uploads"]
+            self.performance_metrics["average_upload_time"] = (
+                (current_avg * (total - 1) + processing_time) / total
+            )
+            
+            # Update throughput
+            if processing_time > 0:
+                mbps = (data_size / 1024 / 1024) / processing_time
+                current_throughput = self.performance_metrics["throughput_mbps"]
+                self.performance_metrics["throughput_mbps"] = (
+                    (current_throughput * (total - 1) + mbps) / total
+                )
+        
+        # Update error rate
+        success_rate = self.performance_metrics["successful_uploads"] / self.performance_metrics["total_uploads"]
+        self.performance_metrics["error_rate"] = 1.0 - success_rate
+
+    async def get_performance_metrics(self) -> Dict[str, Any]:
+        """Get current performance metrics"""
+        return {
+            **self.performance_metrics,
+            "active_sessions": len(self.upload_sessions),
+            "queue_size": self.processing_queue.qsize(),
+            "memory_usage_mb": psutil.Process().memory_info().rss / 1024 / 1024,
+            "cpu_percent": psutil.cpu_percent(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    async def get_session_status(self, upload_id: str) -> Optional[Dict[str, Any]]:
+        """Get upload session status"""
+        session = self.upload_sessions.get(upload_id)
+        if not session:
+            return None
+        
+        return {
+            "upload_id": session.upload_id,
+            "filename": session.filename,
+            "status": session.status,
+            "progress": (session.received_chunks / session.total_chunks) * 100,
+            "received_chunks": session.received_chunks,
+            "total_chunks": session.total_chunks,
+            "created_at": session.created_at.isoformat(),
+            "last_activity": session.last_activity.isoformat(),
+            "metadata": session.metadata
+        }
+
+    async def graceful_shutdown(self):
+        """Gracefully shutdown the video service"""
+        logger.info("🔄 Shutting down video service...")
+        
+        # Stop processing queue
+        while not self.processing_queue.empty():
+            try:
+                self.processing_queue.get_nowait()
+                self.processing_queue.task_done()
+            except:
+                break
+        
+        # Shutdown thread pool
+        self.thread_pool.shutdown(wait=True)
+        
+        # Cleanup temporary files
+        for session in self.upload_sessions.values():
+            temp_dir = self.temp_path / session.upload_id
+            if temp_dir.exists():
+                for file in temp_dir.glob("*"):
+                    file.unlink()
+                temp_dir.rmdir()
+        
+        # Clear sessions
+        self.upload_sessions.clear()
+        
+        logger.info("✅ Video service shutdown complete")

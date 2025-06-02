@@ -1,618 +1,605 @@
 
 """
-Netflix-Level Caching System v5.0
-High-performance caching with multiple backends and intelligent invalidation
+Netflix-Level Intelligent Cache Manager
+Advanced caching with performance optimization and enterprise features
 """
 
 import asyncio
 import json
+import logging
 import time
 import hashlib
-import logging
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Dict, Optional, Set, Tuple, Union
 from datetime import datetime, timedelta
-from dataclasses import dataclass
-from enum import Enum
+from dataclasses import dataclass, field
+from collections import defaultdict, OrderedDict
+import weakref
 import pickle
-import aiofiles
-from pathlib import Path
+import zlib
 
 logger = logging.getLogger(__name__)
 
 
-class CacheBackend(str, Enum):
-    """Cache backend types"""
-    MEMORY = "memory"
-    FILE = "file"
-    REDIS = "redis"
-    HYBRID = "hybrid"
+@dataclass
+class CacheMetrics:
+    """Comprehensive cache performance metrics"""
+    total_requests: int = 0
+    cache_hits: int = 0
+    cache_misses: int = 0
+    evictions: int = 0
+    memory_usage_bytes: int = 0
+    average_get_time: float = 0.0
+    average_set_time: float = 0.0
+    last_cleanup: Optional[datetime] = None
+
+    @property
+    def hit_rate(self) -> float:
+        """Calculate cache hit rate"""
+        if self.total_requests == 0:
+            return 0.0
+        return (self.cache_hits / self.total_requests) * 100
+
+    @property
+    def miss_rate(self) -> float:
+        """Calculate cache miss rate"""
+        return 100.0 - self.hit_rate
 
 
 @dataclass
 class CacheEntry:
-    """Cache entry with metadata"""
+    """Advanced cache entry with comprehensive metadata"""
     key: str
     value: Any
-    created_at: float
-    ttl: Optional[float]
+    created_at: datetime
+    last_accessed: datetime
     access_count: int = 0
-    last_accessed: float = 0
-    tags: List[str] = None
-    
-    def __post_init__(self):
-        if self.tags is None:
-            self.tags = []
-        if self.last_accessed == 0:
-            self.last_accessed = self.created_at
-    
+    ttl: Optional[float] = None
+    tags: Set[str] = field(default_factory=set)
+    size_bytes: int = 0
+    compressed: bool = False
+    serialization_format: str = "pickle"
+
     @property
     def is_expired(self) -> bool:
-        """Check if entry is expired"""
+        """Check if entry has expired"""
         if self.ttl is None:
             return False
-        return time.time() > (self.created_at + self.ttl)
-    
+        return time.time() - self.created_at.timestamp() > self.ttl
+
     @property
-    def age(self) -> float:
+    def age_seconds(self) -> float:
         """Get entry age in seconds"""
-        return time.time() - self.created_at
-    
-    def touch(self):
-        """Update access metadata"""
-        self.access_count += 1
-        self.last_accessed = time.time()
+        return time.time() - self.created_at.timestamp()
 
 
-class CacheStats:
-    """Cache statistics collector"""
-    
-    def __init__(self):
-        self.hits = 0
-        self.misses = 0
-        self.sets = 0
-        self.deletes = 0
-        self.evictions = 0
-        self.errors = 0
-        self.start_time = time.time()
-    
-    @property
-    def hit_rate(self) -> float:
-        """Calculate cache hit rate"""
-        total = self.hits + self.misses
-        return self.hits / total if total > 0 else 0.0
-    
-    @property
-    def uptime(self) -> float:
-        """Get cache uptime in seconds"""
-        return time.time() - self.start_time
-    
-    def reset(self):
-        """Reset statistics"""
-        self.hits = 0
-        self.misses = 0
-        self.sets = 0
-        self.deletes = 0
-        self.evictions = 0
-        self.errors = 0
-        self.start_time = time.time()
+class EnterpriseIntelligentCacheManager:
+    """Netflix-level intelligent cache manager with advanced features"""
 
-
-class MemoryCache:
-    """High-performance in-memory cache with LRU eviction"""
-    
-    def __init__(self, max_size: int = 1000, default_ttl: Optional[float] = 3600):
+    def __init__(self, max_size: int = 10000, max_memory_mb: int = 512):
+        # Core configuration
         self.max_size = max_size
-        self.default_ttl = default_ttl
-        self.data: Dict[str, CacheEntry] = {}
-        self.access_order: List[str] = []
-        self.stats = CacheStats()
-        self._lock = asyncio.Lock()
-    
-    async def get(self, key: str) -> Optional[Any]:
-        """Get value from cache"""
-        async with self._lock:
-            entry = self.data.get(key)
-            
-            if entry is None:
-                self.stats.misses += 1
-                return None
-            
-            if entry.is_expired:
-                await self._delete_entry(key)
-                self.stats.misses += 1
-                return None
-            
-            # Update access metadata
-            entry.touch()
-            self._update_access_order(key)
-            
-            self.stats.hits += 1
-            return entry.value
-    
-    async def set(self, key: str, value: Any, ttl: Optional[float] = None) -> bool:
-        """Set value in cache"""
-        async with self._lock:
-            try:
-                # Use default TTL if not specified
-                if ttl is None:
-                    ttl = self.default_ttl
-                
-                # Create cache entry
-                entry = CacheEntry(
-                    key=key,
-                    value=value,
-                    created_at=time.time(),
-                    ttl=ttl
-                )
-                
-                # Check if we need to evict entries
-                if len(self.data) >= self.max_size and key not in self.data:
-                    await self._evict_lru()
-                
-                # Store entry
-                self.data[key] = entry
-                self._update_access_order(key)
-                
-                self.stats.sets += 1
-                return True
-                
-            except Exception as e:
-                logger.error(f"Cache set error: {e}")
-                self.stats.errors += 1
-                return False
-    
-    async def delete(self, key: str) -> bool:
-        """Delete value from cache"""
-        async with self._lock:
-            if key in self.data:
-                await self._delete_entry(key)
-                self.stats.deletes += 1
-                return True
-            return False
-    
-    async def clear(self):
-        """Clear all cache entries"""
-        async with self._lock:
-            self.data.clear()
-            self.access_order.clear()
-    
-    async def cleanup_expired(self):
-        """Remove expired entries"""
-        async with self._lock:
-            expired_keys = [
-                key for key, entry in self.data.items()
-                if entry.is_expired
-            ]
-            
-            for key in expired_keys:
-                await self._delete_entry(key)
-    
-    async def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics"""
-        return {
-            "backend": "memory",
-            "size": len(self.data),
-            "max_size": self.max_size,
-            "hit_rate": self.stats.hit_rate,
-            "hits": self.stats.hits,
-            "misses": self.stats.misses,
-            "sets": self.stats.sets,
-            "deletes": self.stats.deletes,
-            "evictions": self.stats.evictions,
-            "errors": self.stats.errors,
-            "uptime": self.stats.uptime
-        }
-    
-    def _update_access_order(self, key: str):
-        """Update LRU access order"""
-        if key in self.access_order:
-            self.access_order.remove(key)
-        self.access_order.append(key)
-    
-    async def _delete_entry(self, key: str):
-        """Delete entry and update access order"""
-        if key in self.data:
-            del self.data[key]
-        if key in self.access_order:
-            self.access_order.remove(key)
-    
-    async def _evict_lru(self):
-        """Evict least recently used entry"""
-        if self.access_order:
-            lru_key = self.access_order[0]
-            await self._delete_entry(lru_key)
-            self.stats.evictions += 1
+        self.max_memory_bytes = max_memory_mb * 1024 * 1024
+        
+        # Cache storage
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
+        self._tags_to_keys: Dict[str, Set[str]] = defaultdict(set)
+        self._access_frequencies: Dict[str, float] = defaultdict(float)
+        
+        # Performance monitoring
+        self.metrics = CacheMetrics()
+        self._operation_times: Dict[str, list] = defaultdict(list)
+        
+        # Enterprise features
+        self.compression_threshold = 1024  # Compress values > 1KB
+        self.smart_prefetch_enabled = True
+        self.adaptive_ttl_enabled = True
+        
+        # Background tasks
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._monitoring_task: Optional[asyncio.Task] = None
+        
+        # Thread safety
+        self._lock = asyncio.RLock()
+        
+        logger.info(f"🧠 Intelligent cache manager initialized (max_size={max_size}, max_memory={max_memory_mb}MB)")
 
+    async def enterprise_warm_up(self):
+        """Warm up cache manager with enterprise features"""
+        try:
+            # Start background tasks
+            self._cleanup_task = asyncio.create_task(self._background_cleanup())
+            self._monitoring_task = asyncio.create_task(self._background_monitoring())
+            
+            # Pre-warm frequently accessed patterns
+            await self._preload_common_patterns()
+            
+            logger.info("🔥 Cache manager enterprise warm-up completed")
+            
+        except Exception as e:
+            logger.error(f"Cache manager warm-up failed: {e}", exc_info=True)
 
-class FileCache:
-    """File-based cache for persistence"""
-    
-    def __init__(self, cache_dir: Path, default_ttl: Optional[float] = 3600):
-        self.cache_dir = Path(cache_dir)
-        self.default_ttl = default_ttl
-        self.stats = CacheStats()
-        self._ensure_cache_dir()
-    
-    def _ensure_cache_dir(self):
-        """Ensure cache directory exists"""
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-    
-    def _get_file_path(self, key: str) -> Path:
-        """Get file path for cache key"""
-        key_hash = hashlib.md5(key.encode()).hexdigest()
-        return self.cache_dir / f"{key_hash}.cache"
-    
-    async def get(self, key: str) -> Optional[Any]:
-        """Get value from file cache"""
+    async def get_enterprise(
+        self, 
+        key: str, 
+        default: Any = None,
+        update_access: bool = True
+    ) -> Any:
+        """Get value with enterprise features and performance tracking"""
+        start_time = time.time()
+        
         try:
-            file_path = self._get_file_path(key)
-            
-            if not file_path.exists():
-                self.stats.misses += 1
-                return None
-            
-            async with aiofiles.open(file_path, 'rb') as f:
-                data = await f.read()
-                entry = pickle.loads(data)
-            
-            if entry.is_expired:
-                await self.delete(key)
-                self.stats.misses += 1
-                return None
-            
-            entry.touch()
-            
-            # Update file with new access metadata
-            async with aiofiles.open(file_path, 'wb') as f:
-                await f.write(pickle.dumps(entry))
-            
-            self.stats.hits += 1
-            return entry.value
-            
-        except Exception as e:
-            logger.error(f"File cache get error: {e}")
-            self.stats.errors += 1
-            return None
-    
-    async def set(self, key: str, value: Any, ttl: Optional[float] = None) -> bool:
-        """Set value in file cache"""
-        try:
-            if ttl is None:
-                ttl = self.default_ttl
-            
-            entry = CacheEntry(
-                key=key,
-                value=value,
-                created_at=time.time(),
-                ttl=ttl
-            )
-            
-            file_path = self._get_file_path(key)
-            
-            async with aiofiles.open(file_path, 'wb') as f:
-                await f.write(pickle.dumps(entry))
-            
-            self.stats.sets += 1
-            return True
-            
-        except Exception as e:
-            logger.error(f"File cache set error: {e}")
-            self.stats.errors += 1
-            return False
-    
-    async def delete(self, key: str) -> bool:
-        """Delete value from file cache"""
-        try:
-            file_path = self._get_file_path(key)
-            
-            if file_path.exists():
-                file_path.unlink()
-                self.stats.deletes += 1
-                return True
-            return False
-            
-        except Exception as e:
-            logger.error(f"File cache delete error: {e}")
-            self.stats.errors += 1
-            return False
-    
-    async def clear(self):
-        """Clear all cache files"""
-        try:
-            for file_path in self.cache_dir.glob("*.cache"):
-                file_path.unlink()
-        except Exception as e:
-            logger.error(f"File cache clear error: {e}")
-    
-    async def cleanup_expired(self):
-        """Remove expired cache files"""
-        try:
-            for file_path in self.cache_dir.glob("*.cache"):
-                try:
-                    async with aiofiles.open(file_path, 'rb') as f:
-                        data = await f.read()
-                        entry = pickle.loads(data)
+            async with self._lock:
+                self.metrics.total_requests += 1
+                
+                if key not in self._cache:
+                    self.metrics.cache_misses += 1
+                    self._record_operation_time('get_miss', start_time)
+                    return default
+                
+                entry = self._cache[key]
+                
+                # Check expiration
+                if entry.is_expired:
+                    await self._remove_entry(key)
+                    self.metrics.cache_misses += 1
+                    self._record_operation_time('get_expired', start_time)
+                    return default
+                
+                # Update access patterns
+                if update_access:
+                    entry.last_accessed = datetime.utcnow()
+                    entry.access_count += 1
+                    self._access_frequencies[key] = self._calculate_access_frequency(entry)
                     
-                    if entry.is_expired:
-                        file_path.unlink()
-                        
-                except Exception:
-                    # Remove corrupted files
-                    file_path.unlink()
-                    
+                    # Move to end (LRU)
+                    self._cache.move_to_end(key)
+                
+                self.metrics.cache_hits += 1
+                
+                # Decompress if needed
+                value = await self._deserialize_value(entry.value, entry.compressed, entry.serialization_format)
+                
+                self._record_operation_time('get_hit', start_time)
+                return value
+                
         except Exception as e:
-            logger.error(f"File cache cleanup error: {e}")
-    
-    async def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics"""
-        cache_files = len(list(self.cache_dir.glob("*.cache")))
-        
-        return {
-            "backend": "file",
-            "size": cache_files,
-            "cache_dir": str(self.cache_dir),
-            "hit_rate": self.stats.hit_rate,
-            "hits": self.stats.hits,
-            "misses": self.stats.misses,
-            "sets": self.stats.sets,
-            "deletes": self.stats.deletes,
-            "errors": self.stats.errors,
-            "uptime": self.stats.uptime
-        }
+            logger.error(f"Cache get error for key '{key}': {e}")
+            return default
 
-
-class CacheManager:
-    """Netflix-level cache manager with multiple backends and intelligent strategies"""
-    
-    def __init__(
-        self,
-        backend: CacheBackend = CacheBackend.HYBRID,
-        memory_max_size: int = 1000,
-        file_cache_dir: Optional[Path] = None,
-        default_ttl: float = 3600,
-        cleanup_interval: float = 300
-    ):
-        self.backend = backend
-        self.default_ttl = default_ttl
-        self.cleanup_interval = cleanup_interval
-        
-        # Initialize backends
-        self.memory_cache = MemoryCache(memory_max_size, default_ttl)
-        self.file_cache = FileCache(
-            file_cache_dir or Path("cache"),
-            default_ttl
-        ) if backend in [CacheBackend.FILE, CacheBackend.HYBRID] else None
-        
-        # Cache strategies
-        self.strategies = {
-            "memory_first": self._strategy_memory_first,
-            "file_persistent": self._strategy_file_persistent,
-            "hybrid_intelligent": self._strategy_hybrid_intelligent
-        }
-        
-        self._cleanup_task = None
-        self._running = False
-    
-    async def initialize(self):
-        """Initialize cache manager"""
-        self._running = True
-        if self.cleanup_interval > 0:
-            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
-        logger.info(f"Cache manager initialized with backend: {self.backend}")
-    
-    async def cleanup(self):
-        """Cleanup cache manager"""
-        self._running = False
-        if self._cleanup_task:
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
-        logger.info("Cache manager cleaned up")
-    
-    async def get(self, key: str, strategy: str = "hybrid_intelligent") -> Optional[Any]:
-        """Get value using specified strategy"""
-        strategy_func = self.strategies.get(strategy, self._strategy_hybrid_intelligent)
-        return await strategy_func("get", key)
-    
-    async def set(
+    async def set_enterprise(
         self,
         key: str,
         value: Any,
         ttl: Optional[float] = None,
-        strategy: str = "hybrid_intelligent"
+        tags: Optional[Set[str]] = None,
+        compression: Optional[bool] = None
     ) -> bool:
-        """Set value using specified strategy"""
-        strategy_func = self.strategies.get(strategy, self._strategy_hybrid_intelligent)
-        return await strategy_func("set", key, value, ttl)
-    
-    async def delete(self, key: str, strategy: str = "hybrid_intelligent") -> bool:
-        """Delete value using specified strategy"""
-        strategy_func = self.strategies.get(strategy, self._strategy_hybrid_intelligent)
-        return await strategy_func("delete", key)
-    
-    async def clear(self):
-        """Clear all caches"""
-        await self.memory_cache.clear()
-        if self.file_cache:
-            await self.file_cache.clear()
-    
-    async def get_stats(self) -> Dict[str, Any]:
-        """Get comprehensive cache statistics"""
-        stats = {
-            "backend": self.backend.value,
-            "memory": await self.memory_cache.get_stats()
-        }
+        """Set value with enterprise features and optimization"""
+        start_time = time.time()
         
-        if self.file_cache:
-            stats["file"] = await self.file_cache.get_stats()
+        try:
+            async with self._lock:
+                # Serialize and optionally compress value
+                serialized_value, is_compressed, size_bytes = await self._serialize_value(
+                    value, compression
+                )
+                
+                # Check memory constraints
+                if not await self._check_memory_constraints(size_bytes, key):
+                    logger.warning(f"Cache set failed for key '{key}': memory constraints")
+                    return False
+                
+                # Remove existing entry if present
+                if key in self._cache:
+                    await self._remove_entry(key)
+                
+                # Create new entry
+                entry = CacheEntry(
+                    key=key,
+                    value=serialized_value,
+                    created_at=datetime.utcnow(),
+                    last_accessed=datetime.utcnow(),
+                    ttl=ttl,
+                    tags=tags or set(),
+                    size_bytes=size_bytes,
+                    compressed=is_compressed,
+                    serialization_format="pickle"
+                )
+                
+                # Add to cache
+                self._cache[key] = entry
+                
+                # Update tag mappings
+                for tag in entry.tags:
+                    self._tags_to_keys[tag].add(key)
+                
+                # Update metrics
+                self.metrics.memory_usage_bytes += size_bytes
+                
+                # Trigger cleanup if needed
+                await self._enforce_size_limits()
+                
+                self._record_operation_time('set', start_time)
+                return True
+                
+        except Exception as e:
+            logger.error(f"Cache set error for key '{key}': {e}")
+            return False
+
+    async def delete_enterprise(self, key: str) -> bool:
+        """Delete entry with enterprise tracking"""
+        try:
+            async with self._lock:
+                if key in self._cache:
+                    await self._remove_entry(key)
+                    return True
+                return False
+                
+        except Exception as e:
+            logger.error(f"Cache delete error for key '{key}': {e}")
+            return False
+
+    async def clear_by_tags(self, tags: Set[str]) -> int:
+        """Clear cache entries by tags"""
+        try:
+            async with self._lock:
+                keys_to_remove = set()
+                
+                for tag in tags:
+                    if tag in self._tags_to_keys:
+                        keys_to_remove.update(self._tags_to_keys[tag])
+                
+                for key in keys_to_remove:
+                    await self._remove_entry(key)
+                
+                return len(keys_to_remove)
+                
+        except Exception as e:
+            logger.error(f"Cache clear by tags error: {e}")
+            return 0
+
+    async def get_cache_info(self) -> Dict[str, Any]:
+        """Get comprehensive cache information"""
+        async with self._lock:
+            return {
+                "size": len(self._cache),
+                "max_size": self.max_size,
+                "memory_usage_mb": self.metrics.memory_usage_bytes / 1024 / 1024,
+                "max_memory_mb": self.max_memory_bytes / 1024 / 1024,
+                "hit_rate": self.metrics.hit_rate,
+                "miss_rate": self.metrics.miss_rate,
+                "metrics": {
+                    "total_requests": self.metrics.total_requests,
+                    "cache_hits": self.metrics.cache_hits,
+                    "cache_misses": self.metrics.cache_misses,
+                    "evictions": self.metrics.evictions,
+                    "average_get_time": self.metrics.average_get_time,
+                    "average_set_time": self.metrics.average_set_time,
+                    "last_cleanup": self.metrics.last_cleanup.isoformat() if self.metrics.last_cleanup else None
+                },
+                "top_keys": await self._get_top_accessed_keys(10),
+                "expiring_soon": await self._get_expiring_entries(60),  # Next 60 seconds
+                "tag_counts": {tag: len(keys) for tag, keys in self._tags_to_keys.items()}
+            }
+
+    async def _serialize_value(
+        self, 
+        value: Any, 
+        force_compression: Optional[bool] = None
+    ) -> Tuple[bytes, bool, int]:
+        """Serialize and optionally compress value"""
+        try:
+            # Serialize
+            serialized = pickle.dumps(value)
+            size_bytes = len(serialized)
+            
+            # Determine if compression should be used
+            should_compress = (
+                force_compression if force_compression is not None
+                else size_bytes > self.compression_threshold
+            )
+            
+            if should_compress:
+                compressed = zlib.compress(serialized, level=6)
+                # Only use compression if it actually reduces size
+                if len(compressed) < size_bytes:
+                    return compressed, True, len(compressed)
+            
+            return serialized, False, size_bytes
+            
+        except Exception as e:
+            logger.error(f"Value serialization failed: {e}")
+            raise
+
+    async def _deserialize_value(
+        self, 
+        data: bytes, 
+        is_compressed: bool, 
+        format_type: str
+    ) -> Any:
+        """Deserialize and decompress value"""
+        try:
+            if is_compressed:
+                data = zlib.decompress(data)
+            
+            if format_type == "pickle":
+                return pickle.loads(data)
+            else:
+                raise ValueError(f"Unsupported serialization format: {format_type}")
+                
+        except Exception as e:
+            logger.error(f"Value deserialization failed: {e}")
+            raise
+
+    async def _check_memory_constraints(self, new_size: int, key: str) -> bool:
+        """Check if adding new entry would exceed memory limits"""
+        current_size = self.metrics.memory_usage_bytes
         
-        return stats
-    
-    # Cache strategies
-    async def _strategy_memory_first(self, operation: str, *args, **kwargs) -> Any:
-        """Memory-first strategy"""
-        if operation == "get":
-            key = args[0]
-            return await self.memory_cache.get(key)
-        elif operation == "set":
-            key, value = args[0], args[1]
-            ttl = args[2] if len(args) > 2 else kwargs.get("ttl")
-            return await self.memory_cache.set(key, value, ttl)
-        elif operation == "delete":
-            key = args[0]
-            return await self.memory_cache.delete(key)
-    
-    async def _strategy_file_persistent(self, operation: str, *args, **kwargs) -> Any:
-        """File-persistent strategy"""
-        if not self.file_cache:
-            return await self._strategy_memory_first(operation, *args, **kwargs)
+        # Account for existing entry size if updating
+        if key in self._cache:
+            current_size -= self._cache[key].size_bytes
         
-        if operation == "get":
-            key = args[0]
-            return await self.file_cache.get(key)
-        elif operation == "set":
-            key, value = args[0], args[1]
-            ttl = args[2] if len(args) > 2 else kwargs.get("ttl")
-            return await self.file_cache.set(key, value, ttl)
-        elif operation == "delete":
-            key = args[0]
-            return await self.file_cache.delete(key)
-    
-    async def _strategy_hybrid_intelligent(self, operation: str, *args, **kwargs) -> Any:
-        """Intelligent hybrid strategy"""
-        if operation == "get":
-            key = args[0]
-            
-            # Try memory first (fastest)
-            value = await self.memory_cache.get(key)
-            if value is not None:
-                return value
-            
-            # Try file cache if available
-            if self.file_cache:
-                value = await self.file_cache.get(key)
-                if value is not None:
-                    # Promote to memory cache
-                    await self.memory_cache.set(key, value)
-                    return value
-            
-            return None
+        return (current_size + new_size) <= self.max_memory_bytes
+
+    async def _remove_entry(self, key: str):
+        """Remove entry and update all tracking structures"""
+        if key not in self._cache:
+            return
         
-        elif operation == "set":
-            key, value = args[0], args[1]
-            ttl = args[2] if len(args) > 2 else kwargs.get("ttl")
-            
-            # Always set in memory for speed
-            memory_success = await self.memory_cache.set(key, value, ttl)
-            
-            # Set in file cache for persistence if available
-            file_success = True
-            if self.file_cache:
-                file_success = await self.file_cache.set(key, value, ttl)
-            
-            return memory_success or file_success
+        entry = self._cache[key]
         
-        elif operation == "delete":
-            key = args[0]
-            
-            memory_success = await self.memory_cache.delete(key)
-            file_success = True
-            
-            if self.file_cache:
-                file_success = await self.file_cache.delete(key)
-            
-            return memory_success or file_success
-    
-    async def _periodic_cleanup(self):
-        """Periodic cleanup task"""
-        while self._running:
+        # Update memory usage
+        self.metrics.memory_usage_bytes -= entry.size_bytes
+        
+        # Remove from tag mappings
+        for tag in entry.tags:
+            self._tags_to_keys[tag].discard(key)
+            if not self._tags_to_keys[tag]:
+                del self._tags_to_keys[tag]
+        
+        # Remove from frequency tracking
+        self._access_frequencies.pop(key, None)
+        
+        # Remove from cache
+        del self._cache[key]
+
+    async def _enforce_size_limits(self):
+        """Enforce cache size and memory limits using intelligent eviction"""
+        if len(self._cache) <= self.max_size and self.metrics.memory_usage_bytes <= self.max_memory_bytes:
+            return
+        
+        # Calculate how many entries to evict
+        entries_to_evict = max(0, len(self._cache) - self.max_size)
+        
+        # If memory pressure, evict more aggressively
+        if self.metrics.memory_usage_bytes > self.max_memory_bytes:
+            memory_pressure = self.metrics.memory_usage_bytes / self.max_memory_bytes
+            entries_to_evict = max(entries_to_evict, int(len(self._cache) * (memory_pressure - 1.0)))
+        
+        if entries_to_evict <= 0:
+            return
+        
+        # Get eviction candidates using intelligent scoring
+        eviction_candidates = await self._get_eviction_candidates(entries_to_evict)
+        
+        # Evict entries
+        for key in eviction_candidates:
+            await self._remove_entry(key)
+            self.metrics.evictions += 1
+
+    async def _get_eviction_candidates(self, count: int) -> List[str]:
+        """Get intelligent eviction candidates based on multiple factors"""
+        candidates = []
+        
+        for key, entry in self._cache.items():
+            # Calculate eviction score (higher = more likely to evict)
+            score = await self._calculate_eviction_score(entry)
+            candidates.append((score, key))
+        
+        # Sort by score (highest first) and return top candidates
+        candidates.sort(reverse=True)
+        return [key for _, key in candidates[:count]]
+
+    async def _calculate_eviction_score(self, entry: CacheEntry) -> float:
+        """Calculate intelligent eviction score based on multiple factors"""
+        now = time.time()
+        
+        # Age factor (older = higher score)
+        age_factor = entry.age_seconds / 3600  # Hours
+        
+        # Access frequency factor (less frequent = higher score)
+        access_frequency = self._access_frequencies.get(entry.key, 0.0)
+        frequency_factor = 1.0 / (access_frequency + 0.1)  # Avoid division by zero
+        
+        # Time since last access (longer = higher score)
+        last_access_factor = (now - entry.last_accessed.timestamp()) / 3600  # Hours
+        
+        # Size factor (larger = slightly higher score)
+        size_factor = entry.size_bytes / (1024 * 1024)  # MB
+        
+        # TTL factor (expiring soon = higher score)
+        ttl_factor = 0.0
+        if entry.ttl is not None:
+            remaining_ttl = entry.ttl - entry.age_seconds
+            if remaining_ttl > 0:
+                ttl_factor = 1.0 / (remaining_ttl + 1)
+        
+        # Combine factors with weights
+        score = (
+            age_factor * 0.3 +
+            frequency_factor * 0.4 +
+            last_access_factor * 0.2 +
+            size_factor * 0.05 +
+            ttl_factor * 0.05
+        )
+        
+        return score
+
+    def _calculate_access_frequency(self, entry: CacheEntry) -> float:
+        """Calculate access frequency with time decay"""
+        age_hours = entry.age_seconds / 3600
+        time_decay = 1.0 / (1.0 + age_hours * 0.1)  # Decay over time
+        return entry.access_count * time_decay
+
+    async def _get_top_accessed_keys(self, limit: int) -> List[Dict[str, Any]]:
+        """Get top accessed cache keys"""
+        sorted_keys = sorted(
+            self._access_frequencies.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        result = []
+        for key, frequency in sorted_keys[:limit]:
+            if key in self._cache:
+                entry = self._cache[key]
+                result.append({
+                    "key": key,
+                    "access_count": entry.access_count,
+                    "frequency": frequency,
+                    "age_seconds": entry.age_seconds,
+                    "size_bytes": entry.size_bytes
+                })
+        
+        return result
+
+    async def _get_expiring_entries(self, within_seconds: int) -> List[Dict[str, Any]]:
+        """Get entries expiring within specified time"""
+        current_time = time.time()
+        expiring = []
+        
+        for key, entry in self._cache.items():
+            if entry.ttl is not None:
+                expires_at = entry.created_at.timestamp() + entry.ttl
+                if expires_at <= current_time + within_seconds:
+                    expiring.append({
+                        "key": key,
+                        "expires_in_seconds": max(0, expires_at - current_time),
+                        "size_bytes": entry.size_bytes
+                    })
+        
+        return sorted(expiring, key=lambda x: x["expires_in_seconds"])
+
+    async def _background_cleanup(self):
+        """Background task for cache cleanup and optimization"""
+        while True:
             try:
-                await asyncio.sleep(self.cleanup_interval)
+                await asyncio.sleep(300)  # Run every 5 minutes
                 
-                # Cleanup expired entries
-                await self.memory_cache.cleanup_expired()
-                if self.file_cache:
-                    await self.file_cache.cleanup_expired()
-                
-                logger.debug("Cache cleanup completed")
+                async with self._lock:
+                    # Remove expired entries
+                    expired_keys = []
+                    for key, entry in self._cache.items():
+                        if entry.is_expired:
+                            expired_keys.append(key)
+                    
+                    for key in expired_keys:
+                        await self._remove_entry(key)
+                    
+                    if expired_keys:
+                        logger.info(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
+                    
+                    # Update cleanup timestamp
+                    self.metrics.last_cleanup = datetime.utcnow()
+                    
+                    # Optimize memory usage if needed
+                    if self.metrics.memory_usage_bytes > self.max_memory_bytes * 0.8:
+                        await self._enforce_size_limits()
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Cache cleanup error: {e}")
+                logger.error(f"Background cleanup error: {e}")
 
+    async def _background_monitoring(self):
+        """Background monitoring and optimization"""
+        while True:
+            try:
+                await asyncio.sleep(60)  # Monitor every minute
+                
+                # Update average operation times
+                for operation, times in self._operation_times.items():
+                    if times:
+                        avg_time = sum(times) / len(times)
+                        if operation.startswith('get'):
+                            self.metrics.average_get_time = avg_time
+                        elif operation == 'set':
+                            self.metrics.average_set_time = avg_time
+                        
+                        # Keep only recent times (last 100 operations)
+                        self._operation_times[operation] = times[-100:]
+                
+                # Log performance metrics periodically
+                if self.metrics.total_requests > 0:
+                    logger.info(
+                        f"📊 Cache performance: {self.metrics.hit_rate:.1f}% hit rate, "
+                        f"{len(self._cache)} entries, "
+                        f"{self.metrics.memory_usage_bytes / 1024 / 1024:.1f}MB memory"
+                    )
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Background monitoring error: {e}")
 
-# Decorators for caching
-def cached(
-    ttl: Optional[float] = None,
-    key_prefix: str = "",
-    strategy: str = "hybrid_intelligent"
-):
-    """Decorator for caching function results"""
-    def decorator(func: Callable):
-        async def wrapper(*args, **kwargs):
-            # Generate cache key
-            key_data = f"{key_prefix}{func.__name__}{args}{kwargs}"
-            cache_key = hashlib.md5(key_data.encode()).hexdigest()
-            
-            # Try to get from cache
-            if hasattr(wrapper, "_cache_manager"):
-                cached_result = await wrapper._cache_manager.get(cache_key, strategy)
-                if cached_result is not None:
-                    return cached_result
-            
-            # Execute function and cache result
-            result = await func(*args, **kwargs)
-            
-            if hasattr(wrapper, "_cache_manager"):
-                await wrapper._cache_manager.set(cache_key, result, ttl, strategy)
-            
-            return result
+    def _record_operation_time(self, operation: str, start_time: float):
+        """Record operation timing for performance monitoring"""
+        duration = time.time() - start_time
+        self._operation_times[operation].append(duration)
         
-        return wrapper
-    return decorator
+        # Keep only recent times to prevent memory growth
+        if len(self._operation_times[operation]) > 1000:
+            self._operation_times[operation] = self._operation_times[operation][-500:]
 
+    async def _preload_common_patterns(self):
+        """Pre-load common cache patterns for better performance"""
+        # This would typically load frequently accessed data
+        # For now, just log that pre-loading is happening
+        logger.info("🔄 Pre-loading common cache patterns...")
 
-def cache_invalidate(pattern: str):
-    """Decorator for cache invalidation"""
-    def decorator(func: Callable):
-        async def wrapper(*args, **kwargs):
-            result = await func(*args, **kwargs)
+    async def health_check(self) -> bool:
+        """Perform health check on cache manager"""
+        try:
+            # Test basic operations
+            test_key = "__health_check__"
+            test_value = {"timestamp": time.time(), "test": True}
             
-            # Invalidate cache entries matching pattern
-            if hasattr(wrapper, "_cache_manager"):
-                # Implementation depends on cache backend capabilities
-                pass
+            # Test set
+            success = await self.set_enterprise(test_key, test_value, ttl=10)
+            if not success:
+                return False
             
-            return result
-        return wrapper
-    return decorator
+            # Test get
+            retrieved = await self.get_enterprise(test_key)
+            if retrieved != test_value:
+                return False
+            
+            # Test delete
+            deleted = await self.delete_enterprise(test_key)
+            if not deleted:
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Cache health check failed: {e}")
+            return False
 
-
-# Global cache manager instance
-cache_manager: Optional[CacheManager] = None
-
-
-async def get_cache_manager() -> CacheManager:
-    """Get global cache manager instance"""
-    global cache_manager
-    if cache_manager is None:
-        cache_manager = CacheManager()
-        await cache_manager.initialize()
-    return cache_manager
-
-
-# Export main classes and functions
-__all__ = [
-    "CacheManager",
-    "CacheBackend",
-    "CacheEntry",
-    "CacheStats",
-    "MemoryCache",
-    "FileCache",
-    "cached",
-    "cache_invalidate",
-    "get_cache_manager"
-]
+    async def graceful_shutdown(self):
+        """Gracefully shutdown cache manager"""
+        logger.info("🔄 Shutting down cache manager...")
+        
+        # Cancel background tasks
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+        if self._monitoring_task:
+            self._monitoring_task.cancel()
+        
+        # Clear cache
+        async with self._lock:
+            self._cache.clear()
+            self._tags_to_keys.clear()
+            self._access_frequencies.clear()
+            self._operation_times.clear()
+        
+        logger.info("✅ Cache manager shutdown complete")

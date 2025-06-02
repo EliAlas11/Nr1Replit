@@ -1,524 +1,473 @@
 
 """
-Netflix-Level Dependency Injection Container
-Advanced IoC container with lifecycle management and health monitoring
+ViralClip Pro v6.0 - Netflix-Level Dependency Container
+Enterprise dependency injection with advanced service management
 """
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, Type, TypeVar, Generic, Callable
-from contextlib import asynccontextmanager
+import time
+from typing import Dict, Any, Optional, Type, TypeVar, Generic, Set
 from datetime import datetime
+from abc import ABC, abstractmethod
 import weakref
+from dataclasses import dataclass
 from pathlib import Path
 
-from app.config import settings
-from app.utils.cache import CacheManager
-from app.utils.metrics import MetricsCollector
-from app.utils.health import HealthChecker
-from app.utils.security import SecurityManager
-from app.utils.rate_limiter import RateLimiter
-
-# Service imports
-from app.services.video_service import VideoService
-from app.services.ai_analyzer import AIAnalyzer
-from app.services.realtime_engine import RealtimeEngine
+from app.services.realtime_engine import EnterpriseRealtimeEngine
+from app.services.ai_analyzer import NetflixLevelAIAnalyzer
+from app.services.video_service import NetflixLevelVideoService
+from app.utils.cache import EnterpriseIntelligentCacheManager
+from app.utils.metrics import EnterpriseMetricsCollector
+from app.utils.health import EnterpriseHealthChecker
+from app.utils.rate_limiter import EnterpriseRateLimiter
+from app.utils.security import EnterpriseSecurityManager
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
 
-class ServiceLifecycle:
-    """Service lifecycle management"""
-    CREATED = "created"
-    INITIALIZING = "initializing"
-    READY = "ready"
-    DEGRADED = "degraded"
-    FAILED = "failed"
-    SHUTTING_DOWN = "shutting_down"
-    STOPPED = "stopped"
+@dataclass
+class ServiceMetadata:
+    """Service metadata for enterprise monitoring"""
+    name: str
+    instance_id: str
+    created_at: datetime
+    initialized_at: Optional[datetime] = None
+    status: str = "created"
+    dependencies: Set[str] = None
+    health_check_url: Optional[str] = None
+    performance_metrics: Dict[str, Any] = None
+
+    def __post_init__(self):
+        if self.dependencies is None:
+            self.dependencies = set()
+        if self.performance_metrics is None:
+            self.performance_metrics = {}
 
 
-class ServiceHealth:
-    """Service health tracking"""
-    
-    def __init__(self, service_name: str):
-        self.service_name = service_name
-        self.status = ServiceLifecycle.CREATED
-        self.last_health_check = None
-        self.error_count = 0
-        self.startup_time = None
-        self.shutdown_time = None
-        self.dependencies = []
-        self.health_checks = []
+class ServiceProvider(ABC, Generic[T]):
+    """Abstract service provider for enterprise dependency injection"""
 
-    def mark_healthy(self):
-        self.status = ServiceLifecycle.READY
-        self.last_health_check = datetime.utcnow()
-        self.error_count = 0
+    @abstractmethod
+    async def create_instance(self) -> T:
+        """Create service instance"""
+        pass
 
-    def mark_degraded(self, error: Exception = None):
-        self.status = ServiceLifecycle.DEGRADED
-        self.error_count += 1
-        if error:
-            logger.warning(f"Service {self.service_name} degraded: {error}")
+    @abstractmethod
+    async def initialize_instance(self, instance: T) -> T:
+        """Initialize service instance"""
+        pass
 
-    def mark_failed(self, error: Exception = None):
-        self.status = ServiceLifecycle.FAILED
-        self.error_count += 1
-        if error:
-            logger.error(f"Service {self.service_name} failed: {error}")
+    @abstractmethod
+    async def health_check(self, instance: T) -> bool:
+        """Perform health check on service instance"""
+        pass
+
+    @abstractmethod
+    async def cleanup_instance(self, instance: T) -> None:
+        """Cleanup service instance"""
+        pass
 
 
-class ServiceRegistry:
-    """Netflix-level service registry with dependency resolution"""
-    
-    def __init__(self):
-        self._services: Dict[str, Any] = {}
-        self._factories: Dict[str, Callable] = {}
-        self._singletons: Dict[str, Any] = {}
-        self._health_trackers: Dict[str, ServiceHealth] = {}
-        self._dependency_graph: Dict[str, list] = {}
-        self._initialization_order: list = []
-        
-    def register_factory(self, name: str, factory: Callable, dependencies: list = None):
-        """Register a service factory with dependencies"""
-        self._factories[name] = factory
-        self._dependency_graph[name] = dependencies or []
-        self._health_trackers[name] = ServiceHealth(name)
-        logger.debug(f"Registered factory for {name} with dependencies: {dependencies}")
-    
-    def register_singleton(self, name: str, instance: Any):
-        """Register a singleton instance"""
-        self._singletons[name] = instance
-        self._health_trackers[name] = ServiceHealth(name)
-        self._health_trackers[name].mark_healthy()
-        logger.debug(f"Registered singleton for {name}")
-    
-    async def resolve(self, name: str) -> Any:
-        """Resolve a service with dependency injection"""
-        if name in self._singletons:
-            return self._singletons[name]
-            
-        if name in self._services:
-            return self._services[name]
-            
-        if name not in self._factories:
-            raise ValueError(f"Service {name} not registered")
-        
-        health_tracker = self._health_trackers[name]
-        
-        try:
-            health_tracker.status = ServiceLifecycle.INITIALIZING
-            
-            # Resolve dependencies first
-            dependencies = {}
-            for dep_name in self._dependency_graph[name]:
-                dependencies[dep_name] = await self.resolve(dep_name)
-            
-            # Create service
-            factory = self._factories[name]
-            if asyncio.iscoroutinefunction(factory):
-                service = await factory(**dependencies)
-            else:
-                service = factory(**dependencies)
-            
-            # Initialize if needed
-            if hasattr(service, 'initialize') and callable(service.initialize):
-                if asyncio.iscoroutinefunction(service.initialize):
-                    await service.initialize()
-                else:
-                    service.initialize()
-            
-            self._services[name] = service
-            health_tracker.mark_healthy()
-            health_tracker.startup_time = datetime.utcnow()
-            
-            logger.info(f"Successfully resolved service: {name}")
-            return service
-            
-        except Exception as e:
-            health_tracker.mark_failed(e)
-            logger.error(f"Failed to resolve service {name}: {e}")
-            raise
-    
-    async def health_check(self, name: str) -> bool:
-        """Perform health check on a service"""
-        if name not in self._health_trackers:
-            return False
-            
-        health_tracker = self._health_trackers[name]
-        service = self._services.get(name) or self._singletons.get(name)
-        
-        if not service:
-            return False
-        
-        try:
-            # Check if service has custom health check
-            if hasattr(service, 'health_check') and callable(service.health_check):
-                if asyncio.iscoroutinefunction(service.health_check):
-                    is_healthy = await service.health_check()
-                else:
-                    is_healthy = service.health_check()
-                    
-                if is_healthy:
-                    health_tracker.mark_healthy()
-                else:
-                    health_tracker.mark_degraded()
-                    
-                return is_healthy
-            else:
-                # Basic health check - service exists and is not in failed state
-                is_healthy = health_tracker.status not in [ServiceLifecycle.FAILED, ServiceLifecycle.STOPPED]
-                if is_healthy:
-                    health_tracker.mark_healthy()
-                return is_healthy
-                
-        except Exception as e:
-            health_tracker.mark_failed(e)
-            return False
-    
-    async def shutdown_service(self, name: str):
-        """Gracefully shutdown a service"""
-        health_tracker = self._health_trackers.get(name)
-        if health_tracker:
-            health_tracker.status = ServiceLifecycle.SHUTTING_DOWN
-        
-        service = self._services.get(name) or self._singletons.get(name)
-        if service and hasattr(service, 'cleanup') and callable(service.cleanup):
-            try:
-                if asyncio.iscoroutinefunction(service.cleanup):
-                    await service.cleanup()
-                else:
-                    service.cleanup()
-                logger.info(f"Successfully shutdown service: {name}")
-            except Exception as e:
-                logger.error(f"Error shutting down service {name}: {e}")
-        
-        if health_tracker:
-            health_tracker.status = ServiceLifecycle.STOPPED
-            health_tracker.shutdown_time = datetime.utcnow()
-    
-    def get_service_health(self, name: str) -> Optional[ServiceHealth]:
-        """Get health information for a service"""
-        return self._health_trackers.get(name)
-    
-    def get_all_health_info(self) -> Dict[str, Dict[str, Any]]:
-        """Get health information for all services"""
-        result = {}
-        for name, health in self._health_trackers.items():
-            result[name] = {
-                "status": health.status,
-                "error_count": health.error_count,
-                "last_health_check": health.last_health_check,
-                "startup_time": health.startup_time,
-                "dependencies": health.dependencies
-            }
-        return result
+class SingletonServiceProvider(ServiceProvider[T]):
+    """Singleton service provider with lazy initialization"""
+
+    def __init__(self, service_class: Type[T], *args, **kwargs):
+        self.service_class = service_class
+        self.args = args
+        self.kwargs = kwargs
+        self._instance: Optional[T] = None
+        self._lock = asyncio.Lock()
+
+    async def get_instance(self) -> T:
+        """Get singleton instance with thread-safe lazy initialization"""
+        if self._instance is None:
+            async with self._lock:
+                if self._instance is None:
+                    self._instance = await self.create_instance()
+                    await self.initialize_instance(self._instance)
+        return self._instance
+
+    async def create_instance(self) -> T:
+        """Create service instance"""
+        return self.service_class(*self.args, **self.kwargs)
+
+    async def initialize_instance(self, instance: T) -> T:
+        """Initialize service instance if it has enterprise_warm_up method"""
+        if hasattr(instance, 'enterprise_warm_up'):
+            await instance.enterprise_warm_up()
+        return instance
+
+    async def health_check(self, instance: T) -> bool:
+        """Perform health check"""
+        if hasattr(instance, 'health_check'):
+            return await instance.health_check()
+        return True
+
+    async def cleanup_instance(self, instance: T) -> None:
+        """Cleanup service instance"""
+        if hasattr(instance, 'graceful_shutdown'):
+            await instance.graceful_shutdown()
 
 
 class DependencyContainer:
-    """Netflix-level dependency injection container"""
-    
+    """Netflix-level dependency injection container with enterprise features"""
+
     def __init__(self):
-        self.registry = ServiceRegistry()
-        self._initialized = False
-        self._initialization_lock = asyncio.Lock()
+        self._services: Dict[str, ServiceProvider] = {}
+        self._instances: Dict[str, Any] = {}
+        self._metadata: Dict[str, ServiceMetadata] = {}
+        self._initialization_order: List[str] = []
+        self._service_dependencies: Dict[str, Set[str]] = {}
+        self._circular_dependency_detector = set()
         
-        # Core services
-        self.cache_manager: Optional[CacheManager] = None
-        self.metrics_collector: Optional[MetricsCollector] = None
-        self.health_checker: Optional[HealthChecker] = None
-        self.security_manager: Optional[SecurityManager] = None
-        self.rate_limiter: Optional[RateLimiter] = None
+        # Performance monitoring
+        self._initialization_times: Dict[str, float] = {}
+        self._health_check_results: Dict[str, bool] = {}
+        self._last_health_check: Optional[datetime] = None
         
-        # Business services
-        self.video_service: Optional[VideoService] = None
-        self.ai_analyzer: Optional[AIAnalyzer] = None
-        self.realtime_engine: Optional[RealtimeEngine] = None
+        # Lifecycle management
+        self._shutdown_callbacks: List[callable] = []
+        self._is_shutting_down = False
         
-    async def initialize(self):
-        """Initialize all services with proper dependency order"""
-        async with self._initialization_lock:
-            if self._initialized:
-                return
-                
-            logger.info("🚀 Initializing Netflix-level dependency container")
-            start_time = datetime.utcnow()
-            
-            try:
-                await self._register_services()
-                await self._resolve_core_services()
-                await self._resolve_business_services()
-                await self._perform_health_checks()
-                
-                self._initialized = True
-                initialization_time = (datetime.utcnow() - start_time).total_seconds()
-                
-                logger.info(f"✅ Dependency container initialized in {initialization_time:.2f}s")
-                
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize dependency container: {e}")
-                await self.cleanup()
-                raise
-    
-    async def _register_services(self):
-        """Register all service factories"""
-        
-        # Register core infrastructure services
-        self.registry.register_factory(
-            "cache_manager",
-            self._create_cache_manager,
-            dependencies=[]
-        )
-        
-        self.registry.register_factory(
-            "metrics_collector", 
-            self._create_metrics_collector,
-            dependencies=["cache_manager"]
-        )
-        
-        self.registry.register_factory(
-            "health_checker",
-            self._create_health_checker,
-            dependencies=["metrics_collector"]
-        )
-        
-        self.registry.register_factory(
-            "security_manager",
-            self._create_security_manager,
-            dependencies=["cache_manager"]
-        )
-        
-        self.registry.register_factory(
-            "rate_limiter",
-            self._create_rate_limiter,
-            dependencies=["cache_manager"]
-        )
-        
-        # Register business services
-        self.registry.register_factory(
-            "video_service",
-            self._create_video_service,
-            dependencies=["cache_manager", "metrics_collector"]
-        )
-        
-        self.registry.register_factory(
-            "ai_analyzer",
-            self._create_ai_analyzer,
-            dependencies=["cache_manager", "metrics_collector"]
-        )
-        
-        self.registry.register_factory(
-            "realtime_engine",
-            self._create_realtime_engine,
-            dependencies=["video_service", "ai_analyzer", "metrics_collector"]
-        )
-    
-    async def _resolve_core_services(self):
-        """Resolve core infrastructure services"""
-        self.cache_manager = await self.registry.resolve("cache_manager")
-        self.metrics_collector = await self.registry.resolve("metrics_collector")
-        self.health_checker = await self.registry.resolve("health_checker")
-        self.security_manager = await self.registry.resolve("security_manager")
-        self.rate_limiter = await self.registry.resolve("rate_limiter")
-    
-    async def _resolve_business_services(self):
-        """Resolve business logic services"""
-        self.video_service = await self.registry.resolve("video_service")
-        self.ai_analyzer = await self.registry.resolve("ai_analyzer")
-        self.realtime_engine = await self.registry.resolve("realtime_engine")
-    
-    async def _perform_health_checks(self):
-        """Perform initial health checks on all services"""
-        services = [
-            "cache_manager", "metrics_collector", "health_checker",
-            "security_manager", "rate_limiter", "video_service", 
-            "ai_analyzer", "realtime_engine"
-        ]
-        
-        for service_name in services:
-            is_healthy = await self.registry.health_check(service_name)
-            if not is_healthy:
-                logger.warning(f"Service {service_name} failed initial health check")
-    
-    # Service factory methods
-    async def _create_cache_manager(self) -> CacheManager:
-        """Create cache manager"""
-        return CacheManager(
-            default_ttl=settings.cache_ttl,
-            max_size=1000,
-            cleanup_interval=300
-        )
-    
-    async def _create_metrics_collector(self, cache_manager: CacheManager) -> MetricsCollector:
-        """Create metrics collector"""
-        return MetricsCollector(
-            cache_manager=cache_manager,
-            collection_interval=30
-        )
-    
-    async def _create_health_checker(self, metrics_collector: MetricsCollector) -> HealthChecker:
-        """Create health checker"""
-        return HealthChecker(
-            metrics_collector=metrics_collector,
-            check_interval=60
-        )
-    
-    async def _create_security_manager(self, cache_manager: CacheManager) -> SecurityManager:
-        """Create security manager"""
-        return SecurityManager(
-            cache_manager=cache_manager,
-            secret_key=settings.secret_key
-        )
-    
-    async def _create_rate_limiter(self, cache_manager: CacheManager) -> RateLimiter:
-        """Create rate limiter"""
-        return RateLimiter(
-            cache_manager=cache_manager,
-            default_limit=settings.rate_limit_requests
-        )
-    
-    async def _create_video_service(self, cache_manager: CacheManager, metrics_collector: MetricsCollector) -> VideoService:
-        """Create video service"""
-        return VideoService(
-            upload_dir=settings.upload_path,
-            output_dir=settings.output_path,
-            temp_dir=settings.temp_path,
-            cache_manager=cache_manager,
-            metrics_collector=metrics_collector
-        )
-    
-    async def _create_ai_analyzer(self, cache_manager: CacheManager, metrics_collector: MetricsCollector) -> AIAnalyzer:
-        """Create AI analyzer"""
-        return AIAnalyzer(
-            cache_manager=cache_manager,
-            metrics_collector=metrics_collector,
-            model_path=settings.ai_model_path,
-            batch_size=settings.ai_batch_size
-        )
-    
-    async def _create_realtime_engine(self, video_service: VideoService, ai_analyzer: AIAnalyzer, metrics_collector: MetricsCollector) -> RealtimeEngine:
-        """Create realtime engine"""
-        return RealtimeEngine(
-            video_service=video_service,
-            ai_analyzer=ai_analyzer,
-            metrics_collector=metrics_collector
-        )
-    
-    async def get_service(self, service_name: str) -> Any:
-        """Get a service by name"""
-        if not self._initialized:
-            await self.initialize()
-        return await self.registry.resolve(service_name)
-    
-    async def health_check_all(self) -> Dict[str, bool]:
-        """Perform health check on all services"""
-        if not self._initialized:
-            return {}
-            
-        results = {}
-        services = [
-            "cache_manager", "metrics_collector", "health_checker",
-            "security_manager", "rate_limiter", "video_service",
-            "ai_analyzer", "realtime_engine"
-        ]
-        
-        for service_name in services:
-            try:
-                results[service_name] = await self.registry.health_check(service_name)
-            except Exception as e:
-                logger.error(f"Health check failed for {service_name}: {e}")
-                results[service_name] = False
-                
-        return results
-    
-    async def get_comprehensive_health(self) -> Dict[str, Any]:
-        """Get comprehensive health information"""
-        health_checks = await self.health_check_all()
-        service_info = self.registry.get_all_health_info()
-        
-        overall_health = "healthy"
-        if not all(health_checks.values()):
-            unhealthy_count = sum(1 for healthy in health_checks.values() if not healthy)
-            if unhealthy_count > len(health_checks) // 2:
-                overall_health = "unhealthy"
-            else:
-                overall_health = "degraded"
-        
-        return {
-            "overall_status": overall_health,
-            "services": health_checks,
-            "service_details": service_info,
-            "container_initialized": self._initialized,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    
-    async def preload_critical_data(self):
-        """Preload critical data for better performance"""
+        logger.info("🏗️ Netflix-level dependency container initialized")
+
+    async def initialize_enterprise_services(self):
+        """Initialize all enterprise services with dependency resolution"""
         try:
-            # Warm up cache with commonly accessed data
-            if self.cache_manager:
-                await self.cache_manager.warm_up()
+            start_time = time.time()
+            logger.info("🚀 Initializing enterprise services...")
+
+            # Register core services
+            await self._register_core_services()
             
-            # Initialize AI models
-            if self.ai_analyzer:
-                await self.ai_analyzer.warm_up()
+            # Initialize services in dependency order
+            await self._initialize_services_ordered()
             
-            logger.info("✅ Critical data preloaded successfully")
+            # Perform initial health checks
+            await self._perform_initial_health_checks()
+            
+            # Setup monitoring
+            await self._setup_service_monitoring()
+            
+            initialization_time = time.time() - start_time
+            logger.info(f"✅ Enterprise services initialized in {initialization_time:.2f}s")
             
         except Exception as e:
-            logger.warning(f"Failed to preload some critical data: {e}")
-    
-    async def cleanup(self):
-        """Cleanup all services gracefully"""
-        if not self._initialized:
-            return
-            
-        logger.info("🔄 Cleaning up dependency container")
+            logger.error(f"❌ Enterprise service initialization failed: {e}", exc_info=True)
+            raise
+
+    async def _register_core_services(self):
+        """Register all core enterprise services"""
         
-        # Shutdown services in reverse dependency order
-        shutdown_order = [
-            "realtime_engine", "ai_analyzer", "video_service",
-            "rate_limiter", "security_manager", "health_checker",
-            "metrics_collector", "cache_manager"
-        ]
+        # Core infrastructure services
+        self.register_singleton('cache_manager', EnterpriseIntelligentCacheManager)
+        self.register_singleton('metrics_collector', EnterpriseMetricsCollector)
+        self.register_singleton('health_checker', EnterpriseHealthChecker)
+        self.register_singleton('rate_limiter', EnterpriseRateLimiter)
+        self.register_singleton('security_manager', EnterpriseSecurityManager)
         
-        for service_name in shutdown_order:
-            try:
-                await self.registry.shutdown_service(service_name)
-            except Exception as e:
-                logger.error(f"Error shutting down {service_name}: {e}")
+        # Business logic services
+        self.register_singleton('realtime_engine', EnterpriseRealtimeEngine)
+        self.register_singleton('ai_analyzer', NetflixLevelAIAnalyzer)
+        self.register_singleton('video_service', NetflixLevelVideoService)
         
-        self._initialized = False
-        logger.info("✅ Dependency container cleanup complete")
-    
-    @asynccontextmanager
-    async def service_scope(self, service_name: str):
-        """Context manager for scoped service usage"""
-        service = await self.get_service(service_name)
+        # Define service dependencies
+        self._service_dependencies = {
+            'realtime_engine': {'metrics_collector', 'health_checker'},
+            'ai_analyzer': {'cache_manager', 'metrics_collector'},
+            'video_service': {'cache_manager', 'rate_limiter', 'metrics_collector'},
+            'health_checker': {'metrics_collector'},
+            'rate_limiter': {'cache_manager'},
+            'security_manager': {'cache_manager'}
+        }
+
+    def register_singleton(self, name: str, service_class: Type[T], *args, **kwargs):
+        """Register singleton service with metadata tracking"""
+        import uuid
+        
+        provider = SingletonServiceProvider(service_class, *args, **kwargs)
+        self._services[name] = provider
+        
+        # Create metadata
+        self._metadata[name] = ServiceMetadata(
+            name=name,
+            instance_id=str(uuid.uuid4()),
+            created_at=datetime.utcnow(),
+            dependencies=self._service_dependencies.get(name, set()).copy()
+        )
+        
+        logger.debug(f"📝 Registered singleton service: {name}")
+
+    async def get_service(self, name: str) -> Any:
+        """Get service instance with dependency resolution"""
+        if name not in self._services:
+            raise ValueError(f"Service '{name}' not registered")
+        
+        # Check for circular dependencies
+        if name in self._circular_dependency_detector:
+            raise ValueError(f"Circular dependency detected for service '{name}'")
+        
         try:
-            yield service
+            self._circular_dependency_detector.add(name)
+            
+            # Initialize dependencies first
+            dependencies = self._service_dependencies.get(name, set())
+            for dep_name in dependencies:
+                await self.get_service(dep_name)
+            
+            # Get or create service instance
+            if name not in self._instances:
+                provider = self._services[name]
+                
+                start_time = time.time()
+                instance = await provider.get_instance()
+                initialization_time = time.time() - start_time
+                
+                self._instances[name] = instance
+                self._initialization_times[name] = initialization_time
+                
+                # Update metadata
+                if name in self._metadata:
+                    self._metadata[name].initialized_at = datetime.utcnow()
+                    self._metadata[name].status = "initialized"
+                
+                logger.info(f"🎯 Service initialized: {name} ({initialization_time:.3f}s)")
+            
+            return self._instances[name]
+            
         finally:
-            # Cleanup if needed
-            if hasattr(service, 'cleanup_scope') and callable(service.cleanup_scope):
+            self._circular_dependency_detector.discard(name)
+
+    async def _initialize_services_ordered(self):
+        """Initialize services in dependency order"""
+        
+        # Calculate initialization order using topological sort
+        initialization_order = self._calculate_initialization_order()
+        
+        for service_name in initialization_order:
+            await self.get_service(service_name)
+            self._initialization_order.append(service_name)
+
+    def _calculate_initialization_order(self) -> List[str]:
+        """Calculate service initialization order using topological sort"""
+        from collections import defaultdict, deque
+        
+        # Build dependency graph
+        graph = defaultdict(list)
+        in_degree = defaultdict(int)
+        
+        # Initialize in_degree for all services
+        for service in self._services.keys():
+            in_degree[service] = 0
+        
+        # Build graph and calculate in-degrees
+        for service, deps in self._service_dependencies.items():
+            for dep in deps:
+                graph[dep].append(service)
+                in_degree[service] += 1
+        
+        # Topological sort
+        queue = deque([service for service in self._services.keys() if in_degree[service] == 0])
+        result = []
+        
+        while queue:
+            current = queue.popleft()
+            result.append(current)
+            
+            for neighbor in graph[current]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+        
+        if len(result) != len(self._services):
+            raise ValueError("Circular dependency detected in service graph")
+        
+        return result
+
+    async def _perform_initial_health_checks(self):
+        """Perform initial health checks on all services"""
+        logger.info("🏥 Performing initial health checks...")
+        
+        for service_name in self._initialization_order:
+            try:
+                instance = self._instances[service_name]
+                provider = self._services[service_name]
+                
+                is_healthy = await provider.health_check(instance)
+                self._health_check_results[service_name] = is_healthy
+                
+                if is_healthy:
+                    logger.debug(f"✅ Health check passed: {service_name}")
+                else:
+                    logger.warning(f"⚠️ Health check failed: {service_name}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Health check error for {service_name}: {e}")
+                self._health_check_results[service_name] = False
+        
+        self._last_health_check = datetime.utcnow()
+
+    async def _setup_service_monitoring(self):
+        """Setup continuous service monitoring"""
+        # Start background health monitoring
+        asyncio.create_task(self._background_health_monitoring())
+        
+        # Start performance monitoring
+        asyncio.create_task(self._background_performance_monitoring())
+
+    async def _background_health_monitoring(self):
+        """Background health monitoring for all services"""
+        while not self._is_shutting_down:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                
+                for service_name in self._instances.keys():
+                    try:
+                        instance = self._instances[service_name]
+                        provider = self._services[service_name]
+                        
+                        is_healthy = await provider.health_check(instance)
+                        self._health_check_results[service_name] = is_healthy
+                        
+                        if not is_healthy:
+                            logger.warning(f"⚠️ Service unhealthy: {service_name}")
+                            
+                    except Exception as e:
+                        logger.error(f"Health check error for {service_name}: {e}")
+                        self._health_check_results[service_name] = False
+                
+                self._last_health_check = datetime.utcnow()
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Background health monitoring error: {e}")
+
+    async def _background_performance_monitoring(self):
+        """Background performance monitoring"""
+        while not self._is_shutting_down:
+            try:
+                await asyncio.sleep(300)  # Monitor every 5 minutes
+                
+                # Log performance metrics
+                total_services = len(self._instances)
+                healthy_services = sum(1 for h in self._health_check_results.values() if h)
+                
+                logger.info(
+                    f"📊 Service Health: {healthy_services}/{total_services} healthy, "
+                    f"Avg init time: {sum(self._initialization_times.values()) / len(self._initialization_times):.3f}s"
+                )
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Background performance monitoring error: {e}")
+
+    # Property accessors for easy service access
+    @property
+    def realtime_engine(self) -> Optional[EnterpriseRealtimeEngine]:
+        """Get realtime engine service"""
+        return self._instances.get('realtime_engine')
+
+    @property
+    def ai_analyzer(self) -> Optional[NetflixLevelAIAnalyzer]:
+        """Get AI analyzer service"""
+        return self._instances.get('ai_analyzer')
+
+    @property
+    def video_service(self) -> Optional[NetflixLevelVideoService]:
+        """Get video service"""
+        return self._instances.get('video_service')
+
+    @property
+    def cache_manager(self) -> Optional[EnterpriseIntelligentCacheManager]:
+        """Get cache manager service"""
+        return self._instances.get('cache_manager')
+
+    @property
+    def metrics_collector(self) -> Optional[EnterpriseMetricsCollector]:
+        """Get metrics collector service"""
+        return self._instances.get('metrics_collector')
+
+    @property
+    def health_checker(self) -> Optional[EnterpriseHealthChecker]:
+        """Get health checker service"""
+        return self._instances.get('health_checker')
+
+    @property
+    def rate_limiter(self) -> Optional[EnterpriseRateLimiter]:
+        """Get rate limiter service"""
+        return self._instances.get('rate_limiter')
+
+    @property
+    def security_manager(self) -> Optional[EnterpriseSecurityManager]:
+        """Get security manager service"""
+        return self._instances.get('security_manager')
+
+    async def get_service_status(self) -> Dict[str, Any]:
+        """Get comprehensive service status"""
+        return {
+            "total_services": len(self._services),
+            "initialized_services": len(self._instances),
+            "healthy_services": sum(1 for h in self._health_check_results.values() if h),
+            "unhealthy_services": sum(1 for h in self._health_check_results.values() if not h),
+            "last_health_check": self._last_health_check.isoformat() if self._last_health_check else None,
+            "initialization_order": self._initialization_order,
+            "initialization_times": self._initialization_times,
+            "health_results": self._health_check_results,
+            "service_metadata": {
+                name: {
+                    "instance_id": meta.instance_id,
+                    "status": meta.status,
+                    "created_at": meta.created_at.isoformat(),
+                    "initialized_at": meta.initialized_at.isoformat() if meta.initialized_at else None,
+                    "dependencies": list(meta.dependencies)
+                }
+                for name, meta in self._metadata.items()
+            }
+        }
+
+    async def add_shutdown_callback(self, callback: callable):
+        """Add callback to be executed during shutdown"""
+        self._shutdown_callbacks.append(callback)
+
+    async def graceful_shutdown(self):
+        """Gracefully shutdown all services"""
+        logger.info("🔄 Starting graceful container shutdown...")
+        self._is_shutting_down = True
+        
+        try:
+            # Execute shutdown callbacks
+            for callback in self._shutdown_callbacks:
                 try:
-                    if asyncio.iscoroutinefunction(service.cleanup_scope):
-                        await service.cleanup_scope()
-                    else:
-                        service.cleanup_scope()
+                    await callback()
                 except Exception as e:
-                    logger.warning(f"Error in service scope cleanup for {service_name}: {e}")
-
-
-# Global container instance
-container = DependencyContainer()
-
-__all__ = [
-    "DependencyContainer",
-    "ServiceRegistry", 
-    "ServiceHealth",
-    "ServiceLifecycle",
-    "container"
-]
+                    logger.error(f"Shutdown callback error: {e}")
+            
+            # Shutdown services in reverse initialization order
+            shutdown_order = list(reversed(self._initialization_order))
+            
+            for service_name in shutdown_order:
+                try:
+                    if service_name in self._instances:
+                        instance = self._instances[service_name]
+                        provider = self._services[service_name]
+                        
+                        await provider.cleanup_instance(instance)
+                        logger.info(f"🔄 Service shut down: {service_name}")
+                        
+                except Exception as e:
+                    logger.error(f"Error shutting down {service_name}: {e}")
+            
+            # Clear all state
+            self._instances.clear()
+            self._health_check_results.clear()
+            self._initialization_times.clear()
+            
+            logger.info("✅ Container graceful shutdown complete")
+            
+        except Exception as e:
+            logger.error(f"❌ Error during graceful shutdown: {e}", exc_info=True)
