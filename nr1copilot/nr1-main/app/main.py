@@ -1,6 +1,7 @@
+
 """
-ViralClip Pro v5.0 - Netflix-Level Architecture
-Enterprise-grade video processing platform with real-time AI analysis
+ViralClip Pro v6.0 - Netflix-Level Architecture
+Enterprise-grade video processing platform with advanced patterns
 """
 
 import asyncio
@@ -11,6 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+import traceback
 
 import uvicorn
 from fastapi import (
@@ -24,7 +26,8 @@ from fastapi import (
     Form,
     BackgroundTasks,
     Request,
-    Response
+    Response,
+    status
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -32,6 +35,8 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 import aiofiles
 
 from app.config import settings
@@ -46,135 +51,157 @@ from app.schemas import (
     SystemHealth,
     ErrorResponse
 )
-from app.services.video_service import VideoService
-from app.services.ai_analyzer import AIAnalyzer
-from app.services.realtime_engine import RealtimeEngine
-from app.services.cloud_processor import CloudProcessor
-from app.utils.metrics import MetricsCollector
-from app.utils.health import HealthChecker
-from app.utils.rate_limiter import RateLimiter
-from app.utils.security import SecurityManager
-from app.utils.cache import CacheManager
 
-# Initialize Netflix-level logging
+# Initialize logging first
 logger = setup_logging()
 
-# Global service instances (Dependency Injection Pattern)
-class ServiceContainer:
+# Lazy imports for better startup performance
+from app.services.dependency_container import DependencyContainer
+from app.middleware.error_handler import ErrorHandlerMiddleware
+from app.middleware.performance import PerformanceMiddleware
+from app.middleware.security import SecurityMiddleware
+
+
+class ApplicationState:
+    """Application state management with circuit breaker pattern"""
+    
     def __init__(self):
-        self.video_service: Optional[VideoService] = None
-        self.ai_analyzer: Optional[AIAnalyzer] = None
-        self.realtime_engine: Optional[RealtimeEngine] = None
-        self.cloud_processor: Optional[CloudProcessor] = None
-        self.metrics_collector: Optional[MetricsCollector] = None
-        self.health_checker: Optional[HealthChecker] = None
-        self.rate_limiter: Optional[RateLimiter] = None
-        self.security_manager: Optional[SecurityManager] = None
-        self.cache_manager: Optional[CacheManager] = None
-        self._initialized = False
+        self.is_ready = False
+        self.is_healthy = True
+        self.startup_time = None
+        self.last_health_check = None
+        self.error_count = 0
+        self.max_errors = 10
+        
+    def mark_ready(self):
+        self.is_ready = True
+        self.startup_time = datetime.utcnow()
+        
+    def mark_unhealthy(self):
+        self.is_healthy = False
+        self.error_count += 1
+        
+    def mark_healthy(self):
+        self.is_healthy = True
+        self.error_count = 0
+        self.last_health_check = datetime.utcnow()
+        
+    @property
+    def should_circuit_break(self) -> bool:
+        return self.error_count >= self.max_errors
 
-    async def initialize(self):
-        """Netflix-level service initialization with error handling"""
-        if self._initialized:
-            return
 
-        try:
-            logger.info("🚀 Initializing Netflix-Level Services...")
+# Global application state
+app_state = ApplicationState()
 
-            # Core services
-            self.video_service = VideoService()
-            self.ai_analyzer = AIAnalyzer()
-            self.realtime_engine = RealtimeEngine()
-            self.cloud_processor = CloudProcessor()
-
-            # Utility services
-            self.metrics_collector = MetricsCollector()
-            self.health_checker = HealthChecker()
-            self.rate_limiter = RateLimiter()
-            self.security_manager = SecurityManager()
-            self.cache_manager = CacheManager()
-
-            # Initialize services in dependency order
-            await self.cache_manager.initialize()
-            await self.ai_analyzer.initialize()
-            await self.realtime_engine.initialize()
-            await self.cloud_processor.initialize()
-            await self.metrics_collector.initialize()
-
-            # Start background services
-            await self.realtime_engine.start()
-            await self.metrics_collector.start()
-
-            self._initialized = True
-            logger.info("✅ All Netflix-Level services initialized successfully")
-
-        except Exception as e:
-            logger.error(f"❌ Service initialization failed: {e}", exc_info=True)
-            raise
-
-    async def cleanup(self):
-        """Netflix-level graceful shutdown"""
-        if not self._initialized:
-            return
-
-        logger.info("🔄 Shutting down Netflix-Level services...")
-
-        try:
-            if self.realtime_engine:
-                await self.realtime_engine.stop()
-            if self.cloud_processor:
-                await self.cloud_processor.cleanup()
-            if self.metrics_collector:
-                await self.metrics_collector.stop()
-            if self.cache_manager:
-                await self.cache_manager.cleanup()
-
-            self._initialized = False
-            logger.info("✅ Shutdown complete")
-
-        except Exception as e:
-            logger.error(f"❌ Shutdown error: {e}", exc_info=True)
-
-# Global service container
-services = ServiceContainer()
+# Dependency container - Netflix-level dependency injection
+container = DependencyContainer()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Netflix-level application lifecycle management"""
-    logger.info("🎬 Starting ViralClip Pro v5.0 - Netflix-Level Platform")
-
+    """Netflix-level application lifecycle with graceful startup/shutdown"""
+    startup_start = time.time()
+    
     try:
-        # Setup directories
+        logger.info("🎬 Starting ViralClip Pro v6.0 - Netflix Architecture")
+        
+        # Pre-startup validations
+        await validate_environment()
+        
+        # Setup directories with proper permissions
         await setup_directories()
-
-        # Initialize services
-        await services.initialize()
-
+        
+        # Initialize dependency container
+        await container.initialize()
+        
+        # Warm up critical services
+        await warm_up_services()
+        
+        # Mark application as ready
+        app_state.mark_ready()
+        
+        startup_time = time.time() - startup_start
+        logger.info(f"✅ Application ready in {startup_time:.2f}s")
+        
         yield
-
+        
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
+        app_state.mark_unhealthy()
         raise
     finally:
-        await services.cleanup()
+        logger.info("🔄 Shutting down gracefully...")
+        await container.cleanup()
+        logger.info("✅ Shutdown complete")
 
 
-# Create FastAPI app with Netflix-level configuration
+async def validate_environment():
+    """Validate environment and dependencies"""
+    required_dirs = [
+        settings.upload_path.parent,
+        settings.output_path.parent,
+        settings.temp_path.parent,
+        settings.cache_path.parent
+    ]
+    
+    for dir_path in required_dirs:
+        if not dir_path.exists():
+            raise RuntimeError(f"Required directory missing: {dir_path}")
+
+
+async def setup_directories():
+    """Setup directories with optimal permissions"""
+    directories = [
+        settings.upload_path,
+        settings.output_path,
+        settings.temp_path,
+        settings.cache_path,
+        Path("nr1copilot/nr1-main/logs")
+    ]
+
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True, mode=0o755)
+        logger.debug(f"Directory ready: {directory}")
+
+
+async def warm_up_services():
+    """Warm up critical services for better first-request performance"""
+    try:
+        # Warm up AI analyzer
+        if container.ai_analyzer:
+            await container.ai_analyzer.warm_up()
+            
+        # Warm up cache
+        if container.cache_manager:
+            await container.cache_manager.warm_up()
+            
+        # Pre-load critical data
+        await container.preload_critical_data()
+        
+    except Exception as e:
+        logger.warning(f"Service warm-up partially failed: {e}")
+
+
+# Create FastAPI app with optimized configuration
 app = FastAPI(
-    title="ViralClip Pro v5.0",
+    title="ViralClip Pro v6.0",
     description="Netflix-Level AI Video Processing Platform",
-    version="5.0.0",
+    version="6.0.0",
     docs_url="/api/docs" if settings.debug else None,
     redoc_url="/api/redoc" if settings.debug else None,
     openapi_url="/api/openapi.json" if settings.debug else None,
-    lifespan=lifespan
+    lifespan=lifespan,
+    default_response_class=JSONResponse
 )
 
 # Security
 security = HTTPBearer(auto_error=False)
 
-# Netflix-level middleware stack
+# Netflix-level middleware stack (order matters!)
+app.add_middleware(ErrorHandlerMiddleware)
+app.add_middleware(PerformanceMiddleware)
+app.add_middleware(SecurityMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
@@ -186,106 +213,133 @@ app.add_middleware(
     max_age=600,
 )
 
-# Static files with caching
-app.mount("/static", StaticFiles(directory="nr1copilot/nr1-main/static"), name="static")
-app.mount("/public", StaticFiles(directory="nr1copilot/nr1-main/public"), name="public")
+# Static files with aggressive caching
+app.mount(
+    "/static", 
+    StaticFiles(directory="nr1copilot/nr1-main/static"), 
+    name="static"
+)
+app.mount(
+    "/public", 
+    StaticFiles(directory="nr1copilot/nr1-main/public"), 
+    name="public"
+)
 
 
-async def setup_directories():
-    """Setup required directories with proper permissions"""
-    directories = [
-        settings.upload_path,
-        settings.output_path,
-        settings.temp_path,
-        settings.cache_path,
-        Path("nr1copilot/nr1-main/logs")
-    ]
-
-    for directory in directories:
-        directory.mkdir(parents=True, exist_ok=True)
-        logger.debug(f"Directory ensured: {directory}")
-
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Netflix-level authentication with JWT validation"""
+# Dependency injection functions
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Dict[str, Any]:
+    """Netflix-level authentication with caching"""
     if not credentials and settings.require_auth:
-        raise HTTPException(status_code=401, detail="Authentication required")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
 
-    if credentials and services.security_manager:
-        user = await services.security_manager.validate_token(credentials.credentials)
+    if credentials and container.security_manager:
+        user = await container.security_manager.validate_token(
+            credentials.credentials
+        )
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
         return user
 
     return {"user_id": "anonymous", "permissions": ["read", "write"]}
 
 
 async def check_rate_limit(request: Request):
-    """Netflix-level rate limiting with adaptive throttling"""
-    if not services.rate_limiter:
+    """Rate limiting with adaptive throttling"""
+    if not container.rate_limiter:
         return
 
     client_ip = request.client.host
-    if not await services.rate_limiter.is_allowed(client_ip):
+    if not await container.rate_limiter.is_allowed(client_ip):
         raise HTTPException(
-            status_code=429, 
-            detail="Rate limit exceeded. Please try again later.",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
             headers={"Retry-After": "60"}
         )
 
 
-# Root endpoint
+async def check_health():
+    """Health check dependency"""
+    if app_state.should_circuit_break:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable"
+        )
+
+
+# Root endpoint with caching
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Serve main application with error handling"""
+    """Serve main application with aggressive caching"""
     try:
+        # Check cache first
+        if container.cache_manager:
+            cached_content = await container.cache_manager.get("root_html")
+            if cached_content:
+                return HTMLResponse(content=cached_content)
+
+        # Read and cache
         async with aiofiles.open("nr1copilot/nr1-main/index.html", mode="r") as f:
             content = await f.read()
+            
+        if container.cache_manager:
+            await container.cache_manager.set("root_html", content, ttl=3600)
+            
         return HTMLResponse(content=content)
+        
     except Exception as e:
         logger.error(f"Failed to serve root: {e}")
         return HTMLResponse(
-            "<h1>ViralClip Pro v5.0</h1><p>Service temporarily unavailable</p>", 
+            "<h1>ViralClip Pro v6.0</h1><p>Service temporarily unavailable</p>", 
             status_code=503
         )
 
 
 # Health and monitoring endpoints
-@app.get("/api/v5/health", response_model=SystemHealth)
+@app.get("/api/v6/health", response_model=SystemHealth)
 async def health_check():
-    """Netflix-level comprehensive health monitoring"""
+    """Comprehensive health monitoring with detailed metrics"""
     try:
-        health_data = await services.health_checker.get_system_health() if services.health_checker else {
-            "status": "healthy",
-            "services": {"core": "online"},
-            "metrics": {"uptime": time.time()}
-        }
+        health_data = await container.health_checker.get_comprehensive_health()
+        app_state.mark_healthy()
         return SystemHealth(**health_data)
+        
     except Exception as e:
         logger.error(f"Health check failed: {e}")
+        app_state.mark_unhealthy()
         return SystemHealth(
             status="unhealthy",
             services={"core": "error"},
-            metrics={"error": str(e)}
+            metrics={"error": str(e)},
+            timestamp=datetime.utcnow().isoformat()
         )
 
 
-@app.get("/api/v5/metrics")
-async def get_metrics():
-    """Netflix-level metrics endpoint with performance data"""
+@app.get("/api/v6/metrics")
+async def get_metrics(user=Depends(get_current_user)):
+    """Advanced metrics with business intelligence"""
     try:
-        metrics = await services.metrics_collector.get_metrics() if services.metrics_collector else {
-            "status": "metrics_disabled",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        return metrics
+        metrics = await container.metrics_collector.get_comprehensive_metrics()
+        return {"success": True, "metrics": metrics}
+        
     except Exception as e:
         logger.error(f"Metrics collection failed: {e}")
-        return {"error": str(e), "timestamp": datetime.utcnow().isoformat()}
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
-# Video upload endpoint
-@app.post("/api/v5/upload-video", response_model=VideoUploadResponse)
+# Video upload endpoint with advanced features
+@app.post("/api/v6/upload-video", response_model=VideoUploadResponse)
 async def upload_video(
     background_tasks: BackgroundTasks,
     request: Request,
@@ -294,132 +348,146 @@ async def upload_video(
     description: Optional[str] = Form(None),
     upload_id: Optional[str] = Form(None),
     user=Depends(get_current_user),
-    _=Depends(check_rate_limit)
+    _=Depends(check_rate_limit),
+    _health=Depends(check_health)
 ):
-    """Netflix-level video upload with instant processing"""
+    """Netflix-level video upload with intelligent processing"""
     start_time = time.time()
-
+    session_id = upload_id or f"upload_{uuid.uuid4().hex[:16]}"
+    
     try:
-        # Enhanced file validation
-        if not file.content_type or not file.content_type.startswith('video/'):
-            raise HTTPException(status_code=400, detail="Invalid video file format")
-
-        if file.size and file.size > settings.max_file_size:
+        # Advanced file validation
+        validation_result = await container.video_service.validate_upload(
+            file, user.get("permissions", [])
+        )
+        
+        if not validation_result.valid:
             raise HTTPException(
-                status_code=413, 
-                detail=f"File too large. Maximum size: {settings.max_file_size // (1024*1024)}MB"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=validation_result.error
             )
 
-        # Generate secure session ID
-        session_id = upload_id or f"session_{uuid.uuid4().hex[:16]}"
+        # Secure file handling with atomic operations
+        file_path = await container.video_service.save_upload_securely(
+            file, session_id
+        )
 
-        # Save with atomic operation
-        file_path = settings.upload_path / f"{session_id}_{file.filename}"
+        # Start intelligent background processing
+        background_tasks.add_task(
+            container.realtime_engine.process_upload_pipeline,
+            session_id,
+            str(file_path),
+            title,
+            description,
+            user
+        )
 
-        async with aiofiles.open(file_path, 'wb') as f:
-            content = await file.read()
-            await f.write(content)
-
-        logger.info(f"📁 File uploaded: {file_path} ({len(content)} bytes)")
-
-        # Start real-time analysis
-        analysis_result = await services.realtime_engine.start_realtime_analysis(
-            session_id, str(file_path)
-        ) if services.realtime_engine else {}
-
-        # Generate instant preview
-        preview_result = await services.realtime_engine.generate_instant_previews(
-            session_id, str(file_path)
-        ) if services.realtime_engine else {}
-
-        # Track metrics
-        if services.metrics_collector:
-            await services.metrics_collector.track_upload(
-                file_size=len(content),
-                processing_time=time.time() - start_time,
-                user_id=user.get("user_id", "anonymous")
-            )
+        # Track comprehensive metrics
+        await container.metrics_collector.track_upload_event(
+            file_size=validation_result.file_size,
+            processing_time=time.time() - start_time,
+            user_id=user.get("user_id"),
+            session_id=session_id
+        )
 
         return VideoUploadResponse(
             success=True,
             session_id=session_id,
             file_path=str(file_path),
-            file_size=len(content),
-            analysis=analysis_result,
-            preview=preview_result,
+            file_size=validation_result.file_size,
+            estimated_processing_time=validation_result.estimated_time,
             processing_time=time.time() - start_time
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Upload failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        logger.error(f"❌ Upload failed for session {session_id}: {e}", exc_info=True)
+        app_state.mark_unhealthy()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Upload processing failed"
+        )
 
 
-# AI Analysis endpoint
-@app.post("/api/v5/analyze", response_model=AnalysisResponse)
+# AI Analysis endpoint with caching
+@app.post("/api/v6/analyze", response_model=AnalysisResponse)
 async def analyze_video(
     request: AnalysisRequest,
     user=Depends(get_current_user),
-    _=Depends(check_rate_limit)
+    _=Depends(check_rate_limit),
+    _health=Depends(check_health)
 ):
-    """Netflix-level AI video analysis"""
+    """Advanced AI analysis with intelligent caching"""
     try:
-        if not services.video_service or not services.ai_analyzer:
-            raise HTTPException(status_code=503, detail="Services not available")
-        
-        # Validate video file
+        # Check cache first
+        cache_key = f"analysis_{request.session_id}_{hash(str(request.dict()))}"
+        if container.cache_manager:
+            cached_result = await container.cache_manager.get(cache_key)
+            if cached_result:
+                return AnalysisResponse(
+                    success=True,
+                    session_id=request.session_id,
+                    analysis=cached_result,
+                    cached=True
+                )
+
+        # Validate request
         if not Path(request.file_path).exists():
-            raise HTTPException(status_code=404, detail="Video file not found")
-        
-        # Perform comprehensive analysis
-        analysis_result = await services.ai_analyzer.analyze_video_comprehensive(
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video file not found"
+            )
+
+        # Perform advanced AI analysis
+        analysis_result = await container.ai_analyzer.analyze_comprehensive(
             file_path=request.file_path,
             title=request.title,
             description=request.description,
             target_platforms=request.target_platforms,
             custom_prompts=request.custom_prompts
         )
-        
-        # Cache results
-        if services.cache_manager:
-            await services.cache_manager.set(f"analysis_{request.session_id}", analysis_result, ttl=3600)
-        
+
+        # Cache result with intelligent TTL
+        if container.cache_manager:
+            ttl = 3600 if analysis_result.get("confidence", 0) > 0.8 else 1800
+            await container.cache_manager.set(cache_key, analysis_result, ttl=ttl)
+
         return AnalysisResponse(
             success=True,
             session_id=request.session_id,
             analysis=analysis_result,
             cached=False
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        logger.error(f"❌ Analysis failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Analysis processing failed"
+        )
 
 
-# Preview generation endpoint
-@app.post("/api/v5/generate-preview", response_model=PreviewResponse)
+# Preview generation with adaptive quality
+@app.post("/api/v6/generate-preview", response_model=PreviewResponse)
 async def generate_preview(
     request: PreviewRequest,
     user=Depends(get_current_user),
-    _=Depends(check_rate_limit)
+    _=Depends(check_rate_limit),
+    _health=Depends(check_health)
 ):
-    """Netflix-level instant preview generation"""
+    """Intelligent preview generation with adaptive streaming"""
     try:
-        if not services.realtime_engine:
-            raise HTTPException(status_code=503, detail="Realtime engine not available")
-        
-        # Generate live preview
-        preview_data = await services.realtime_engine.generate_live_preview(
+        preview_data = await container.realtime_engine.generate_adaptive_preview(
             session_id=request.session_id,
             start_time=request.start_time,
             end_time=request.end_time,
-            quality=request.quality
+            quality=request.quality,
+            user_preferences=user.get("preferences", {})
         )
-        
+
         return PreviewResponse(
             success=True,
             session_id=request.session_id,
@@ -428,81 +496,79 @@ async def generate_preview(
             suggestions=preview_data.get("suggestions", []),
             processing_time=preview_data.get("processing_time", 0)
         )
-        
-    except HTTPException:
-        raise
+
     except Exception as e:
-        logger.error(f"❌ Preview generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
+        logger.error(f"❌ Preview generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Preview generation failed"
+        )
 
 
-# Timeline data endpoint
-@app.get("/api/v5/timeline/{session_id}")
+# Advanced timeline endpoint
+@app.get("/api/v6/timeline/{session_id}")
 async def get_timeline_data(
     session_id: str,
     user=Depends(get_current_user),
     _=Depends(check_rate_limit)
 ):
-    """Get interactive timeline data"""
+    """Advanced interactive timeline with ML insights"""
     try:
-        if not services.realtime_engine:
-            raise HTTPException(status_code=503, detail="Realtime engine not available")
-        
-        timeline_data = await services.realtime_engine.get_timeline_data(session_id)
+        timeline_data = await container.realtime_engine.get_intelligent_timeline(
+            session_id,
+            user_preferences=user.get("preferences", {})
+        )
         return {"success": True, "timeline": timeline_data}
-        
+
     except Exception as e:
-        logger.error(f"❌ Timeline data failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Timeline data failed: {str(e)}")
+        logger.error(f"❌ Timeline data failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Timeline data failed"
+        )
 
 
-# Processing status endpoint
-@app.get("/api/v5/status/{session_id}", response_model=ProcessingStatus)
+# Processing status with intelligent updates
+@app.get("/api/v6/status/{session_id}", response_model=ProcessingStatus)
 async def get_processing_status(
     session_id: str,
     user=Depends(get_current_user)
 ):
-    """Get processing status"""
+    """Intelligent processing status with predictive completion"""
     try:
-        if services.realtime_engine and session_id in services.realtime_engine.active_sessions:
-            session_data = services.realtime_engine.active_sessions[session_id]
-            return ProcessingStatus(
-                session_id=session_id,
-                status=session_data.get("status", "unknown"),
-                progress=session_data.get("progress", 0),
-                stage=session_data.get("current_stage", "unknown"),
-                message=session_data.get("message", ""),
-                start_time=session_data.get("start_time"),
-                estimated_completion=session_data.get("estimated_completion")
+        status_data = await container.realtime_engine.get_intelligent_status(
+            session_id
+        )
+        
+        if not status_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found"
             )
-        else:
-            raise HTTPException(status_code=404, detail="Session not found")
-            
+
+        return ProcessingStatus(**status_data)
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Status check failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+        logger.error(f"❌ Status check failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Status check failed"
+        )
 
 
-# WebSocket endpoints
-@app.websocket("/api/v5/ws/app")
-async def websocket_main(websocket: WebSocket):
-    """Main application WebSocket with enhanced error handling"""
-    connection_id = f"main_{uuid.uuid4().hex[:16]}"
+# WebSocket endpoints with connection pooling
+@app.websocket("/api/v6/ws/realtime/{session_id}")
+async def websocket_realtime(websocket: WebSocket, session_id: str):
+    """High-performance WebSocket with connection pooling"""
+    connection_id = f"realtime_{session_id}_{uuid.uuid4().hex[:8]}"
 
     try:
         await websocket.accept()
-
-        if services.realtime_engine:
-            await services.realtime_engine.handle_main_websocket(websocket, connection_id)
-        else:
-            await websocket.send_json({
-                "type": "error",
-                "message": "Service unavailable",
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            await websocket.close(code=1000)
+        await container.realtime_engine.handle_realtime_connection(
+            websocket, session_id, connection_id
+        )
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket {connection_id} disconnected")
@@ -512,69 +578,63 @@ async def websocket_main(websocket: WebSocket):
             await websocket.close(code=1011, reason="Internal error")
         except:
             pass
+    finally:
+        await container.realtime_engine.cleanup_connection(connection_id)
 
 
-@app.websocket("/api/v5/ws/upload/{upload_id}")
-async def websocket_upload(websocket: WebSocket, upload_id: str):
-    """Upload progress WebSocket"""
-    await websocket.accept()
-    
-    if services.realtime_engine:
-        await services.realtime_engine.handle_upload_websocket(websocket, upload_id)
-    else:
-        await websocket.close(code=1000, reason="Service unavailable")
-
-
-# File serving endpoints
-@app.get("/api/v5/preview/{session_id}/{timestamp}")
-async def serve_preview(session_id: str, timestamp: str):
-    """Serve preview video files"""
+# File serving with intelligent caching
+@app.get("/api/v6/preview/{session_id}/{timestamp}")
+async def serve_preview(
+    session_id: str, 
+    timestamp: str,
+    user=Depends(get_current_user)
+):
+    """Serve preview files with adaptive streaming"""
     try:
-        # Construct file path (mock for now)
-        file_path = settings.output_path / f"preview_{session_id}_{timestamp}.mp4"
+        file_path = await container.video_service.get_preview_path(
+            session_id, timestamp
+        )
         
-        if file_path.exists():
-            return FileResponse(
-                file_path,
-                media_type="video/mp4",
-                headers={"Cache-Control": "max-age=3600"}
+        if not file_path or not file_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Preview not found"
             )
-        else:
-            raise HTTPException(status_code=404, detail="Preview not found")
-            
+
+        return FileResponse(
+            file_path,
+            media_type="video/mp4",
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "X-Content-Type-Options": "nosniff"
+            }
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"❌ Preview serving failed: {e}")
-        raise HTTPException(status_code=500, detail="Preview serving failed")
+        logger.error(f"❌ Preview serving failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Preview serving failed"
+        )
 
 
-@app.get("/api/v5/thumbnail/{session_id}/{timestamp}")
-async def serve_thumbnail(session_id: str, timestamp: str):
-    """Serve thumbnail images"""
-    try:
-        # Construct file path (mock for now)
-        file_path = settings.output_path / f"thumb_{session_id}_{timestamp}.jpg"
-        
-        if file_path.exists():
-            return FileResponse(
-                file_path,
-                media_type="image/jpeg",
-                headers={"Cache-Control": "max-age=7200"}
-            )
-        else:
-            raise HTTPException(status_code=404, detail="Thumbnail not found")
-            
-    except Exception as e:
-        logger.error(f"❌ Thumbnail serving failed: {e}")
-        raise HTTPException(status_code=500, detail="Thumbnail serving failed")
-
-
-# Error handlers
+# Advanced error handlers
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Netflix-level error handling with detailed logging"""
+async def enhanced_http_exception_handler(request: Request, exc: HTTPException):
+    """Netflix-level error handling with context"""
     error_id = str(uuid.uuid4())
-
-    logger.error(f"HTTP Error {error_id}: {exc.status_code} - {exc.detail}")
+    
+    logger.error(
+        f"HTTP Error {error_id}: {exc.status_code} - {exc.detail}",
+        extra={
+            "error_id": error_id,
+            "path": str(request.url),
+            "method": request.method,
+            "client_ip": request.client.host
+        }
+    )
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -589,22 +649,52 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """Handle unexpected errors with comprehensive logging"""
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Enhanced validation error handling"""
     error_id = str(uuid.uuid4())
-
-    logger.error(f"Unexpected Error {error_id}: {str(exc)}", exc_info=True)
+    
+    logger.warning(
+        f"Validation Error {error_id}: {exc.errors()}",
+        extra={"error_id": error_id, "path": str(request.url)}
+    )
 
     return JSONResponse(
-        status_code=500,
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error": True,
+            "error_id": error_id,
+            "message": "Validation failed",
+            "details": exc.errors(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Comprehensive error handling with monitoring"""
+    error_id = str(uuid.uuid4())
+    
+    logger.error(
+        f"Unexpected Error {error_id}: {str(exc)}",
+        extra={
+            "error_id": error_id,
+            "path": str(request.url),
+            "traceback": traceback.format_exc()
+        },
+        exc_info=True
+    )
+
+    app_state.mark_unhealthy()
+
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": True,
             "error_id": error_id,
             "message": "Internal server error",
-            "status_code": 500,
-            "timestamp": datetime.utcnow().isoformat(),
-            "path": str(request.url)
+            "timestamp": datetime.utcnow().isoformat()
         }
     )
 
@@ -618,5 +708,6 @@ if __name__ == "__main__":
         reload=settings.debug,
         log_level="info" if not settings.debug else "debug",
         access_log=True,
-        workers=1
+        workers=1,
+        loop="uvloop" if not settings.debug else "asyncio"
     )

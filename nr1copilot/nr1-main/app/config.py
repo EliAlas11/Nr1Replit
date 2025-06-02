@@ -1,125 +1,223 @@
 
 """
-Netflix-Level Configuration Management v5.0
-Environment-based settings with comprehensive validation
+Netflix-Level Configuration Management v6.0
+Comprehensive settings with validation and environment-specific configs
 """
 
 import os
-import secrets
+import logging
 from pathlib import Path
-from typing import List, Optional, Union
-from pydantic import BaseSettings, Field, validator, HttpUrl
+from typing import List, Dict, Any, Optional, Union
+from functools import lru_cache
+
+from pydantic import BaseSettings, Field, validator, root_validator
+from pydantic.types import PositiveInt, PositiveFloat
+
+logger = logging.getLogger(__name__)
 
 
-class NetflixLevelSettings(BaseSettings):
-    """Netflix-level application settings with comprehensive validation"""
+class DatabaseConfig(BaseSettings):
+    """Database configuration with connection pooling"""
     
-    # Application settings
-    app_name: str = Field("ViralClip Pro v5.0", description="Application name")
-    app_version: str = Field("5.0.0", description="Application version")
-    debug: bool = Field(False, description="Debug mode")
-    environment: str = Field("production", description="Environment (dev/staging/production)")
+    host: str = Field(default="localhost", env="DB_HOST")
+    port: PositiveInt = Field(default=5432, env="DB_PORT")
+    name: str = Field(default="viralclip", env="DB_NAME")
+    user: str = Field(default="postgres", env="DB_USER")
+    password: str = Field(default="", env="DB_PASSWORD")
     
-    # Server settings
-    host: str = Field("0.0.0.0", description="Server host")
-    port: int = Field(5000, description="Server port")
-    workers: int = Field(1, description="Number of worker processes")
+    # Connection pool settings
+    min_connections: PositiveInt = Field(default=5, env="DB_MIN_CONNECTIONS")
+    max_connections: PositiveInt = Field(default=20, env="DB_MAX_CONNECTIONS")
+    connection_timeout: PositiveFloat = Field(default=30.0, env="DB_CONNECTION_TIMEOUT")
+    command_timeout: PositiveFloat = Field(default=60.0, env="DB_COMMAND_TIMEOUT")
     
-    # Security settings
-    secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(32), description="Secret key")
-    require_auth: bool = Field(False, description="Require authentication")
-    auth_token_expire_minutes: int = Field(1440, description="Auth token expiration in minutes")
-    allowed_origins: List[str] = Field(["*"], description="CORS allowed origins")
+    # SSL settings
+    ssl_mode: str = Field(default="prefer", env="DB_SSL_MODE")
+    ssl_cert_path: Optional[str] = Field(default=None, env="DB_SSL_CERT_PATH")
     
-    # File handling
-    max_file_size: int = Field(500 * 1024 * 1024, description="Max file size (500MB)")
-    allowed_video_formats: List[str] = Field(
-        ["mp4", "avi", "mov", "mkv", "webm", "flv"],
-        description="Allowed video formats"
-    )
-    max_video_duration: int = Field(600, description="Max video duration in seconds (10 minutes)")
+    @property
+    def connection_string(self) -> str:
+        """Get complete database connection string"""
+        password_part = f":{self.password}" if self.password else ""
+        ssl_part = f"?sslmode={self.ssl_mode}" if self.ssl_mode != "disable" else ""
+        return f"postgresql://{self.user}{password_part}@{self.host}:{self.port}/{self.name}{ssl_part}"
+
+
+class CacheConfig(BaseSettings):
+    """Cache configuration for Redis/Memory"""
     
-    # Directory paths
-    base_path: Path = Field(Path("nr1copilot/nr1-main"), description="Base application path")
-    upload_path: Path = Field(Path("nr1copilot/nr1-main/uploads"), description="Upload directory")
-    output_path: Path = Field(Path("nr1copilot/nr1-main/output"), description="Output directory")
-    temp_path: Path = Field(Path("nr1copilot/nr1-main/temp"), description="Temporary files directory")
-    cache_path: Path = Field(Path("nr1copilot/nr1-main/cache"), description="Cache directory")
-    static_path: Path = Field(Path("nr1copilot/nr1-main/static"), description="Static files directory")
-    public_path: Path = Field(Path("nr1copilot/nr1-main/public"), description="Public files directory")
+    type: str = Field(default="memory", env="CACHE_TYPE")  # memory, redis
+    redis_url: Optional[str] = Field(default=None, env="REDIS_URL")
+    redis_host: str = Field(default="localhost", env="REDIS_HOST")
+    redis_port: PositiveInt = Field(default=6379, env="REDIS_PORT")
+    redis_db: int = Field(default=0, env="REDIS_DB")
+    redis_password: Optional[str] = Field(default=None, env="REDIS_PASSWORD")
     
-    # Logging settings
-    log_level: str = Field("INFO", description="Logging level")
-    log_format: str = Field(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        description="Log format"
-    )
-    enable_structured_logging: bool = Field(True, description="Enable structured JSON logging")
-    log_file_path: Optional[Path] = Field(
-        Path("nr1copilot/nr1-main/logs/app.log"),
-        description="Log file path"
-    )
-    log_rotation: str = Field("1 day", description="Log rotation interval")
-    log_retention: str = Field("30 days", description="Log retention period")
+    # Cache settings
+    default_ttl: PositiveInt = Field(default=3600, env="CACHE_DEFAULT_TTL")
+    max_memory_mb: PositiveInt = Field(default=512, env="CACHE_MAX_MEMORY_MB")
     
-    # Performance settings
-    enable_caching: bool = Field(True, description="Enable response caching")
-    cache_ttl: int = Field(3600, description="Default cache TTL in seconds")
-    cache_max_size: int = Field(1000, description="Maximum cache entries")
+    # Connection pool
+    max_connections: PositiveInt = Field(default=50, env="REDIS_MAX_CONNECTIONS")
+    connection_timeout: PositiveFloat = Field(default=5.0, env="REDIS_CONNECTION_TIMEOUT")
+    
+    @validator("type")
+    def validate_cache_type(cls, v):
+        if v not in ["memory", "redis"]:
+            raise ValueError("Cache type must be 'memory' or 'redis'")
+        return v
+    
+    @property
+    def redis_connection_string(self) -> Optional[str]:
+        """Get Redis connection string"""
+        if self.type != "redis":
+            return None
+            
+        if self.redis_url:
+            return self.redis_url
+            
+        password_part = f":{self.redis_password}@" if self.redis_password else ""
+        return f"redis://{password_part}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+
+class SecurityConfig(BaseSettings):
+    """Security configuration"""
+    
+    # JWT settings
+    jwt_secret_key: str = Field(default="your-super-secret-key", env="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expiration_hours: PositiveInt = Field(default=24, env="JWT_EXPIRATION_HOURS")
     
     # Rate limiting
-    enable_rate_limiting: bool = Field(True, description="Enable rate limiting")
-    rate_limit_requests: int = Field(100, description="Rate limit requests per window")
-    rate_limit_window: int = Field(60, description="Rate limit window in seconds")
-    rate_limit_storage: str = Field("memory", description="Rate limit storage backend")
+    rate_limit_requests_per_minute: PositiveInt = Field(default=100, env="RATE_LIMIT_RPM")
+    rate_limit_burst: PositiveInt = Field(default=200, env="RATE_LIMIT_BURST")
     
-    # Metrics and monitoring
-    enable_metrics: bool = Field(True, description="Enable metrics collection")
-    metrics_endpoint: str = Field("/api/v5/metrics", description="Metrics endpoint path")
-    health_endpoint: str = Field("/api/v5/health", description="Health check endpoint path")
-    enable_performance_monitoring: bool = Field(True, description="Enable performance monitoring")
+    # Security features
+    require_auth: bool = Field(default=False, env="REQUIRE_AUTH")
+    enable_csrf_protection: bool = Field(default=True, env="ENABLE_CSRF")
+    enable_cors: bool = Field(default=True, env="ENABLE_CORS")
+    allowed_origins: List[str] = Field(default=["*"], env="ALLOWED_ORIGINS")
     
-    # AI/ML settings
-    ai_model_path: Optional[Path] = Field(None, description="AI model directory path")
-    enable_gpu_acceleration: bool = Field(False, description="Enable GPU acceleration")
-    max_concurrent_analysis: int = Field(5, description="Max concurrent AI analysis tasks")
-    analysis_timeout: int = Field(300, description="Analysis timeout in seconds")
+    # Encryption
+    encryption_key: Optional[str] = Field(default=None, env="ENCRYPTION_KEY")
+    hash_rounds: PositiveInt = Field(default=12, env="HASH_ROUNDS")
     
-    # Video processing settings
-    enable_hardware_acceleration: bool = Field(False, description="Enable hardware acceleration")
-    ffmpeg_path: Optional[str] = Field(None, description="FFmpeg binary path")
-    max_concurrent_processing: int = Field(3, description="Max concurrent video processing")
-    processing_quality_default: str = Field("standard", description="Default processing quality")
+    @validator("allowed_origins", pre=True)
+    def parse_allowed_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+
+
+class AIConfig(BaseSettings):
+    """AI and ML configuration"""
     
-    # WebSocket settings
-    websocket_ping_interval: int = Field(30, description="WebSocket ping interval in seconds")
-    websocket_ping_timeout: int = Field(10, description="WebSocket ping timeout in seconds")
-    max_websocket_connections: int = Field(1000, description="Maximum WebSocket connections")
+    # Model settings
+    model_path: str = Field(default="models", env="AI_MODEL_PATH")
+    enable_gpu: bool = Field(default=False, env="AI_ENABLE_GPU")
+    batch_size: PositiveInt = Field(default=4, env="AI_BATCH_SIZE")
+    max_concurrent_analyses: PositiveInt = Field(default=5, env="AI_MAX_CONCURRENT")
     
-    # Database settings (if needed in future)
-    database_url: Optional[str] = Field(None, description="Database connection URL")
-    database_pool_size: int = Field(10, description="Database connection pool size")
+    # API keys
+    openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
+    huggingface_api_key: Optional[str] = Field(default=None, env="HUGGINGFACE_API_KEY")
     
-    # Cloud storage settings (if needed)
-    cloud_storage_enabled: bool = Field(False, description="Enable cloud storage")
-    cloud_storage_bucket: Optional[str] = Field(None, description="Cloud storage bucket name")
-    cloud_storage_region: Optional[str] = Field(None, description="Cloud storage region")
+    # Model-specific settings
+    sentiment_model: str = Field(default="cardiffnlp/twitter-roberta-base-sentiment-latest", env="SENTIMENT_MODEL")
+    object_detection_model: str = Field(default="yolov5s", env="OBJECT_DETECTION_MODEL")
     
-    # Redis settings (if needed)
-    redis_url: Optional[str] = Field(None, description="Redis connection URL")
-    redis_ttl: int = Field(3600, description="Redis default TTL")
+    # Performance settings
+    model_cache_size: PositiveInt = Field(default=3, env="AI_MODEL_CACHE_SIZE")
+    inference_timeout: PositiveFloat = Field(default=30.0, env="AI_INFERENCE_TIMEOUT")
+
+
+class VideoConfig(BaseSettings):
+    """Video processing configuration"""
+    
+    # File size limits
+    max_file_size_mb: PositiveInt = Field(default=500, env="MAX_FILE_SIZE_MB")
+    max_duration_seconds: PositiveInt = Field(default=600, env="MAX_DURATION_SECONDS")
+    
+    # Supported formats
+    supported_formats: List[str] = Field(
+        default=["mp4", "avi", "mov", "mkv", "webm"],
+        env="SUPPORTED_FORMATS"
+    )
+    
+    # Processing settings
+    default_quality: str = Field(default="high", env="DEFAULT_QUALITY")
+    max_concurrent_processing: PositiveInt = Field(default=3, env="MAX_CONCURRENT_PROCESSING")
+    
+    # Output settings
+    output_format: str = Field(default="mp4", env="OUTPUT_FORMAT")
+    output_quality: str = Field(default="1080p", env="OUTPUT_QUALITY")
+    audio_bitrate: str = Field(default="128k", env="AUDIO_BITRATE")
+    video_bitrate: str = Field(default="2000k", env="VIDEO_BITRATE")
+    
+    @validator("supported_formats", pre=True)
+    def parse_supported_formats(cls, v):
+        if isinstance(v, str):
+            return [fmt.strip().lower() for fmt in v.split(",")]
+        return [fmt.lower() for fmt in v]
+    
+    @validator("default_quality")
+    def validate_quality(cls, v):
+        valid_qualities = ["low", "medium", "high", "ultra"]
+        if v not in valid_qualities:
+            raise ValueError(f"Quality must be one of {valid_qualities}")
+        return v
+
+
+class Settings(BaseSettings):
+    """Main application settings with Netflix-level configuration"""
+    
+    # Application settings
+    app_name: str = Field(default="ViralClip Pro v6.0", env="APP_NAME")
+    app_version: str = Field(default="6.0.0", env="APP_VERSION")
+    environment: str = Field(default="development", env="ENVIRONMENT")
+    debug: bool = Field(default=True, env="DEBUG")
+    
+    # Server settings
+    host: str = Field(default="0.0.0.0", env="HOST")
+    port: PositiveInt = Field(default=5000, env="PORT")
+    workers: PositiveInt = Field(default=1, env="WORKERS")
+    
+    # Directory settings
+    base_path: Path = Field(default=Path("nr1copilot/nr1-main"), env="BASE_PATH")
+    upload_path: Path = Field(default=Path("nr1copilot/nr1-main/uploads"), env="UPLOAD_PATH")
+    output_path: Path = Field(default=Path("nr1copilot/nr1-main/output"), env="OUTPUT_PATH")
+    temp_path: Path = Field(default=Path("nr1copilot/nr1-main/temp"), env="TEMP_PATH")
+    cache_path: Path = Field(default=Path("nr1copilot/nr1-main/cache"), env="CACHE_PATH")
+    
+    # Logging settings
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    log_format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        env="LOG_FORMAT"
+    )
+    enable_structured_logging: bool = Field(default=True, env="ENABLE_STRUCTURED_LOGGING")
+    log_file_path: Optional[str] = Field(default=None, env="LOG_FILE_PATH")
+    log_rotation_size: str = Field(default="10MB", env="LOG_ROTATION_SIZE")
+    log_retention_days: PositiveInt = Field(default=30, env="LOG_RETENTION_DAYS")
+    
+    # Performance settings
+    enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
+    metrics_retention_hours: PositiveInt = Field(default=24, env="METRICS_RETENTION_HOURS")
+    enable_health_checks: bool = Field(default=True, env="ENABLE_HEALTH_CHECKS")
+    health_check_interval: PositiveInt = Field(default=30, env="HEALTH_CHECK_INTERVAL")
     
     # Feature flags
-    enable_preview_generation: bool = Field(True, description="Enable preview generation")
-    enable_real_time_analysis: bool = Field(True, description="Enable real-time analysis")
-    enable_viral_optimization: bool = Field(True, description="Enable viral optimization")
-    enable_multi_platform_export: bool = Field(True, description="Enable multi-platform export")
-    enable_advanced_analytics: bool = Field(True, description="Enable advanced analytics")
+    enable_ai_analysis: bool = Field(default=True, env="ENABLE_AI_ANALYSIS")
+    enable_realtime_processing: bool = Field(default=True, env="ENABLE_REALTIME_PROCESSING")
+    enable_cloud_processing: bool = Field(default=False, env="ENABLE_CLOUD_PROCESSING")
+    enable_websocket: bool = Field(default=True, env="ENABLE_WEBSOCKET")
     
-    # Development settings
-    enable_debug_toolbar: bool = Field(False, description="Enable debug toolbar")
-    enable_auto_reload: bool = Field(False, description="Enable auto-reload in development")
-    mock_ai_responses: bool = Field(False, description="Use mock AI responses for testing")
+    # Sub-configurations
+    database: DatabaseConfig = DatabaseConfig()
+    cache: CacheConfig = CacheConfig()
+    security: SecurityConfig = SecurityConfig()
+    ai: AIConfig = AIConfig()
+    video: VideoConfig = VideoConfig()
     
     class Config:
         env_file = ".env"
@@ -128,7 +226,7 @@ class NetflixLevelSettings(BaseSettings):
         
     @validator("environment")
     def validate_environment(cls, v):
-        valid_envs = ["development", "staging", "production", "test"]
+        valid_envs = ["development", "staging", "production"]
         if v not in valid_envs:
             raise ValueError(f"Environment must be one of {valid_envs}")
         return v
@@ -140,90 +238,71 @@ class NetflixLevelSettings(BaseSettings):
             raise ValueError(f"Log level must be one of {valid_levels}")
         return v.upper()
     
-    @validator("port")
-    def validate_port(cls, v):
-        if not 1 <= v <= 65535:
-            raise ValueError("Port must be between 1 and 65535")
-        return v
-    
-    @validator("max_file_size")
-    def validate_max_file_size(cls, v):
-        max_allowed = 1024 * 1024 * 1024  # 1GB
-        if v > max_allowed:
-            raise ValueError(f"Max file size cannot exceed {max_allowed} bytes")
-        return v
-    
-    @validator("workers")
-    def validate_workers(cls, v):
-        if v < 1:
-            raise ValueError("Workers must be at least 1")
-        if v > 16:
-            raise ValueError("Workers should not exceed 16")
-        return v
-    
-    @validator("upload_path", "output_path", "temp_path", "cache_path", pre=True)
-    def validate_paths(cls, v):
-        if isinstance(v, str):
-            v = Path(v)
-        return v
-    
-    def setup_directories(self):
-        """Setup required directories"""
-        directories = [
-            self.upload_path,
-            self.output_path,
-            self.temp_path,
-            self.cache_path,
-            self.base_path / "logs"
-        ]
+    @root_validator
+    def validate_paths(cls, values):
+        """Ensure all paths are absolute and exist"""
+        path_fields = ["base_path", "upload_path", "output_path", "temp_path", "cache_path"]
         
-        for directory in directories:
-            directory.mkdir(parents=True, exist_ok=True)
-    
-    @property
-    def is_development(self) -> bool:
-        """Check if running in development mode"""
-        return self.environment == "development" or self.debug
+        for field in path_fields:
+            if field in values and values[field]:
+                path = Path(values[field])
+                if not path.is_absolute():
+                    # Make relative paths absolute from current working directory
+                    values[field] = Path.cwd() / path
+                else:
+                    values[field] = path
+        
+        return values
     
     @property
     def is_production(self) -> bool:
-        """Check if running in production mode"""
+        """Check if running in production"""
         return self.environment == "production"
     
     @property
-    def database_config(self) -> Optional[dict]:
-        """Get database configuration"""
-        if not self.database_url:
-            return None
-        return {
-            "url": self.database_url,
-            "pool_size": self.database_pool_size
-        }
+    def is_development(self) -> bool:
+        """Check if running in development"""
+        return self.environment == "development"
     
     @property
-    def redis_config(self) -> Optional[dict]:
-        """Get Redis configuration"""
-        if not self.redis_url:
-            return None
-        return {
-            "url": self.redis_url,
-            "ttl": self.redis_ttl
-        }
+    def max_file_size(self) -> int:
+        """Get max file size in bytes"""
+        return self.video.max_file_size_mb * 1024 * 1024
     
     @property
-    def cors_config(self) -> dict:
+    def cors_config(self) -> Dict[str, Any]:
         """Get CORS configuration"""
         return {
-            "allow_origins": self.allowed_origins,
+            "allow_origins": self.security.allowed_origins,
             "allow_credentials": True,
-            "allow_methods": ["*"],
-            "allow_headers": ["*"]
+            "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["*"],
+            "max_age": 600
         }
     
     @property
-    def logging_config(self) -> dict:
-        """Get logging configuration"""
-        config = {
+    def logging_config(self) -> Dict[str, Any]:
+        """Get comprehensive logging configuration"""
+        handlers = {
+            "console": {
+                "level": self.log_level,
+                "class": "logging.StreamHandler",
+                "formatter": "structured" if self.enable_structured_logging else "default",
+            }
+        }
+        
+        # Add file handler if path specified
+        if self.log_file_path:
+            handlers["file"] = {
+                "level": self.log_level,
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": self.log_file_path,
+                "maxBytes": self._parse_size(self.log_rotation_size),
+                "backupCount": self.log_retention_days,
+                "formatter": "structured" if self.enable_structured_logging else "default",
+            }
+        
+        return {
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
@@ -234,17 +313,11 @@ class NetflixLevelSettings(BaseSettings):
                     "format": "%(message)s",
                 },
             },
-            "handlers": {
-                "console": {
-                    "level": self.log_level,
-                    "class": "logging.StreamHandler",
-                    "formatter": "structured" if self.enable_structured_logging else "default",
-                },
-            },
+            "handlers": handlers,
             "loggers": {
                 "": {
                     "level": self.log_level,
-                    "handlers": ["console"],
+                    "handlers": list(handlers.keys()),
                 },
                 "uvicorn": {
                     "level": "INFO",
@@ -258,55 +331,55 @@ class NetflixLevelSettings(BaseSettings):
                 },
             },
         }
-        
-        # Add file handler if log file path is specified
-        if self.log_file_path:
-            self.log_file_path.parent.mkdir(parents=True, exist_ok=True)
-            config["handlers"]["file"] = {
-                "level": self.log_level,
-                "class": "logging.handlers.RotatingFileHandler",
-                "filename": str(self.log_file_path),
-                "maxBytes": 10 * 1024 * 1024,  # 10MB
-                "backupCount": 5,
-                "formatter": "structured" if self.enable_structured_logging else "default",
-            }
-            config["loggers"][""]["handlers"].append("file")
-        
-        return config
     
-    def get_uvicorn_config(self) -> dict:
-        """Get Uvicorn server configuration"""
+    def _parse_size(self, size_str: str) -> int:
+        """Parse size string like '10MB' to bytes"""
+        size_str = size_str.upper()
+        if size_str.endswith("KB"):
+            return int(size_str[:-2]) * 1024
+        elif size_str.endswith("MB"):
+            return int(size_str[:-2]) * 1024 * 1024
+        elif size_str.endswith("GB"):
+            return int(size_str[:-2]) * 1024 * 1024 * 1024
+        else:
+            return int(size_str)
+    
+    def get_config_summary(self) -> Dict[str, Any]:
+        """Get configuration summary for debugging"""
         return {
+            "app_name": self.app_name,
+            "version": self.app_version,
+            "environment": self.environment,
+            "debug": self.debug,
             "host": self.host,
             "port": self.port,
-            "reload": self.is_development and self.enable_auto_reload,
-            "workers": 1 if self.is_development else self.workers,
-            "log_level": self.log_level.lower(),
-            "access_log": True,
-            "use_colors": self.is_development,
+            "features": {
+                "ai_analysis": self.enable_ai_analysis,
+                "realtime_processing": self.enable_realtime_processing,
+                "cloud_processing": self.enable_cloud_processing,
+                "websocket": self.enable_websocket,
+                "metrics": self.enable_metrics,
+                "health_checks": self.enable_health_checks
+            },
+            "cache_type": self.cache.type,
+            "database_host": self.database.host,
+            "max_file_size_mb": self.video.max_file_size_mb,
+            "log_level": self.log_level
         }
 
 
-# Create global settings instance
-settings = NetflixLevelSettings()
+@lru_cache()
+def get_settings() -> Settings:
+    """Get cached settings instance"""
+    return Settings()
 
-# Setup directories on import
-settings.setup_directories()
 
-# Environment-specific configurations
-if settings.is_development:
-    # Development overrides
-    settings.enable_debug_toolbar = True
-    settings.enable_auto_reload = True
-    settings.mock_ai_responses = True
-    settings.log_level = "DEBUG"
+# Global settings instance
+settings = get_settings()
 
-elif settings.is_production:
-    # Production optimizations
-    settings.enable_caching = True
-    settings.enable_rate_limiting = True
-    settings.enable_metrics = True
-    settings.require_auth = True
+# Validate critical settings on import
+if settings.is_production and settings.debug:
+    logger.warning("⚠️ Debug mode is enabled in production!")
 
-# Export settings
-__all__ = ["settings", "NetflixLevelSettings"]
+if settings.security.jwt_secret_key == "your-super-secret-key":
+    logger.warning("⚠️ Using default JWT secret key - please change in production!")
