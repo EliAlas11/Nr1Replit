@@ -729,67 +729,234 @@ class NetflixLevelApp {
     renderTimeline() {
         if (!this.timelineData || !this.timelineContext) return;
 
+        const renderStart = performance.now();
         const canvas = this.timelineCanvas;
         const ctx = this.timelineContext;
         const width = canvas.offsetWidth;
         const height = 120;
 
-        // Clear canvas
-        ctx.clearRect(0, 0, width, height);
+        // Netflix-level high-DPI rendering
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        ctx.save();
+        ctx.scale(devicePixelRatio, devicePixelRatio);
 
-        // Draw viral score heatmap
+        // Clear with Netflix black background
+        ctx.fillStyle = '#141414';
+        ctx.fillRect(0, 0, width, height);
+
+        // Enhanced viral score heatmap with Netflix-level quality
         const scores = this.timelineData.viral_heatmap || [];
         const segmentWidth = width / scores.length;
 
+        // Draw Netflix-level viral heatmap with smooth gradients
         scores.forEach((score, index) => {
             const x = index * segmentWidth;
             const barHeight = (score / 100) * height;
             const y = height - barHeight;
 
-            // Color based on viral score
-            const color = this.getViralScoreColor(score);
-            ctx.fillStyle = color;
-            ctx.fillRect(x, y, segmentWidth, barHeight);
-
-            // Add subtle gradient
+            // Netflix-level color mapping with premium gradients
+            const colorData = this.getNetflixViralScoreColor(score);
+            
+            // Create vertical gradient for each segment
             const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
-            gradient.addColorStop(0, color);
-            gradient.addColorStop(1, color + '80');
+            gradient.addColorStop(0, colorData.primary);
+            gradient.addColorStop(0.5, colorData.mid);
+            gradient.addColorStop(1, colorData.base);
+            
             ctx.fillStyle = gradient;
             ctx.fillRect(x, y, segmentWidth, barHeight);
+
+            // Add Netflix-style glow effect for high scores
+            if (score > 80) {
+                ctx.shadowColor = colorData.glow;
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = colorData.highlight;
+                ctx.fillRect(x, y, segmentWidth, Math.min(barHeight, 10));
+                ctx.shadowBlur = 0;
+            }
         });
 
-        // Draw timeline grid
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1;
+        // Enhanced timeline grid with Netflix aesthetics
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 0.5;
 
-        // Vertical grid lines (time markers)
+        // Vertical time markers with labels
         for (let i = 0; i <= 10; i++) {
             const x = (i / 10) * width;
+            
+            // Main grid line
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, height);
             ctx.stroke();
+
+            // Time labels
+            if (this.timelineData.duration) {
+                const timeSeconds = (i / 10) * this.timelineData.duration;
+                const timeLabel = this.formatTime(timeSeconds);
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto';
+                ctx.textAlign = 'center';
+                ctx.fillText(timeLabel, x, height - 5);
+            }
         }
 
-        // Horizontal grid lines (score markers)
-        for (let i = 0; i <= 4; i++) {
-            const y = (i / 4) * height;
+        // Horizontal score markers with viral level indicators
+        const viralLevels = [
+            { threshold: 80, label: 'Viral', color: '#00ff44' },
+            { threshold: 60, label: 'High', color: '#ffff00' },
+            { threshold: 40, label: 'Good', color: '#ffaa00' },
+            { threshold: 20, label: 'Low', color: '#ff4444' }
+        ];
+
+        viralLevels.forEach(level => {
+            const y = height - (level.threshold / 100) * height;
+            
+            ctx.strokeStyle = level.color + '40';
+            ctx.setLineDash([5, 5]);
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(width, y);
             ctx.stroke();
-        }
+            ctx.setLineDash([]);
 
-        // Draw current selection if any
+            // Level labels
+            ctx.fillStyle = level.color;
+            ctx.font = 'bold 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto';
+            ctx.textAlign = 'left';
+            ctx.fillText(level.label, 5, y - 2);
+        });
+
+        // Enhanced selection visualization
         if (this.timelineSelection) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            const selectionGradient = ctx.createLinearGradient(
+                this.timelineSelection.start * width, 0,
+                this.timelineSelection.end * width, 0
+            );
+            selectionGradient.addColorStop(0, 'rgba(229, 9, 20, 0.3)'); // Netflix red
+            selectionGradient.addColorStop(0.5, 'rgba(229, 9, 20, 0.5)');
+            selectionGradient.addColorStop(1, 'rgba(229, 9, 20, 0.3)');
+            
+            ctx.fillStyle = selectionGradient;
             ctx.fillRect(
                 this.timelineSelection.start * width,
                 0,
                 (this.timelineSelection.end - this.timelineSelection.start) * width,
                 height
             );
+
+            // Selection border
+            ctx.strokeStyle = '#e50914';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(
+                this.timelineSelection.start * width,
+                0,
+                (this.timelineSelection.end - this.timelineSelection.start) * width,
+                height
+            );
+        }
+
+        // Draw engagement peaks with Netflix-style markers
+        if (this.timelineData.engagement_peaks) {
+            this.timelineData.engagement_peaks.forEach(peak => {
+                const x = (peak.timestamp / this.timelineData.duration) * width;
+                
+                // Peak marker
+                ctx.fillStyle = '#ff6b35';
+                ctx.beginPath();
+                ctx.arc(x, height - (peak.score / 100) * height, 4, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Peak glow
+                ctx.shadowColor = '#ff6b35';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(x, height - (peak.score / 100) * height, 2, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        // Current playhead with Netflix red
+        if (this.currentPlayheadPosition !== undefined) {
+            const playheadX = this.currentPlayheadPosition * width;
+            
+            // Playhead line
+            ctx.strokeStyle = '#e50914';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(playheadX, 0);
+            ctx.lineTo(playheadX, height);
+            ctx.stroke();
+
+            // Playhead handle
+            ctx.fillStyle = '#e50914';
+            ctx.beginPath();
+            ctx.arc(playheadX, 8, 6, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Playhead shadow
+            ctx.shadowColor = '#e50914';
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.restore();
+
+        // Track rendering performance
+        const renderTime = performance.now() - renderStart;
+        this.trackNetflixLevelMetric('timeline_render', renderTime);
+
+        // Performance optimization alert
+        if (renderTime > 16.67) { // 60fps threshold
+            console.warn(`Timeline render took ${renderTime.toFixed(2)}ms (>16.67ms for 60fps)`);
+        }
+    }
+
+    getNetflixViralScoreColor(score) {
+        // Netflix-level premium color mapping
+        if (score >= 90) {
+            return {
+                primary: '#00ff44',
+                mid: '#00dd33',
+                base: '#00bb22',
+                highlight: '#44ff77',
+                glow: '#00ff44'
+            };
+        } else if (score >= 80) {
+            return {
+                primary: '#88ff00',
+                mid: '#77dd00',
+                base: '#66bb00',
+                highlight: '#99ff33',
+                glow: '#88ff00'
+            };
+        } else if (score >= 60) {
+            return {
+                primary: '#ffff00',
+                mid: '#dddd00',
+                base: '#bbbb00',
+                highlight: '#ffff33',
+                glow: '#ffff00'
+            };
+        } else if (score >= 40) {
+            return {
+                primary: '#ffaa00',
+                mid: '#dd9900',
+                base: '#bb7700',
+                highlight: '#ffbb33',
+                glow: '#ffaa00'
+            };
+        } else {
+            return {
+                primary: '#ff4444',
+                mid: '#dd3333',
+                base: '#bb2222',
+                highlight: '#ff6666',
+                glow: '#ff4444'
+            };
         }
     }
 
@@ -848,34 +1015,141 @@ class NetflixLevelApp {
         const interactionStart = performance.now();
 
         try {
-            // Check interaction cache first
+            // Netflix-level ultra-fast cache with predictive loading
             const cacheKey = `interaction_${interaction.type}_${Math.floor(interaction.timestamp)}`;
             if (this.cache.interactions.has(cacheKey)) {
                 const cachedResponse = this.cache.interactions.get(cacheKey);
-                await this.processInteractionResponse(cachedResponse);
+                await this.processNetflixLevelInteractionResponse(cachedResponse);
+                this.showCacheHitIndicator('interaction', 'ultra_fast');
                 return;
             }
 
-            // Send real-time interaction to server
-            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            // Parallel processing: Server request + Local prediction
+            const serverPromise = this.sendNetflixLevelInteraction(interaction);
+            const localPredictionPromise = this.generateLocalPrediction(interaction);
+            const visualFeedbackPromise = this.provideInstantVisualFeedback(interaction);
+
+            // Execute all in parallel for maximum responsiveness
+            const [serverResponse, localPrediction] = await Promise.allSettled([
+                serverPromise,
+                localPredictionPromise,
+                visualFeedbackPromise
+            ]);
+
+            // Use server response if available, fallback to prediction
+            if (serverResponse.status === 'fulfilled') {
+                await this.processNetflixLevelInteractionResponse(serverResponse.value);
+            } else if (localPrediction.status === 'fulfilled') {
+                await this.processLocalPredictionResponse(localPrediction.value);
+                this.showPredictionModeIndicator();
+            }
+
+            // Enhanced performance tracking with Netflix metrics
+            const responseTime = performance.now() - interactionStart;
+            this.trackNetflixLevelMetric('timeline_interaction', responseTime, {
+                interaction_type: interaction.type,
+                cache_status: 'miss',
+                prediction_used: localPrediction.status === 'fulfilled'
+            });
+
+            // Auto-optimization for future interactions
+            await this.optimizeForFutureInteractions(interaction, responseTime);
+
+        } catch (error) {
+            console.error('Netflix-level timeline interaction failed:', error);
+            await this.handleInteractionError(error, interaction);
+        }
+    }
+
+    async sendNetflixLevelInteraction(interaction) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            return new Promise((resolve, reject) => {
+                const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const timeout = setTimeout(() => reject(new Error('Interaction timeout')), 5000);
+
+                const handleResponse = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.message_id === messageId || data.type === 'timeline_interaction_response') {
+                        clearTimeout(timeout);
+                        this.ws.removeEventListener('message', handleResponse);
+                        resolve(data);
+                    }
+                };
+
+                this.ws.addEventListener('message', handleResponse);
                 this.ws.send(JSON.stringify({
                     type: 'timeline_interaction',
+                    message_id: messageId,
                     session_id: this.currentSession,
                     interaction_data: {
                         ...interaction,
-                        client_timestamp: performance.now()
+                        client_timestamp: performance.now(),
+                        netflix_quality: true,
+                        ultra_fast_mode: true
                     }
                 }));
+            });
+        }
+        throw new Error('WebSocket not available');
+    }
+
+    async generateLocalPrediction(interaction) {
+        // Netflix-level local AI prediction for instant feedback
+        const predictionStart = performance.now();
+
+        try {
+            let prediction = {};
+
+            switch (interaction.type) {
+                case 'hover':
+                    prediction = await this.predictHoverResponse(interaction);
+                    break;
+                case 'selection':
+                    prediction = await this.predictSelectionAnalysis(interaction);
+                    break;
+                case 'viral_score_request':
+                    prediction = await this.predictViralScore(interaction);
+                    break;
+                default:
+                    prediction = await this.generateGenericPrediction(interaction);
             }
 
-            // Immediate local response for ultra-fast feel
-            await this.provideInstantLocalFeedback(interaction);
+            prediction.prediction_time = performance.now() - predictionStart;
+            prediction.confidence = 0.85; // Netflix confidence level
+            prediction.source = 'local_ai_prediction';
 
-            const responseTime = performance.now() - interactionStart;
-            this.trackPerformanceMetric('timeline_interaction', responseTime);
+            return prediction;
 
         } catch (error) {
-            console.error('Ultra-fast timeline interaction failed:', error);
+            console.error('Local prediction failed:', error);
+            return this.getFallbackPrediction(interaction);
+        }
+    }
+
+    async provideInstantVisualFeedback(interaction) {
+        // Netflix-level instant visual feedback
+        const feedbackStart = performance.now();
+
+        try {
+            switch (interaction.type) {
+                case 'hover':
+                    await this.showInstantHoverEffect(interaction);
+                    break;
+                case 'selection':
+                    await this.highlightSelectionArea(interaction);
+                    break;
+                case 'viral_score_request':
+                    await this.pulseViralScoreIndicator(interaction);
+                    break;
+            }
+
+            // Add Netflix-level visual enhancement
+            await this.addNetflixQualityEffects(interaction);
+
+            this.trackNetflixLevelMetric('visual_feedback', performance.now() - feedbackStart);
+
+        } catch (error) {
+            console.error('Visual feedback failed:', error);
         }
     }
 
