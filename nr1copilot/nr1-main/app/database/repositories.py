@@ -36,11 +36,13 @@ class NotFoundError(RepositoryError):
 class CacheManager:
     """Intelligent cache manager with TTL and LRU eviction"""
     
-    def __init__(self, max_size: int = 10000, default_ttl: int = 300):
+    def __init__(self, max_size: int = 50000, default_ttl: int = 300):
         self.cache: Dict[str, Dict] = {}
         self.access_times: Dict[str, float] = {}
         self.max_size = max_size
         self.default_ttl = default_ttl
+        self.hit_rate_target = 0.95
+        self.performance_tier = "PRODUCTION"
         
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache with LRU tracking"""

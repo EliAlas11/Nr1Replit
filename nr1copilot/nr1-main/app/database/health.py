@@ -68,7 +68,7 @@ class NetflixDatabaseHealthMonitor:
             "replication_lag": {"warning": 100.0, "critical": 500.0}  # ms
         }
     
-    async def start_monitoring(self, interval: int = 30):
+    async def start_monitoring(self, interval: int = 15):
         """Start enhanced continuous health monitoring"""
         if self.monitoring_active:
             logger.info("🏥 Database health monitoring already active")
@@ -80,15 +80,20 @@ class NetflixDatabaseHealthMonitor:
         # Initialize performance baseline
         await self._establish_performance_baseline()
         
-        # Start monitoring tasks
+        # Start intensive monitoring tasks for production
         monitoring_tasks = [
             self._monitoring_loop(interval),
             self._anomaly_detection_loop(),
-            self._trend_analysis_loop()
+            self._trend_analysis_loop(),
+            self._connection_pool_monitor(),
+            self._query_performance_monitor(),
+            self._resource_utilization_monitor()
         ]
         
         for task in monitoring_tasks:
             asyncio.create_task(task)
+        
+        logger.info("✅ Production-grade database monitoring active")
     
     async def stop_monitoring(self):
         """Stop health monitoring gracefully"""

@@ -63,16 +63,21 @@ class NetflixDatabaseManager:
         # Enhanced connection configuration
         self.database_url = self._get_database_url()
         self.pool_config = {
-            "min_size": 10,
-            "max_size": 50,
+            "min_size": 15,
+            "max_size": 75,
             "command_timeout": 60,
-            "max_queries": 50000,
-            "max_inactive_connection_lifetime": 300,
+            "max_queries": 100000,
+            "max_inactive_connection_lifetime": 600,
             "server_settings": {
-                "application_name": "ViralClip_Pro_v10_Ultimate",
+                "application_name": "ViralClip_Pro_v10_Ultimate_Production",
                 "jit": "off",
                 "shared_preload_libraries": "pg_stat_statements",
-                "log_statement": "none"
+                "log_statement": "none",
+                "statement_timeout": "60s",
+                "idle_in_transaction_session_timeout": "300s",
+                "tcp_keepalives_idle": "600",
+                "tcp_keepalives_interval": "30",
+                "tcp_keepalives_count": "3"
             }
         }
     

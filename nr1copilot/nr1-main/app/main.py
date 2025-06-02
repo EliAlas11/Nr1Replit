@@ -1,4 +1,3 @@
-
 """
 ViralClip Pro v10.0 - Netflix-Level Video Editing Platform
 Enterprise-grade main application with optimized performance and clean architecture
@@ -57,17 +56,17 @@ APPLICATION_METADATA = {
 # Global state management
 class ApplicationState:
     """Centralized application state management"""
-    
+
     def __init__(self):
         self.startup_time: Optional[float] = None
         self.is_healthy: bool = False
         self.components: Dict[str, Any] = {}
-        
+
     def mark_startup_complete(self) -> None:
         """Mark application startup as complete"""
         self.startup_time = time.time()
         self.is_healthy = True
-        
+
     def get_uptime(self) -> float:
         """Get application uptime in seconds"""
         if not self.startup_time:
@@ -98,30 +97,30 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Enterprise application lifecycle management with error handling"""
     startup_start = time.time()
-    
+
     try:
         logger.info("🚀 Initializing ViralClip Pro v10.0 Ultimate...")
-        
+
         # Phase 1: Core Infrastructure
         await _initialize_core_infrastructure()
-        
+
         # Phase 2: Service Layer
         await _initialize_service_layer()
-        
+
         # Phase 3: Monitoring Systems
         await _initialize_monitoring_systems()
-        
+
         # Phase 4: Performance Optimization
         await _optimize_performance()
-        
+
         # Mark startup complete
         startup_duration = time.time() - startup_start
         app_state.mark_startup_complete()
-        
+
         _log_startup_summary(startup_duration)
-        
+
         yield
-        
+
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
         raise
@@ -132,34 +131,34 @@ async def lifespan(app: FastAPI):
 async def _initialize_core_infrastructure() -> None:
     """Initialize core infrastructure components"""
     logger.info("📊 Initializing core infrastructure...")
-    
+
     # Database initialization with retry logic
     if not await database_manager.initialize():
         raise RuntimeError("Database initialization failed")
     app_state.components["database"] = database_manager
-    
+
     # Cache initialization
     await cache_manager.initialize()
     app_state.components["cache"] = cache_manager
-    
+
     # Metrics initialization
     await metrics_collector.start()
     app_state.components["metrics"] = metrics_collector
-    
+
     logger.info("✅ Core infrastructure ready")
 
 
 async def _initialize_service_layer() -> None:
     """Initialize business service layer"""
     logger.info("🧠 Initializing service layer...")
-    
+
     # Initialize services concurrently for faster startup
     services = [
         ("ai_engine", ai_engine.initialize()),
         ("video_service", video_service.initialize()),
         ("perfection_engine", perfection_engine.initialize())
     ]
-    
+
     for service_name, init_coro in services:
         try:
             await init_coro
@@ -173,26 +172,26 @@ async def _initialize_service_layer() -> None:
 async def _initialize_monitoring_systems() -> None:
     """Initialize monitoring and health systems"""
     logger.info("🏥 Initializing monitoring systems...")
-    
+
     # Start health monitoring
     await health_monitor.start_monitoring(interval=30)
     app_state.components["health_monitor"] = health_monitor
-    
+
     # Start system monitoring
     await system_health.start_monitoring()
     app_state.components["system_health"] = system_health
-    
+
     logger.info("✅ Monitoring systems active")
 
 
 async def _optimize_performance() -> None:
     """Optimize application performance"""
     logger.info("⚡ Optimizing performance...")
-    
+
     # Run system validation
     validation_result = await validator.validate_system()
     logger.info(f"✅ System validation: {validation_result['overall_score']}/10")
-    
+
     # Activate perfection mode
     perfection_result = await perfection_engine.achieve_perfect_ten()
     logger.info(f"✅ Perfection mode: {perfection_result.get('excellence_score', 10)}/10")
@@ -214,18 +213,18 @@ def _log_startup_summary(startup_duration: float) -> None:
 async def _graceful_shutdown() -> None:
     """Graceful application shutdown"""
     logger.info("🛑 Initiating graceful shutdown...")
-    
+
     shutdown_tasks = []
-    
+
     # Shutdown all components
     for component_name, component in app_state.components.items():
         if hasattr(component, 'shutdown'):
             shutdown_tasks.append(component.shutdown())
-    
+
     # Execute shutdown tasks concurrently
     if shutdown_tasks:
         await asyncio.gather(*shutdown_tasks, return_exceptions=True)
-    
+
     logger.info("✅ Graceful shutdown completed")
 
 
@@ -265,16 +264,16 @@ app.add_middleware(ErrorHandlerMiddleware)
 async def comprehensive_health_check():
     """Netflix-level comprehensive health check"""
     start_time = time.time()
-    
+
     try:
         health_data = await _collect_health_data()
         health_data["response_time_ms"] = round((time.time() - start_time) * 1000, 2)
-        
+
         # Determine HTTP status code based on health
         status_code = 200 if health_data["overall_score"] >= 7.0 else 503
-        
+
         return JSONResponse(content=health_data, status_code=status_code)
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
@@ -298,7 +297,7 @@ async def _collect_health_data() -> Dict[str, Any]:
         "uptime": app_state.get_uptime(),
         "components": {}
     }
-    
+
     # Collect component health concurrently
     health_checks = {
         "database": database_manager.health_check(),
@@ -307,13 +306,13 @@ async def _collect_health_data() -> Dict[str, Any]:
         "ai_engine": ai_engine.health_check(),
         "system": system_health.get_health_summary()
     }
-    
+
     # Execute health checks concurrently
     health_results = await asyncio.gather(
         *health_checks.values(),
         return_exceptions=True
     )
-    
+
     # Map results back to component names
     for (component_name, _), result in zip(health_checks.items(), health_results):
         if isinstance(result, Exception):
@@ -323,11 +322,11 @@ async def _collect_health_data() -> Dict[str, Any]:
             }
         else:
             health_data["components"][component_name] = result
-    
+
     # Calculate overall health score
     health_data["overall_score"] = _calculate_overall_health_score(health_data["components"])
     health_data["performance_grade"] = _get_performance_grade(health_data["overall_score"])
-    
+
     # Set status based on score
     if health_data["overall_score"] >= 9.0:
         health_data["status"] = "excellent"
@@ -337,7 +336,7 @@ async def _collect_health_data() -> Dict[str, Any]:
         health_data["status"] = "warning"
     else:
         health_data["status"] = "critical"
-    
+
     return health_data
 
 
@@ -345,7 +344,7 @@ def _calculate_overall_health_score(components: Dict[str, Any]) -> float:
     """Calculate overall health score from component health"""
     if not components:
         return 0.0
-    
+
     scores = []
     for component_health in components.values():
         if isinstance(component_health, dict):
@@ -355,7 +354,7 @@ def _calculate_overall_health_score(components: Dict[str, Any]) -> float:
                 scores.append(0.0)
         else:
             scores.append(5.0)  # Unknown state
-    
+
     return sum(scores) / len(scores) if scores else 0.0
 
 
@@ -369,11 +368,11 @@ def _get_performance_grade(score: float) -> str:
         6.0: "C+ FAIR",
         0.0: "D NEEDS_ATTENTION"
     }
-    
+
     for threshold, grade in grade_mapping.items():
         if score >= threshold:
             return grade
-    
+
     return "F CRITICAL"
 
 
@@ -448,14 +447,14 @@ for mount_path, directory_path in static_directories:
 async def root():
     """Enterprise root endpoint with fallback"""
     index_path = os.path.join(os.path.dirname(__file__), "..", "index.html")
-    
+
     if os.path.exists(index_path):
         try:
             with open(index_path, 'r', encoding='utf-8') as f:
                 return HTMLResponse(content=f.read())
         except Exception as e:
             logger.error(f"Failed to read index.html: {e}")
-    
+
     # Enterprise fallback HTML
     return HTMLResponse(content=_generate_fallback_html())
 
