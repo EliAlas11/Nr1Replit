@@ -1,6 +1,6 @@
 """
 Netflix-Level Metrics Collection
-Real-time performance and business metrics
+Real-time performance and business metrics with enterprise-grade reliability
 """
 
 import asyncio
@@ -13,6 +13,125 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
+
+
+class MetricsCollector:
+    """Netflix-tier metrics collection with real-time analytics"""
+
+    def __init__(self):
+        self.metrics: Dict[str, Any] = defaultdict(list)
+        self.counters: Dict[str, int] = defaultdict(int)
+        self.gauges: Dict[str, float] = defaultdict(float)
+        self.timings: deque = deque(maxlen=1000)
+        self.tags: Dict[str, Dict[str, str]] = {}
+        self._lock = threading.RLock()
+        self._initialized = False
+        self.start_time = time.time()
+        
+        logger.info("📊 MetricsCollector initialized (ready for async startup)")
+
+    async def initialize(self):
+        """Initialize async components"""
+        if self._initialized:
+            return
+            
+        try:
+            self._initialized = True
+            logger.info("✅ MetricsCollector async initialization completed")
+        except Exception as e:
+            logger.error(f"MetricsCollector async initialization failed: {e}")
+            raise
+
+    def increment(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None):
+        """Increment a counter metric"""
+        try:
+            with self._lock:
+                self.counters[metric_name] += value
+                if tags:
+                    self.tags[metric_name] = tags
+        except Exception as e:
+            logger.error(f"Failed to increment metric {metric_name}: {e}")
+
+    def gauge(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None):
+        """Set a gauge metric"""
+        try:
+            with self._lock:
+                self.gauges[metric_name] = value
+                if tags:
+                    self.tags[metric_name] = tags
+        except Exception as e:
+            logger.error(f"Failed to set gauge {metric_name}: {e}")
+
+    def timing(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None):
+        """Record a timing metric"""
+        try:
+            with self._lock:
+                timing_data = {
+                    "name": metric_name,
+                    "value": value,
+                    "timestamp": time.time(),
+                    "tags": tags or {}
+                }
+                self.timings.append(timing_data)
+        except Exception as e:
+            logger.error(f"Failed to record timing {metric_name}: {e}")
+
+    async def export_metrics(self, format_type: str = "json") -> str:
+        """Export metrics in specified format"""
+        try:
+            with self._lock:
+                metrics_data = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "uptime_seconds": time.time() - self.start_time,
+                    "counters": dict(self.counters),
+                    "gauges": dict(self.gauges),
+                    "timings": list(self.timings)[-100:],  # Last 100 timings
+                    "tags": dict(self.tags)
+                }
+            
+            if format_type == "json":
+                return json.dumps(metrics_data, indent=2)
+            else:
+                return str(metrics_data)
+                
+        except Exception as e:
+            logger.error(f"Failed to export metrics: {e}")
+            return json.dumps({"error": str(e)})
+
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """Get summary of metrics"""
+        try:
+            with self._lock:
+                return {
+                    "total_counters": len(self.counters),
+                    "total_gauges": len(self.gauges),
+                    "total_timings": len(self.timings),
+                    "uptime_seconds": time.time() - self.start_time,
+                    "sample_counters": dict(list(self.counters.items())[:5]),
+                    "sample_gauges": dict(list(self.gauges.items())[:5])
+                }
+        except Exception as e:
+            logger.error(f"Failed to get metrics summary: {e}")
+            return {"error": str(e)}
+
+    async def _cleanup_old_metrics(self):
+        """Cleanup old metrics data"""
+        try:
+            with self._lock:
+                # Keep only recent data
+                cutoff_time = time.time() - 3600  # 1 hour
+                self.timings = deque([
+                    t for t in self.timings if t.get("timestamp", 0) > cutoff_time
+                ], maxlen=1000)
+            
+            logger.debug("Cleaned up old metrics data")
+            
+        except Exception as e:
+            logger.error(f"Failed to cleanup metrics: {e}")
+
+
+# Global metrics collector instance
+metrics_collector = MetricsCollector()
 
 
 class MetricsCollector:
