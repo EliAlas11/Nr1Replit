@@ -97,6 +97,49 @@ async def lifespan(app: FastAPI):
         # Initialize recovery system
         await recovery_system._send_alert("INFO", "System startup completed")
 
+        # Initialize services with enterprise-grade startup and fallback protection
+        try:
+            from .utils.fallbacks import fallback_manager
+            from .services.video_service import NetflixLevelVideoService
+            from .services.ai_analyzer import NetflixLevelAIAnalyzer
+            from .services.realtime_engine import EnterpriseRealtimeEngine
+
+            # Video service
+            video_service = NetflixLevelVideoService()
+            await video_service.startup()
+            logger.info("✅ Video service initialized")
+
+            # AI analyzer
+            ai_analyzer = NetflixLevelAIAnalyzer()
+            await ai_analyzer.enterprise_warm_up()
+            logger.info("✅ AI analyzer initialized")
+
+            # AI Intelligence Engine
+            from .services.ai_intelligence_engine import NetflixLevelAIIntelligenceEngine
+            ai_intelligence = NetflixLevelAIIntelligenceEngine()
+            await ai_intelligence.enterprise_warm_up()
+            logger.info("✅ AI intelligence engine initialized")
+
+            # Real-time engine
+            realtime_engine = EnterpriseRealtimeEngine()
+            await realtime_engine.enterprise_warm_up()
+            logger.info("✅ Real-time engine initialized")
+
+            # Test fallback systems
+            fallback_test_results = await fallback_manager.test_all_fallbacks()
+            logger.info(f"✅ Fallback systems tested: {sum(fallback_test_results.values())}/{len(fallback_test_results)} passed")
+
+            # Start health monitoring
+            await health_monitor.initialize()
+            logger.info("✅ Health monitoring started")
+
+            logger.info("🚀 All services initialized successfully with fallback protection")
+
+        except Exception as service_init_error:
+            logger.error(f"Service initialization error: {service_init_error}")
+            await recovery_system.detect_and_recover(service_init_error, {"phase": "service_init"})
+            raise
+
         startup_time = time.time() - startup_start
         app_state.health_status = "healthy"
 

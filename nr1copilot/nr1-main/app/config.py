@@ -6,7 +6,11 @@ Modern configuration system with validation, environment management, and securit
 import os
 from enum import Enum
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Dict, Any, Optional
+from pathlib import Path
+import os
+import logging
+import tempfile
 
 from pydantic import BaseSettings, Field, validator
 from pydantic_settings import BaseSettings as PydanticBaseSettings
@@ -86,6 +90,21 @@ class Settings(PydanticBaseSettings):
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
 
+    # Service Configuration
+    enable_ai_analysis: bool = Field(default=True, description="Enable AI analysis features")
+    enable_real_time_processing: bool = Field(default=True, description="Enable real-time processing")
+    enable_enterprise_features: bool = Field(default=True, description="Enable enterprise features")
+
+    # Fallback paths for missing directories
+    upload_path: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "uploads")
+    temp_path: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "temp") 
+    output_path: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "output")
+
+    def ensure_directories(self):
+        """Ensure all required directories exist"""
+        for path in [self.upload_path, self.temp_path, self.output_path]:
+            path.mkdir(parents=True, exist_ok=True)
+
     @validator('environment', pre=True)
     def validate_environment(cls, v):
         """Validate and normalize environment."""
@@ -147,7 +166,9 @@ def get_settings() -> Settings:
     Get cached application settings.
     Uses LRU cache for performance optimization.
     """
-    return Settings()
+    settings = Settings()
+    settings.ensure_directories() # Ensure directories exist on startup
+    return settings
 
 
 # Export commonly used settings
