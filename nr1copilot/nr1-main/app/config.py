@@ -97,6 +97,18 @@ class PerformanceSettings(PydanticBaseSettings):
     cpu_limit_percent: int = Field(default=80, env="CPU_LIMIT_PERCENT")
 
 
+class SocialPublishingSettings(PydanticBaseSettings):
+    """Social media publishing configuration"""
+    max_concurrent_jobs: int = Field(default=100, env="SOCIAL_MAX_CONCURRENT_JOBS")
+    job_timeout: int = Field(default=300, env="SOCIAL_JOB_TIMEOUT")  # 5 minutes
+    retry_attempts: int = Field(default=3, env="SOCIAL_RETRY_ATTEMPTS")
+    circuit_breaker_threshold: int = Field(default=10, env="SOCIAL_CIRCUIT_BREAKER_THRESHOLD")
+    cache_ttl: int = Field(default=3600, env="SOCIAL_CACHE_TTL")  # 1 hour
+    webhook_timeout: int = Field(default=30, env="SOCIAL_WEBHOOK_TIMEOUT")
+    enable_analytics: bool = Field(default=True, env="SOCIAL_ENABLE_ANALYTICS")
+    enable_performance_monitoring: bool = Field(default=True, env="SOCIAL_ENABLE_MONITORING")
+
+
 class Settings(PydanticBaseSettings):
     """Main application settings"""
     
@@ -127,6 +139,7 @@ class Settings(PydanticBaseSettings):
     ai: AISettings = Field(default_factory=AISettings)
     monitoring: MonitoringSettings = Field(default_factory=MonitoringSettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
+    social_publishing: SocialPublishingSettings = Field(default_factory=SocialPublishingSettings)
     
     # Feature flags
     enable_websockets: bool = Field(default=True, env="ENABLE_WEBSOCKETS")

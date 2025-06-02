@@ -201,11 +201,27 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         )
         
     def get_performance_summary(self) -> Dict[str, Any]:
-        """Get comprehensive performance summary"""
+        """Get comprehensive Netflix-level performance summary"""
         if not self.response_times:
             return {"status": "no_data"}
             
         durations = [rt["duration"] for rt in self.response_times]
+        
+        # Calculate advanced percentiles
+        sorted_durations = sorted(durations)
+        percentiles = {}
+        for p in [50, 75, 90, 95, 99, 99.9]:
+            index = int(p/100 * len(sorted_durations))
+            percentiles[f"p{p}"] = sorted_durations[min(index, len(sorted_durations)-1)]
+        
+        # Calculate throughput
+        recent_requests = [rt for rt in self.response_times 
+                          if (datetime.utcnow() - rt["timestamp"]).seconds < 60]
+        throughput_per_minute = len(recent_requests)
+        
+        # Calculate error rate
+        error_requests = [rt for rt in self.response_times if rt.get("status") == "error"]
+        error_rate = len(error_requests) / len(self.response_times) if self.response_times else 0
         
         return {
             "response_times": {
@@ -213,21 +229,58 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
                 "avg": sum(durations) / len(durations),
                 "min": min(durations),
                 "max": max(durations),
-                "p50": sorted(durations)[int(0.5 * len(durations))],
-                "p95": sorted(durations)[int(0.95 * len(durations))],
-                "p99": sorted(durations)[int(0.99 * len(durations))]
+                **percentiles
             },
             "system_metrics": {
                 "current_cpu": self.cpu_usage[-1]["value"] if self.cpu_usage else 0,
                 "current_memory": self.memory_usage[-1]["value"] if self.memory_usage else 0,
                 "avg_cpu_1min": sum(m["value"] for m in list(self.cpu_usage)[-60:]) / min(60, len(self.cpu_usage)) if self.cpu_usage else 0,
-                "avg_memory_1min": sum(m["value"] for m in list(self.memory_usage)[-60:]) / min(60, len(self.memory_usage)) if self.memory_usage else 0
+                "avg_memory_1min": sum(m["value"] for m in list(self.memory_usage)[-60:]) / min(60, len(self.memory_usage)) if self.memory_usage else 0,
+                "disk_usage": psutil.disk_usage('/').percent,
+                "network_io": dict(psutil.net_io_counters()._asdict()) if hasattr(psutil, 'net_io_counters') else {}
             },
-            "slow_requests": len(self.slow_requests),
+            "performance_metrics": {
+                "throughput_per_minute": throughput_per_minute,
+                "error_rate": error_rate,
+                "slow_requests": len(self.slow_requests),
+                "requests_per_second": throughput_per_minute / 60
+            },
             "adaptive_thresholds": {
                 "slow_request_threshold": self.slow_request_threshold,
                 "cpu_threshold": self.cpu_threshold,
                 "memory_threshold": self.memory_threshold
             },
+            "health_score": self._calculate_health_score(),
             "timestamp": datetime.utcnow().isoformat()
         }
+    
+    def _calculate_health_score(self) -> float:
+        """Calculate overall system health score (0-100)"""
+        score = 100.0
+        
+        # Deduct for high CPU usage
+        if self.cpu_usage:
+            recent_cpu = [m["value"] for m in list(self.cpu_usage)[-10:]]
+            avg_cpu = sum(recent_cpu) / len(recent_cpu)
+            if avg_cpu > self.cpu_threshold:
+                score -= min(30, (avg_cpu - self.cpu_threshold) * 2)
+        
+        # Deduct for high memory usage
+        if self.memory_usage:
+            recent_memory = [m["value"] for m in list(self.memory_usage)[-10:]]
+            avg_memory = sum(recent_memory) / len(recent_memory)
+            if avg_memory > self.memory_threshold:
+                score -= min(25, (avg_memory - self.memory_threshold) * 2)
+        
+        # Deduct for slow requests
+        if self.response_times:
+            slow_ratio = len(self.slow_requests) / len(self.response_times)
+            score -= min(25, slow_ratio * 100)
+        
+        # Deduct for errors
+        if self.response_times:
+            error_requests = [rt for rt in self.response_times if rt.get("status") == "error"]
+            error_ratio = len(error_requests) / len(self.response_times)
+            score -= min(20, error_ratio * 100)
+        
+        return max(0.0, score)
