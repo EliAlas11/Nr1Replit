@@ -453,7 +453,7 @@ class NetflixLevelViralClipApp {
                 transition: stroke-dashoffset 0.5s ease;
             }
 
-            @media (max-width: 768px) {
+            @media (max-width: 768) {
                 .netflix-header {
                     padding: 1rem;
                 }
@@ -637,9 +637,9 @@ class NetflixLevelViralClipApp {
     handleUploadProgress(data) {
         // Enhanced upload progress with viral insights
         const { upload_id, progress, viral_analysis } = data;
-        
+
         this.updateUploadProgress(upload_id, progress);
-        
+
         if (viral_analysis) {
             this.displayEarlyViralInsights(viral_analysis);
         }
@@ -648,7 +648,7 @@ class NetflixLevelViralClipApp {
     handleProcessingStatus(data) {
         // Enhanced processing status with live dashboard
         const { session_id, stage, progress, current_task, viral_score } = data;
-        
+
         this.updateProcessingDashboard({
             stage,
             progress,
@@ -659,10 +659,10 @@ class NetflixLevelViralClipApp {
 
         // Update progress ring
         this.updateProgressRing(progress);
-        
+
         // Update stage display
         this.updateProcessingStage(stage, current_task);
-        
+
         // Show viral score updates
         if (viral_score !== undefined) {
             this.updateViralScoreDisplay(viral_score);
@@ -674,7 +674,7 @@ class NetflixLevelViralClipApp {
         if (this.timelineManager) {
             this.timelineManager.updateRealtimeData(data);
         }
-        
+
         this.showNotification('Timeline analysis updated with new insights', 'info', 3000);
     }
 
@@ -683,14 +683,14 @@ class NetflixLevelViralClipApp {
         if (this.previewManager) {
             this.previewManager.displayPreview(data.preview_data);
         }
-        
+
         this.showNotification('🎬 Preview ready with viral analysis!', 'success');
     }
 
     handleViralInsights(data) {
         // Handle real-time viral insights
         const { insights, confidence, trending_factors } = data;
-        
+
         this.displayViralInsights(insights, confidence);
         this.updateTrendingFactors(trending_factors);
     }
@@ -705,7 +705,7 @@ class NetflixLevelViralClipApp {
     handleEngagementPrediction(data) {
         // Handle engagement predictions
         const { predictions, platform_recommendations } = data;
-        
+
         this.displayEngagementPredictions(predictions);
         this.updatePlatformRecommendations(platform_recommendations);
     }
@@ -758,14 +758,14 @@ class NetflixLevelViralClipApp {
             const svg = circle.closest('svg');
             const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-            
+
             gradient.id = 'progressGradient';
             gradient.innerHTML = `
                 <stop offset="0%" style="stop-color:#e50914;stop-opacity:1" />
                 <stop offset="50%" style="stop-color:#ff6b35;stop-opacity:1" />
                 <stop offset="100%" style="stop-color:#00ff88;stop-opacity:1" />
             `;
-            
+
             defs.appendChild(gradient);
             svg.insertBefore(defs, svg.firstChild);
         }
@@ -775,7 +775,7 @@ class NetflixLevelViralClipApp {
         const stageElement = document.getElementById('progressStage');
         if (stageElement) {
             stageElement.textContent = this.formatProcessingStage(stage);
-            
+
             // Add animation for stage changes
             stageElement.style.animation = 'none';
             setTimeout(() => {
@@ -803,7 +803,7 @@ class NetflixLevelViralClipApp {
             'complete': 'Analysis Complete',
             'failed': 'Processing Failed'
         };
-        
+
         return stageNames[stage] || stage.replace('_', ' ').toUpperCase();
     }
 
@@ -813,7 +813,7 @@ class NetflixLevelViralClipApp {
             // Animate score change
             const currentScore = parseInt(scoreElement.textContent) || 0;
             this.animateNumber(scoreElement, currentScore, viralScore, 1000);
-            
+
             // Update color based on score
             scoreElement.className = this.getScoreClass(viralScore);
         }
@@ -821,19 +821,19 @@ class NetflixLevelViralClipApp {
 
     animateNumber(element, start, end, duration) {
         const startTime = performance.now();
-        
+
         const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             const current = start + (end - start) * this.easeOutCubic(progress);
             element.textContent = Math.round(current);
-            
+
             if (progress < 1) {
                 requestAnimationFrame(animate);
             }
         };
-        
+
         requestAnimationFrame(animate);
     }
 
@@ -855,7 +855,7 @@ class NetflixLevelViralClipApp {
         if (factElement && facts[stage]) {
             // Fade out current fact
             factElement.style.opacity = '0';
-            
+
             setTimeout(() => {
                 factElement.textContent = facts[stage];
                 factElement.style.opacity = '1';
@@ -866,7 +866,7 @@ class NetflixLevelViralClipApp {
     triggerProgressEffects(progress) {
         // Trigger special effects at milestones
         const milestones = [25, 50, 75, 100];
-        
+
         milestones.forEach(milestone => {
             if (Math.abs(progress - milestone) < 1) {
                 this.triggerMilestoneEffect(milestone);
@@ -887,7 +887,7 @@ class NetflixLevelViralClipApp {
         };
 
         this.createParticleEffect(container, colors[milestone]);
-        
+
         // Show milestone notification
         const messages = {
             25: '🚀 AI analysis 25% complete!',
@@ -987,7 +987,7 @@ class NetflixLevelViralClipApp {
                     <div class="confidence-fill" style="width: ${confidence * 100}%; background: linear-gradient(90deg, #e50914, #00ff88);"></div>
                 </div>
             </div>
-            
+
             <div class="insights-list">
                 ${insights.map(insight => `
                     <div class="insight-item">
@@ -1207,6 +1207,260 @@ class NetflixLevelViralClipApp {
     handleUnhandledRejection(event) {
         console.error('Unhandled promise rejection:', event.reason);
         this.showNotification('A network error occurred. Please check your connection.', 'warning');
+    }
+
+    setupWebSocket(sessionId) {
+        if (this.websocket) {
+            this.websocket.close();
+        }
+
+        const wsUrl = `ws://${window.location.host}/api/v6/ws/viral-insights/${sessionId}`;
+        this.websocket = new WebSocket(wsUrl);
+
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        this.websocket.onopen = () => {
+            console.log('🔗 WebSocket connected for real-time insights');
+            this.showNotification('🔗 Real-time insights connected', 'success');
+            reconnectAttempts = 0;
+
+            // Initialize real-time features
+            this.initializeRealtimeFeatures();
+        };
+
+        this.websocket.onmessage = (event) => {
+            const startTime = performance.now();
+            this.handleRealtimeMessage(JSON.parse(event.data));
+            this.performanceMetrics.realtimeLatency = performance.now() - startTime;
+        };
+
+        this.websocket.onclose = (event) => {
+            console.log('🔌 WebSocket disconnected:', event.code, event.reason);
+
+            // Attempt reconnection
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+                setTimeout(() => this.setupWebSocket(sessionId), delay);
+            } else {
+                this.showNotification('Connection lost. Please refresh to reconnect.', 'error');
+            }
+        };
+
+        this.websocket.onerror = (error) => {
+            console.error('❌ WebSocket error:', error);
+        };
+    }
+
+    initializeRealtimeFeatures() {
+        // Initialize sentiment meter
+        this.sentimentMeter = new RealtimeSentimentMeter();
+
+        // Initialize viral timeline
+        this.viralTimeline = new InteractiveViralTimeline();
+
+        // Initialize processing dashboard
+        this.processingDashboard = new LiveProcessingDashboard();
+
+        // Initialize heatmap renderer
+        this.heatmapRenderer = new ViralHeatmapRenderer();
+
+        console.log('🎯 Real-time features initialized');
+    }
+
+    handleRealtimeMessage(data) {
+        console.log('📡 Real-time message received:', data.type);
+
+        switch (data.type) {
+            case 'welcome':
+                this.handleWelcomeMessage(data.data);
+                break;
+            case 'viral_insights':
+                this.updateViralInsights(data.data);
+                break;
+            case 'timeline_update':
+                this.updateInteractiveTimeline(data.data);
+                break;
+            case 'processing_dashboard':
+                this.updateProcessingDashboard(data.data);
+                break;
+            case 'sentiment_analysis':
+                this.updateSentimentMeter(data.data);
+                break;
+            case 'smart_recommendations':
+                this.updateSmartRecommendations(data.data);
+                break;
+            case 'analysis_progress':
+                this.updateAnalysisProgress(data.data);
+                break;
+            case 'clip_generated':
+                this.handleClipGenerated(data.data);
+                break;
+            case 'error':
+                this.handleRealtimeError(data.data);
+                break;
+            default:
+                console.log('Unknown message type:', data.type);
+        }
+    }
+
+    handleWelcomeMessage(data) {
+        console.log('👋 Welcome message received');
+
+        // Initialize with current state
+        if (data.current_insights?.length > 0) {
+            data.current_insights.forEach(insight => {
+                this.viralInsights.push(insight);
+            });
+        }
+
+        if (data.timeline_data?.length > 0) {
+            this.timelineSegments = data.timeline_data;
+            this.viralTimeline?.renderTimeline(data.timeline_data);
+        }
+
+        if (data.recent_sentiment?.length > 0) {
+            this.sentimentData = data.recent_sentiment;
+            this.sentimentMeter?.updateHistory(data.recent_sentiment);
+        }
+
+        // Update feature status
+        this.updateFeatureStatus(data.features_enabled);
+    }
+
+    updateViralInsights(data) {
+        console.log('💡 Updating viral insights');
+
+        // Store insights
+        this.viralInsights.push({
+            timestamp: new Date(),
+            insights: data.insights,
+            confidence: data.confidence,
+            priority: data.priority,
+            recommendations: data.recommendations
+        });
+
+        // Limit stored insights
+        if (this.viralInsights.length > 50) {
+            this.viralInsights = this.viralInsights.slice(-25);
+        }
+
+        // Update UI
+        this.renderViralInsights(data);
+
+        // Show recommendations
+        if (data.recommendations?.length > 0) {
+            this.displayLiveRecommendations(data.recommendations);
+        }
+    }
+
+    updateInteractiveTimeline(data) {
+        console.log('📊 Updating interactive timeline');
+
+        // Store timeline data
+        this.timelineSegments = data.segments;
+
+        // Update timeline visualization
+        this.viralTimeline?.updateSegments(data.segments);
+
+        // Update heatmap
+        if (data.heatmap) {
+            this.heatmapRenderer?.updateHeatmap(data.heatmap);
+        }
+
+        // Display recommendations
+        if (data.recommendations?.length > 0) {
+            this.displayTimelineRecommendations(data.recommendations);
+        }
+
+        // Update viral score indicators
+        this.updateViralScoreIndicators(data.segments);
+    }
+
+    updateProcessingDashboard(data) {
+        console.log('⚙️ Updating processing dashboard');
+
+        // Update processing stage
+        this.processingDashboard?.updateStage({
+            stage: data.stage,
+            progress: data.progress,
+            estimatedTime: data.estimated_time_remaining,
+            operation: data.current_operation,
+            substages: data.substages,
+            animationType: data.animation_type
+        });
+
+        // Display entertaining messages
+        if (data.entertaining_messages?.length > 0) {
+            this.displayEntertainingMessages(data.entertaining_messages);
+        }
+
+        // Update performance stats
+        if (data.performance_stats) {
+            this.updatePerformanceDisplay(data.performance_stats);
+        }
+    }
+
+    updateSentimentMeter(data) {
+        console.log('😊 Updating sentiment meter');
+
+        // Store sentiment data
+        this.sentimentData.push({
+            timestamp: new Date(),
+            sentiment: data.sentiment,
+            trends: data.trends,
+            recommendations: data.recommendations
+        });
+
+        // Limit stored data
+        if (this.sentimentData.length > 100) {
+            this.sentimentData = this.sentimentData.slice(-50);
+        }
+
+        // Update sentiment meter
+        this.sentimentMeter?.updateSentiment(data.sentiment);
+
+        // Update trends
+        if (data.trends) {
+            this.sentimentMeter?.updateTrends(data.trends);
+        }
+
+        // Display sentiment recommendations
+        if (data.recommendations?.length > 0) {
+            this.displaySentimentRecommendations(data.recommendations);
+        }
+    }
+
+    updateSmartRecommendations(data) {
+        console.log('🧠 Updating smart recommendations');
+
+        // Store recommendations
+        this.smartRecommendations = data.recommendations;
+
+        // Update recommendations UI
+        this.displaySmartClipRecommendations(data.recommendations);
+
+        // Update auto-trim suggestions
+        if (data.auto_trim_suggestions?.length > 0) {
+            this.displayAutoTrimSuggestions(data.auto_trim_suggestions);
+        }
+
+        // Update engagement peaks
+        if (data.engagement_peaks?.length > 0) {
+            this.highlightEngagementPeaks(data.engagement_peaks);
+        }
+
+        // Update optimal durations
+        if (data.optimal_durations) {
+            this.displayOptimalDurations(data.optimal_durations);
+        }
+    }
+
+    handleRealtimeError(data) {
+        console.error('❌ Real-time error:', data);
+        this.showNotification(`Real-time error: ${data.message}`, 'error');
     }
 }
 
@@ -1474,7 +1728,7 @@ class EnterpriseTimelineManager {
         this.engagementPeaks = [];
         this.sentimentData = [];
         this.animationFrame = null;
-        
+
         this.initialize();
         console.log('📊 Enterprise timeline manager with viral insights initialized');
     }
@@ -1492,7 +1746,7 @@ class EnterpriseTimelineManager {
 
         this.ctx = this.canvas.getContext('2d');
         this.resizeCanvas();
-        
+
         // Enable high-DPI rendering
         const devicePixelRatio = window.devicePixelRatio || 1;
         const rect = this.canvas.getBoundingClientRect();
@@ -1537,7 +1791,7 @@ class EnterpriseTimelineManager {
 
     resizeCanvas() {
         if (!this.canvas) return;
-        
+
         const container = this.canvas.parentElement;
         this.canvas.width = container.clientWidth;
         this.canvas.height = 120;
@@ -1570,7 +1824,7 @@ class EnterpriseTimelineManager {
             const start = Math.random() * 100;
             const duration = 5 + Math.random() * 15;
             const viralScore = 60 + Math.random() * 40;
-            
+
             segments.push({
                 start,
                 end: start + duration,
@@ -1597,7 +1851,7 @@ class EnterpriseTimelineManager {
     generateSentimentData() {
         const sentiments = ['joy', 'excitement', 'surprise', 'calm', 'anticipation'];
         const data = [];
-        
+
         for (let i = 0; i < 120; i += 5) {
             data.push({
                 time: i,
@@ -1639,19 +1893,19 @@ class EnterpriseTimelineManager {
 
         // Draw background
         this.drawBackground();
-        
+
         // Draw viral heatmap
         this.drawViralHeatmap();
-        
+
         // Draw engagement curve
         this.drawEngagementCurve();
-        
+
         // Draw sentiment indicators
         this.drawSentimentIndicators();
-        
+
         // Draw viral segments
         this.drawViralSegments();
-        
+
         // Draw playhead
         this.drawPlayhead();
 
@@ -1676,7 +1930,7 @@ class EnterpriseTimelineManager {
         const gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
         gradient.addColorStop(0, 'rgba(229, 9, 20, 0.1)');
         gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
-        
+
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
@@ -1692,7 +1946,7 @@ class EnterpriseTimelineManager {
             // Create gradient based on viral score
             const intensity = segment.viralScore / 100;
             const gradient = this.ctx.createLinearGradient(startX, 0, startX, this.canvas.height);
-            
+
             if (segment.viralScore >= 85) {
                 gradient.addColorStop(0, `rgba(0, 255, 136, ${intensity})`);
                 gradient.addColorStop(1, `rgba(0, 255, 136, ${intensity * 0.3})`);
@@ -1761,7 +2015,7 @@ class EnterpriseTimelineManager {
         this.timelineData.viralSegments.forEach(segment => {
             if (segment.viralScore >= 85) {
                 const x = (segment.start / this.timelineData.duration) * this.canvas.width;
-                
+
                 // Draw viral hotspot indicator
                 this.ctx.fillStyle = '#00ff88';
                 this.ctx.beginPath();
@@ -1781,7 +2035,7 @@ class EnterpriseTimelineManager {
 
     drawPlayhead() {
         const x = (this.playPosition / this.timelineData.duration) * this.canvas.width;
-        
+
         this.ctx.strokeStyle = '#ffffff';
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
@@ -1798,14 +2052,14 @@ class EnterpriseTimelineManager {
 
     drawTimeMarkers() {
         const markerInterval = 10; // Every 10 seconds
-        
+
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         this.ctx.font = '10px Arial';
         this.ctx.textAlign = 'center';
 
         for (let time = 0; time <= this.timelineData.duration; time += markerInterval) {
             const x = (time / this.timelineData.duration) * this.canvas.width;
-            
+
             // Draw marker line
             this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
             this.ctx.lineWidth = 1;
@@ -1902,7 +2156,7 @@ class EnterpriseTimelineManager {
         if (!this.isPlaying) return;
 
         this.playPosition += 0.1; // Advance by 0.1 seconds
-        
+
         if (this.playPosition >= this.timelineData.duration) {
             this.playPosition = 0;
         }
@@ -1982,7 +2236,7 @@ class IntelligentPreviewManager {
         this.isGenerating = false;
         this.previewCache = new Map();
         this.aiAnalysisRunning = false;
-        
+
         this.initialize();
         console.log('🎥 Intelligent preview manager with real-time feedback initialized');
     }
@@ -2010,7 +2264,7 @@ class IntelligentPreviewManager {
                     <div class="ai-suggestions" id="aiSuggestions"></div>
                 </div>
             </div>
-            
+
             <div class="preview-overlay" id="previewOverlay">
                 <div class="viral-score-overlay">
                     <div class="score-display">
@@ -2018,17 +2272,17 @@ class IntelligentPreviewManager {
                         <span class="score-label">Viral Score</span>
                     </div>
                 </div>
-                
+
                 <div class="sentiment-meter-container">
                     <div class="sentiment-meter" id="sentimentMeter">
                         <div class="sentiment-indicator" id="sentimentIndicator"></div>
                         <div class="sentiment-label" id="sentimentLabel">Analyzing...</div>
                     </div>
                 </div>
-                
+
                 <div class="engagement-peaks" id="engagementPeaks"></div>
             </div>
-            
+
             <div class="preview-progress" id="previewProgress" style="display: none;">
                 <div class="progress-bar">
                     <div class="progress-fill" id="previewProgressFill"></div>
@@ -2126,7 +2380,7 @@ class IntelligentPreviewManager {
 
             // Cache the result
             this.previewCache.set(cacheKey, optimizedPreview);
-            
+
             // Display preview
             this.displayPreview(optimizedPreview);
             this.updateProgress(100, 'Preview ready!');
@@ -2152,7 +2406,7 @@ class IntelligentPreviewManager {
 
         const duration = endTime - startTime;
         const viralScore = 65 + Math.random() * 30;
-        
+
         return {
             viralScore,
             duration,
@@ -2170,14 +2424,14 @@ class IntelligentPreviewManager {
             { emotion: 'excitement', intensity: 0.6 + Math.random() * 0.4, confidence: 0.78 },
             { emotion: 'surprise', intensity: 0.5 + Math.random() * 0.5, confidence: 0.82 }
         ];
-        
+
         return sentiments[Math.floor(Math.random() * sentiments.length)];
     }
 
     predictEngagement(duration) {
         const optimalDuration = duration <= 15 ? 15 : duration <= 30 ? 30 : 60;
         const durationScore = Math.max(0, 100 - Math.abs(duration - optimalDuration) * 2);
-        
+
         return {
             predicted_views: Math.floor(10000 + Math.random() * 90000),
             predicted_shares: Math.floor(100 + Math.random() * 900),
@@ -2189,7 +2443,7 @@ class IntelligentPreviewManager {
 
     suggestPlatformOptimizations(duration, viralScore) {
         const platforms = [];
-        
+
         if (duration <= 15 && viralScore >= 70) {
             platforms.push({ platform: 'TikTok', optimization: 'Perfect for TikTok - trending format detected' });
         }
@@ -2199,13 +2453,13 @@ class IntelligentPreviewManager {
         if (duration <= 60) {
             platforms.push({ platform: 'YouTube Shorts', optimization: 'Suitable for YouTube Shorts' });
         }
-        
+
         return platforms;
     }
 
     identifyViralFactors(viralScore) {
         const factors = [];
-        
+
         if (viralScore >= 80) {
             factors.push('Strong hook detected', 'Trending elements present', 'High visual impact');
         } else if (viralScore >= 65) {
@@ -2213,13 +2467,13 @@ class IntelligentPreviewManager {
         } else {
             factors.push('Content quality detected', 'Room for improvement');
         }
-        
+
         return factors;
     }
 
     suggestTrimming(startTime, endTime, viralScore) {
         const suggestions = [];
-        
+
         if (viralScore < 70) {
             suggestions.push({
                 type: 'trim_start',
@@ -2227,7 +2481,7 @@ class IntelligentPreviewManager {
                 newStart: startTime + 2
             });
         }
-        
+
         if (endTime - startTime > 15) {
             suggestions.push({
                 type: 'trim_end',
@@ -2235,7 +2489,7 @@ class IntelligentPreviewManager {
                 newEnd: startTime + 15
             });
         }
-        
+
         return suggestions;
     }
 
@@ -2314,7 +2568,7 @@ class IntelligentPreviewManager {
         if (indicator && label) {
             const percentage = sentimentData.intensity * 100;
             indicator.style.width = `${percentage}%`;
-            
+
             // Update color based on emotion
             const emotionColors = {
                 'joy': '#00ff88',
@@ -2322,10 +2576,10 @@ class IntelligentPreviewManager {
                 'surprise': '#00ccff',
                 'calm': '#e50914'
             };
-            
+
             const color = emotionColors[sentimentData.emotion] || '#ffffff';
             indicator.style.boxShadow = `0 0 20px ${color}40`;
-            
+
             label.textContent = `${sentimentData.emotion.toUpperCase()} (${(sentimentData.confidence * 100).toFixed(0)}%)`;
         }
     }
@@ -2374,9 +2628,9 @@ class IntelligentPreviewManager {
 
     startRealtimeAnalysis() {
         if (this.aiAnalysisRunning) return;
-        
+
         this.aiAnalysisRunning = true;
-        
+
         // Update analysis every 2 seconds
         this.analysisInterval = setInterval(() => {
             this.updateRealtimeFeedback();
@@ -2393,7 +2647,7 @@ class IntelligentPreviewManager {
         // Update viral score with slight variations
         const variation = (Math.random() - 0.5) * 2;
         const newScore = Math.max(0, Math.min(100, this.currentPreview.viralScore + variation));
-        
+
         const scoreElement = document.getElementById('previewViralScore');
         if (scoreElement) {
             scoreElement.textContent = newScore.toFixed(1);
@@ -2425,7 +2679,7 @@ class IntelligentPreviewManager {
     updateProgress(percentage, text) {
         const fill = document.getElementById('previewProgressFill');
         const textEl = document.getElementById('previewProgressText');
-        
+
         if (fill) fill.style.width = `${percentage}%`;
         if (textEl) textEl.textContent = text;
     }
@@ -2447,7 +2701,7 @@ class IntelligentPreviewManager {
             intensity: 0.5 + position * 0.5,
             confidence: 0.8 + Math.random() * 0.2
         };
-        
+
         this.updateSentimentMeter(sentiment);
     }
 
@@ -2509,7 +2763,7 @@ class IntelligentPreviewManager {
         if (!suggestionsContainer) return;
 
         const recommendations = this.generateSmartRecommendations();
-        
+
         suggestionsContainer.innerHTML = `
             <div class="smart-recommendations">
                 <h4>📊 Smart Recommendations</h4>
@@ -2553,13 +2807,13 @@ class IntelligentPreviewManager {
 
     regenerate() {
         console.log('🔄 Regenerating preview with enhanced AI...');
-        
+
         if (this.currentPreview) {
             // Enhanced regeneration with current analysis
             const startTime = 0; // Get from timeline
             const endTime = 15; // Get from timeline
             const sessionId = 'current'; // Get from app state
-            
+
             this.generatePreview(sessionId, startTime, endTime, 'netflix');
         } else {
             this.app.showNotification('Select a timeline segment first', 'warning');
@@ -2599,3 +2853,101 @@ window.addEventListener('beforeunload', () => {
 
 // Export for global access
 window.NetflixLevelViralClipApp = NetflixLevelViralClipApp;
+
+// Real-time Sentiment Meter
+class RealtimeSentimentMeter {
+    constructor() {
+        this.currentSentiment = 'neutral';
+        this.trends = [];
+        this.initialize();
+    }
+
+    initialize() {
+        // Initialize sentiment meter UI
+        console.log('😊 Real-time sentiment meter initialized');
+    }
+
+    updateSentiment(sentiment) {
+        this.currentSentiment = sentiment;
+        // Update sentiment meter UI
+        console.log('😊 Sentiment updated:', sentiment);
+    }
+
+    updateTrends(trends) {
+        this.trends = trends;
+        // Update trends UI
+        console.log('📈 Trends updated:', trends);
+    }
+
+    updateHistory(history) {
+        // Update sentiment history
+        console.log('📜 Sentiment history updated:', history.length);
+    }
+}
+
+// Interactive Viral Timeline
+class InteractiveViralTimeline {
+    constructor() {
+        this.segments = [];
+        this.hotspots = [];
+        this.engagementPeaks = [];
+        this.initialize();
+    }
+
+    initialize() {
+        // Initialize timeline UI
+        console.log('📊 Interactive viral timeline initialized');
+    }
+
+    renderTimeline(data) {
+        this.segments = data;
+        // Render timeline segments
+        console.log('🎬 Timeline rendered with', data.length, 'segments');
+    }
+
+    updateSegments(segments) {
+        this.segments = segments;
+        // Update timeline segments
+        console.log('📊 Timeline segments updated', segments.length);
+    }
+}
+
+// Live Processing Dashboard
+class LiveProcessingDashboard {
+    constructor() {
+        this.stage = 'initializing';
+        this.progress = 0;
+        this.initialize();
+    }
+
+    initialize() {
+        // Initialize dashboard UI
+        console.log('⚙️ Live processing dashboard initialized');
+    }
+
+    updateStage(status) {
+        this.stage = status.stage;
+        this.progress = status.progress;
+        // Update dashboard UI
+        console.log('⚙️ Processing stage updated:', status.stage, status.progress);
+    }
+}
+
+// Viral Heatmap Renderer
+class ViralHeatmapRenderer {
+    constructor() {
+        this.heatmapData = [];
+        this.initialize();
+    }
+
+    initialize() {
+        // Initialize heatmap canvas
+        console.log('🔥 Viral heatmap renderer initialized');
+    }
+
+    updateHeatmap(data) {
+        this.heatmapData = data;
+        // Update heatmap visualization
+        console.log('🔥 Heatmap updated with', data.length, 'data points');
+    }
+}
