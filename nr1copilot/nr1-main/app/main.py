@@ -26,6 +26,20 @@ from app.middleware.security import SecurityMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.utils.health import SystemHealthMonitor
 
+# Services imports
+from app.services.video_service import NetflixLevelVideoService
+from app.services.ai_analyzer import AIVideoAnalyzer
+from app.services.social_publisher import SocialMediaPublisher
+from app.services.analytics_engine import AnalyticsEngine
+from app.services.collaboration_engine import CollaborationEngine
+from app.services.realtime_engine import RealtimeEngine
+from app.services.template_service import TemplateService
+from app.services.batch_processor import NetflixLevelBatchProcessor
+from app.services.ultimate_perfection_engine import UltimatePerfectionEngine
+from app.services.enterprise_manager import EnterpriseManager
+from app.services.video_pipeline import NetflixLevelVideoPipeline
+from app.services.ffmpeg_processor import NetflixLevelFFmpegProcessor
+
 # Application metadata
 APPLICATION_INFO = {
     "name": "ViralClip Pro v10.0",
@@ -55,10 +69,35 @@ async def lifespan(app: FastAPI):
 
         # Initialize services
         await services.initialize()
+        app.state.video_service = NetflixLevelVideoService()
+        app.state.ai_analyzer = AIVideoAnalyzer()
+        app.state.social_publisher = SocialMediaPublisher()
+        app.state.analytics_engine = AnalyticsEngine()
+        app.state.collaboration_engine = CollaborationEngine()
+        app.state.realtime_engine = RealtimeEngine()
+        app.state.template_service = TemplateService()
+        app.state.batch_processor = NetflixLevelBatchProcessor()
+        app.state.perfection_engine = UltimatePerfectionEngine()
+        app.state.enterprise_manager = EnterpriseManager()
+        app.state.video_pipeline = NetflixLevelVideoPipeline()
+        app.state.ffmpeg_processor = NetflixLevelFFmpegProcessor()
 
         # Start health monitoring
         health_monitor = services.get_health_monitor()
         await health_monitor.start_monitoring()
+
+        await app.state.video_service.startup()
+        await app.state.ai_analyzer.warm_up()
+        await app.state.social_publisher.startup()
+        await app.state.analytics_engine.startup()
+        await app.state.collaboration_engine.startup()
+        await app.state.realtime_engine.startup()
+        await app.state.template_service.startup()
+        await app.state.batch_processor.startup()
+        await app.state.perfection_engine.startup()
+        await app.state.enterprise_manager.startup()
+        await app.state.video_pipeline.startup()
+        await app.state.ffmpeg_processor.startup()
 
         startup_duration = time.time() - startup_start
         logger.info(f"✅ Startup completed in {startup_duration:.2f}s")
@@ -69,6 +108,17 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Startup failed: {e}", exc_info=True)
         raise
     finally:
+        await app.state.video_service.shutdown()
+        await app.state.social_publisher.shutdown()
+        await app.state.analytics_engine.shutdown()
+        await app.state.collaboration_engine.shutdown()
+        await app.state.realtime_engine.shutdown()
+        await app.state.template_service.shutdown()
+        await app.state.batch_processor.shutdown()
+        await app.state.perfection_engine.shutdown()
+        await app.state.enterprise_manager.shutdown()
+        await app.state.video_pipeline.shutdown()
+        await app.state.ffmpeg_processor.shutdown()
         await services.shutdown()
         logger.info("✅ Graceful shutdown completed")
 
