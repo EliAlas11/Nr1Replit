@@ -2,7 +2,7 @@
   "overall_score": 33.0,
   "max_score": 50,
   "percentage": 66.0,
-  "duration": 1.567464828491211,
+  "duration": 1.4184229373931885,
   "category_results": {
     "health_endpoints": {
       "score": 2,
@@ -54,7 +54,7 @@
       "status": "CRITICAL"
     }
   },
-  "timestamp": "2025-06-03T06:18:31.725297",
+  "timestamp": "2025-06-03T06:20:16.913201",
   "recommendations": [
     "\ud83d\udd27 HEALTH_ENDPOINTS: Score 2.0/10 - Requires improvement",
     "   \u2192 Fix import dependencies in health_endpoints",
