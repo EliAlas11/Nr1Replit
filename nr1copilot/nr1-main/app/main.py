@@ -34,13 +34,8 @@ from app.services.ai_analyzer import NetflixLevelAIAnalyzer
 from app.services.enterprise_manager import EnterpriseManager
 
 # Route imports
-from app.routes import (
-    ai_production,
-    auth,
-    enterprise,
-    storage,
-    websocket
-)
+from app.routes import auth, websocket, storage, enterprise, ai_production
+from app.routes import health_endpoints
 
 # Middleware imports
 from app.middleware.performance import PerformanceMiddleware
@@ -236,6 +231,7 @@ app.include_router(ai_production.router, prefix="/api/v1/ai", tags=["AI Producti
 app.include_router(enterprise.router, prefix="/api/v1/enterprise", tags=["Enterprise"])
 app.include_router(storage.router, prefix="/api/v1/storage", tags=["Storage"])
 app.include_router(websocket.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(health_endpoints.router, prefix="/api/v1", tags=["Health"])
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
