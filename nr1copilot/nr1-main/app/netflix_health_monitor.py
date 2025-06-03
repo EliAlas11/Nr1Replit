@@ -437,11 +437,7 @@ class NetflixHealthMonitor:
         except Exception as e:
             logger.error(f"Failed to check/send alerts: {e}")
 
-
-                    'packets_recv': network.packets_recv
-                },
-                status=HealthStatus.HEALTHY,
-                component_type=ComponentType.NETWORK,
+    async def _check_application_health(self) -> Dict[str, Any]:
                 unit="bytes"
             )
 

@@ -1,4 +1,3 @@
-
 """
 Netflix-Grade Crash Recovery Manager v10.0
 Production-ready crash recovery with comprehensive failure handling
@@ -74,7 +73,7 @@ class RecoveryAction:
 
 class NetflixCrashRecoveryManager:
     """Netflix-grade crash recovery manager with comprehensive failure handling"""
-    
+
     def __init__(self):
         self.failure_history: deque = deque(maxlen=1000)
         self.recovery_actions: Dict[FailureType, List[RecoveryAction]] = {}
@@ -89,12 +88,12 @@ class NetflixCrashRecoveryManager:
             "average_recovery_time": 0.0,
             "last_failure": None
         }
-        
+
         # Initialize recovery strategies
         self._initialize_recovery_strategies()
-        
+
         logger.info("🛡️ Netflix Crash Recovery Manager v10.0 initialized")
-    
+
     def _initialize_recovery_strategies(self) -> None:
         """Initialize recovery strategies for different failure types"""
         # Startup failure recovery
@@ -121,7 +120,7 @@ class NetflixCrashRecoveryManager:
                 timeout_seconds=15.0
             )
         ]
-        
+
         # Service crash recovery
         self.recovery_actions[FailureType.SERVICE_CRASH] = [
             RecoveryAction(
@@ -146,7 +145,7 @@ class NetflixCrashRecoveryManager:
                 timeout_seconds=10.0
             )
         ]
-        
+
         # Memory exhaustion recovery
         self.recovery_actions[FailureType.MEMORY_EXHAUSTION] = [
             RecoveryAction(
@@ -171,15 +170,15 @@ class NetflixCrashRecoveryManager:
                 timeout_seconds=15.0
             )
         ]
-        
+
         logger.info(f"Initialized recovery strategies for {len(self.recovery_actions)} failure types")
-    
+
     async def handle_startup_failure(self, error: Exception) -> Dict[str, Any]:
         """Handle startup failures with comprehensive recovery"""
         failure_id = f"startup_{int(time.time())}"
-        
+
         logger.error(f"🚨 Startup failure detected: {error}")
-        
+
         failure_event = FailureEvent(
             failure_id=failure_id,
             failure_type=FailureType.STARTUP_FAILURE,
@@ -189,15 +188,15 @@ class NetflixCrashRecoveryManager:
             stack_trace=traceback.format_exc(),
             system_state=await self._capture_system_state()
         )
-        
+
         return await self._execute_recovery(failure_event)
-    
+
     async def handle_service_failure(self, service_name: str, error: Exception) -> Dict[str, Any]:
         """Handle service failures with targeted recovery"""
         failure_id = f"service_{service_name}_{int(time.time())}"
-        
+
         logger.error(f"🚨 Service failure detected - {service_name}: {error}")
-        
+
         failure_event = FailureEvent(
             failure_id=failure_id,
             failure_type=FailureType.SERVICE_CRASH,
@@ -208,15 +207,15 @@ class NetflixCrashRecoveryManager:
             system_state=await self._capture_system_state(),
             metadata={"service_name": service_name}
         )
-        
+
         return await self._execute_recovery(failure_event)
-    
+
     async def handle_memory_exhaustion(self) -> Dict[str, Any]:
         """Handle memory exhaustion with immediate recovery"""
         failure_id = f"memory_{int(time.time())}"
-        
+
         logger.error("🚨 Memory exhaustion detected")
-        
+
         failure_event = FailureEvent(
             failure_id=failure_id,
             failure_type=FailureType.MEMORY_EXHAUSTION,
@@ -226,55 +225,55 @@ class NetflixCrashRecoveryManager:
             stack_trace="Memory usage exceeded threshold",
             system_state=await self._capture_system_state()
         )
-        
+
         return await self._execute_recovery(failure_event)
-    
+
     async def _execute_recovery(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Execute recovery procedures for a failure event"""
         recovery_start = time.time()
         failure_event.recovery_started = datetime.utcnow()
-        
+
         try:
             logger.info(f"🔧 Starting recovery for {failure_event.failure_id}")
-            
+
             # Add to active recoveries
             self.active_recoveries[failure_event.failure_id] = failure_event
-            
+
             # Determine recovery strategy
             recovery_strategy = self._determine_recovery_strategy(failure_event)
             failure_event.recovery_strategy = recovery_strategy
-            
+
             # Get recovery actions for this failure type
             recovery_actions = self.recovery_actions.get(failure_event.failure_type, [])
-            
+
             if not recovery_actions:
                 logger.warning(f"No recovery actions defined for {failure_event.failure_type}")
                 return await self._fallback_recovery(failure_event)
-            
+
             # Execute recovery actions
             recovery_results = []
             for action in recovery_actions:
                 try:
                     logger.info(f"Executing recovery action: {action.name}")
-                    
+
                     # Execute action with timeout
                     result = await asyncio.wait_for(
                         action.handler(failure_event),
                         timeout=action.timeout_seconds
                     )
-                    
+
                     recovery_results.append({
                         "action": action.name,
                         "success": True,
                         "result": result
                     })
-                    
+
                     # Check if recovery was successful
                     if action.success_criteria and await action.success_criteria():
                         logger.info(f"✅ Recovery successful after action: {action.name}")
                         failure_event.recovery_success = True
                         break
-                        
+
                 except asyncio.TimeoutError:
                     logger.error(f"Recovery action {action.name} timed out")
                     recovery_results.append({
@@ -282,7 +281,7 @@ class NetflixCrashRecoveryManager:
                         "success": False,
                         "error": "Timeout"
                     })
-                    
+
                 except Exception as e:
                     logger.error(f"Recovery action {action.name} failed: {e}")
                     recovery_results.append({
@@ -290,21 +289,21 @@ class NetflixCrashRecoveryManager:
                         "success": False,
                         "error": str(e)
                     })
-            
+
             # Complete recovery
             recovery_time = time.time() - recovery_start
             failure_event.recovery_completed = datetime.utcnow()
-            
+
             # Update metrics
             await self._update_recovery_metrics(failure_event, recovery_time)
-            
+
             # Store in history
             self.failure_history.append(failure_event)
-            
+
             # Remove from active recoveries
             if failure_event.failure_id in self.active_recoveries:
                 del self.active_recoveries[failure_event.failure_id]
-            
+
             return {
                 "recovery_id": failure_event.failure_id,
                 "success": failure_event.recovery_success,
@@ -313,7 +312,7 @@ class NetflixCrashRecoveryManager:
                 "actions_executed": recovery_results,
                 "final_state": "recovered" if failure_event.recovery_success else "degraded"
             }
-            
+
         except Exception as e:
             logger.error(f"Recovery execution failed: {e}")
             return {
@@ -322,19 +321,19 @@ class NetflixCrashRecoveryManager:
                 "error": str(e),
                 "recovery_time": time.time() - recovery_start
             }
-    
+
     def _determine_recovery_strategy(self, failure_event: FailureEvent) -> RecoveryStrategy:
         """Determine the best recovery strategy based on failure type and history"""
         failure_type = failure_event.failure_type
-        
+
         # Check failure patterns
         recent_failures = [f for f in list(self.failure_history)[-10:] 
                           if f.failure_type == failure_type]
-        
+
         if len(recent_failures) >= 3:
             # Multiple recent failures of same type
             return RecoveryStrategy.DEGRADED_MODE
-        
+
         if failure_type == FailureType.STARTUP_FAILURE:
             return RecoveryStrategy.GRACEFUL_RESTART
         elif failure_type == FailureType.SERVICE_CRASH:
@@ -343,14 +342,14 @@ class NetflixCrashRecoveryManager:
             return RecoveryStrategy.IMMEDIATE_RESTART
         else:
             return RecoveryStrategy.GRACEFUL_RESTART
-    
+
     async def _capture_system_state(self) -> Dict[str, Any]:
         """Capture current system state for analysis"""
         try:
             memory = psutil.virtual_memory()
             cpu_percent = psutil.cpu_percent(interval=0.1)
             disk = psutil.disk_usage('/')
-            
+
             return {
                 "timestamp": time.time(),
                 "memory_percent": memory.percent,
@@ -363,46 +362,46 @@ class NetflixCrashRecoveryManager:
         except Exception as e:
             logger.error(f"Failed to capture system state: {e}")
             return {"error": str(e)}
-    
+
     async def _validate_dependencies(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Validate system dependencies"""
         try:
             # Check critical modules
             critical_modules = ["fastapi", "uvicorn", "pydantic"]
             missing_modules = []
-            
+
             for module in critical_modules:
                 try:
                     __import__(module)
                 except ImportError:
                     missing_modules.append(module)
-            
+
             return {
                 "dependencies_valid": len(missing_modules) == 0,
                 "missing_modules": missing_modules
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _clear_temp_files(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Clear temporary files and caches"""
         try:
             import tempfile
             import shutil
-            
+
             temp_dir = tempfile.gettempdir()
             cleared_files = 0
-            
+
             # This would normally clear temp files
             # For safety, we'll just simulate
-            
+
             return {
                 "temp_files_cleared": True,
                 "files_cleared": cleared_files
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _reset_configurations(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Reset configurations to defaults"""
         try:
@@ -413,22 +412,22 @@ class NetflixCrashRecoveryManager:
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _restart_service(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Restart a specific service"""
         try:
             service_name = failure_event.metadata.get("service_name", "unknown")
-            
+
             # Service restart logic would go here
             await asyncio.sleep(0.1)  # Simulate restart
-            
+
             return {
                 "service_restarted": True,
                 "service_name": service_name
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _check_service_dependencies(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Check service dependencies"""
         try:
@@ -439,35 +438,35 @@ class NetflixCrashRecoveryManager:
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _enable_degraded_mode(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Enable degraded mode operation"""
         try:
             self.degraded_mode_active = True
-            
+
             return {
                 "degraded_mode_enabled": True,
                 "available_features": ["basic_operations", "health_checks"]
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _force_garbage_collection(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Force garbage collection to free memory"""
         try:
             import gc
-            
+
             before_memory = psutil.virtual_memory().percent
-            
+
             # Force garbage collection
             collected_objects = []
             for generation in range(3):
                 collected = gc.collect(generation)
                 collected_objects.append(collected)
-            
+
             after_memory = psutil.virtual_memory().percent
             memory_freed = before_memory - after_memory
-            
+
             return {
                 "garbage_collection_completed": True,
                 "memory_freed_percent": memory_freed,
@@ -475,20 +474,20 @@ class NetflixCrashRecoveryManager:
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _clear_caches(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Clear system caches"""
         try:
             # Clear application caches
             caches_cleared = ["memory_cache", "redis_cache", "file_cache"]
-            
+
             return {
                 "caches_cleared": True,
                 "cleared_caches": caches_cleared
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _reduce_worker_processes(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Reduce worker processes to free memory"""
         try:
@@ -499,18 +498,18 @@ class NetflixCrashRecoveryManager:
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _fallback_recovery(self, failure_event: FailureEvent) -> Dict[str, Any]:
         """Fallback recovery when no specific actions are available"""
         try:
             logger.info("Executing fallback recovery procedures")
-            
+
             # Basic recovery steps
             import gc
             gc.collect()
-            
+
             self.degraded_mode_active = True
-            
+
             return {
                 "fallback_recovery": True,
                 "degraded_mode": True,
@@ -518,16 +517,16 @@ class NetflixCrashRecoveryManager:
             }
         except Exception as e:
             return {"error": str(e)}
-    
+
     async def _update_recovery_metrics(self, failure_event: FailureEvent, recovery_time: float) -> None:
         """Update recovery metrics"""
         self.recovery_metrics["total_failures"] += 1
-        
+
         if failure_event.recovery_success:
             self.recovery_metrics["successful_recoveries"] += 1
         else:
             self.recovery_metrics["failed_recoveries"] += 1
-        
+
         # Update average recovery time
         total_recoveries = self.recovery_metrics["successful_recoveries"] + self.recovery_metrics["failed_recoveries"]
         if total_recoveries > 0:
@@ -535,9 +534,9 @@ class NetflixCrashRecoveryManager:
             self.recovery_metrics["average_recovery_time"] = (
                 (current_avg * (total_recoveries - 1) + recovery_time) / total_recoveries
             )
-        
+
         self.recovery_metrics["last_failure"] = failure_event.timestamp.isoformat()
-    
+
     def get_recovery_stats(self) -> Dict[str, Any]:
         """Get comprehensive recovery statistics"""
         return {
@@ -555,7 +554,7 @@ class NetflixCrashRecoveryManager:
                 for f in list(self.failure_history)[-5:]  # Last 5 failures
             ]
         }
-    
+
     async def health_check(self) -> Dict[str, Any]:
         """Health check for recovery manager"""
         return {
