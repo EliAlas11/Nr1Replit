@@ -31,7 +31,7 @@ from app.services.video_service import NetflixLevelVideoService
 from app.services.ai_production_engine import AIProductionEngine
 from app.services.storage_service import NetflixStorageService
 from app.services.ai_analyzer import NetflixLevelAIAnalyzer
-from app.services.enterprise_manager import EnterpriseManager
+from app.services.enterprise_manager import EnterpriseUser
 
 # Route imports
 from app.routes import auth, websocket, storage, enterprise, ai_production

@@ -1,16 +1,36 @@
 
 """
-ViralClip Pro v4.0 - Netflix-Level Application Package
-Enterprise-grade video processing platform
+Netflix-Grade Video Production Platform v12.0
+Enterprise-level application package initialization
 """
 
-__version__ = "4.0.0"
-__title__ = "ViralClip Pro"
-__description__ = "Netflix-level AI-powered viral video clip generator"
-__author__ = "ViralClip Team"
+import logging
+import sys
+import os
 
-# Package-level imports
-from .config import get_settings
-from .main import app
+# Add the app directory to Python path for proper imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-__all__ = ["app", "get_settings", "__version__"]
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
+try:
+    # Import main application
+    from .main import app
+    
+    logger.info("✅ Netflix-Grade Video Production Platform initialized successfully")
+    
+except Exception as e:
+    logger.error(f"❌ Application initialization failed: {e}")
+    raise
+
+__version__ = "12.0.0"
+__app_name__ = "Netflix-Grade Video Production Platform"
+
+# Export the main app
+__all__ = ["app"]
