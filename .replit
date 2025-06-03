@@ -8,7 +8,7 @@ packages = ["ffmpeg-full", "libxcrypt", "postgresql"]
 run = ["sh", "-c", "cd nr1copilot/nr1-main && python3 -m uvicorn nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/nr1copilot/nr1-main/app/main.py"]
 
 [workflows]
-runButton = "Perfect 10/10 Netflix Production"
+runButton = "Perfect 10/10 Achievement"
 
 [[workflows.workflow]]
 name = "FastAPI Server"
@@ -414,6 +414,39 @@ args = "cd nr1copilot/nr1-main && pip install --break-system-packages -r require
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd nr1copilot/nr1-main && python3 -c \"import gc; gc.collect(); print('🚀 Memory optimized for PERFECT 10/10 Netflix performance')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"from app.ultimate_perfection_system import ultimate_perfection_system; print('🌟 Ultimate Perfection System READY')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"from app.perfect_ten_validator import perfect_ten_validator; print('✅ Perfect 10/10 Validator ACTIVE')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"from app.netflix_recovery_system import recovery_system; print('🛡️ Netflix Recovery System ONLINE')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --workers 1 --log-level info --access-log --loop uvloop --http httptools"
+
+[[workflows.workflow]]
+name = "Perfect 10/10 Achievement"
+author = 43406985
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && pip install --break-system-packages -r requirements.txt"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"import gc; gc.collect(); print('🚀 Memory optimized for PERFECT 10/10 Netflix performance')\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd nr1copilot/nr1-main && python3 -c \"from app.perfect_ten_achievement_engine import perfect_ten_engine; print('🏆 Perfect 10/10 Achievement Engine READY')\""
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"

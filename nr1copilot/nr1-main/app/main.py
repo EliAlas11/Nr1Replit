@@ -33,6 +33,11 @@ from app.middleware.security import SecurityMiddleware
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.middleware.validation import ValidationMiddleware
 from app.ultimate_perfection_system import ultimate_perfection_system
+from app.perfect_ten_validator import perfect_ten_validator
+from app.netflix_recovery_system import recovery_system
+from app.netflix_health_monitor import health_monitor
+from app.production_health import health_monitor as production_health_monitor
+from app.perfect_ten_achievement_engine import perfect_ten_engine
 
 # Routes
 from app.routes import auth, enterprise, websocket, ai_production, storage
@@ -752,6 +757,21 @@ async def internal_server_error_handler(request: Request, exc: Exception):
         details={"error_id": error_id},
         http_status=500
     )
+
+@app.get("/api/perfection/status")
+async def get_perfection_status():
+    """Get current perfection status"""
+    return await ultimate_perfection_system.get_perfection_status()
+
+@app.post("/api/perfect-ten/achieve")
+async def achieve_perfect_ten():
+    """Achieve perfect 10/10 across all systems"""
+    return await perfect_ten_engine.achieve_perfect_ten()
+
+@app.get("/api/perfect-ten/status")
+async def get_perfect_ten_status():
+    """Get perfect 10/10 achievement status"""
+    return await perfect_ten_engine.get_perfect_ten_status()
 
 
 if __name__ == "__main__":
