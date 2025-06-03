@@ -1,15 +1,15 @@
 {
-  "overall_score": 23.0,
+  "overall_score": 33.0,
   "max_score": 50,
-  "percentage": 46.0,
-  "duration": 1.3662800788879395,
+  "percentage": 66.0,
+  "duration": 1.567464828491211,
   "category_results": {
     "health_endpoints": {
       "score": 2,
       "max_score": 10,
       "percentage": 20.0,
       "issues": [
-        "Critical health endpoints error: invalid syntax (netflix_health_monitor.py, line 1)"
+        "Critical health endpoints error: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)"
       ],
       "status": "CRITICAL"
     },
@@ -21,13 +21,11 @@
       "status": "EXCELLENT"
     },
     "dependency_validation": {
-      "score": 2,
+      "score": 10,
       "max_score": 10,
-      "percentage": 20.0,
-      "issues": [
-        "Critical dependency validation error: invalid syntax (netflix_health_monitor.py, line 1)"
-      ],
-      "status": "CRITICAL"
+      "percentage": 100.0,
+      "issues": [],
+      "status": "EXCELLENT"
     },
     "imports": {
       "score": 7.0,
@@ -36,36 +34,33 @@
       "successful_imports": 7,
       "total_imports": 10,
       "issues": [
-        "Main App import failed: invalid syntax (netflix_health_monitor.py, line 1)",
-        "Health Utils import failed: invalid syntax (netflix_health_monitor.py, line 1)",
-        "Perfect Ten Validator import failed: invalid syntax (netflix_health_monitor.py, line 1)"
+        "Main App import failed: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)",
+        "Health Utils import failed: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)",
+        "Perfect Ten Validator import failed: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)"
       ],
       "status": "GOOD"
     },
     "services": {
-      "score": 2.0,
+      "score": 4.0,
       "max_score": 10,
-      "percentage": 20.0,
-      "functional_services": 1,
+      "percentage": 40.0,
+      "functional_services": 2,
       "total_services": 5,
       "issues": [
-        "Perfect Ten Validator import failed: invalid syntax (netflix_health_monitor.py, line 1)",
-        "Ultimate Perfection System import failed: invalid syntax (netflix_health_monitor.py, line 1)",
-        "Health Monitor import failed: invalid syntax (netflix_health_monitor.py, line 1)",
-        "Service Container import failed: invalid syntax (netflix_health_monitor.py, line 1)"
+        "Perfect Ten Validator import failed: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)",
+        "Ultimate Perfection System import failed: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)",
+        "Health Monitor import failed: cannot import name 'EnterpriseManager' from 'app.services.enterprise_manager' (/home/runner/workspace/nr1copilot/nr1-main/app/services/enterprise_manager.py)"
       ],
       "status": "CRITICAL"
     }
   },
-  "timestamp": "2025-06-03T06:17:15.140828",
+  "timestamp": "2025-06-03T06:18:31.725297",
   "recommendations": [
     "\ud83d\udd27 HEALTH_ENDPOINTS: Score 2.0/10 - Requires improvement",
-    "   \u2192 Implement proper health checks in health_endpoints",
-    "\ud83d\udd27 DEPENDENCY_VALIDATION: Score 2.0/10 - Requires improvement",
-    "   \u2192 Implement proper health checks in dependency_validation",
+    "   \u2192 Fix import dependencies in health_endpoints",
     "\ud83d\udd27 IMPORTS: Score 7.0/10 - Requires improvement",
     "   \u2192 Fix import dependencies in imports",
-    "\ud83d\udd27 SERVICES: Score 2.0/10 - Requires improvement",
+    "\ud83d\udd27 SERVICES: Score 4.0/10 - Requires improvement",
     "   \u2192 Fix import dependencies in services"
   ]
 }
