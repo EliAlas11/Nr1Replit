@@ -984,38 +984,7 @@ class NetflixStartupValidator:
 
 
 # Global startup validator instance
-startup_validator = NetflixStartupValidator()dationResult.CRITICAL])
-            
-            total_checks = len(self.validation_checks)
-            system_score = (passed_checks / total_checks * 100) if total_checks > 0 else 0
-            
-            is_valid = critical_checks == 0 and failed_checks == 0
-            
-            result = {
-                "is_valid": is_valid,
-                "system_score": system_score,
-                "validation_time": validation_time,
-                "total_checks": total_checks,
-                "passed_checks": passed_checks,
-                "warning_checks": warning_checks,
-                "failed_checks": failed_checks,
-                "critical_failures": [c.name for c in self.validation_checks if c.result == ValidationResult.CRITICAL],
-                "detailed_results": [self._check_to_dict(c) for c in self.validation_checks],
-                "recommendations": self._generate_recommendations(),
-                "timestamp": time.time()
-            }
-            
-            logger.info(f"✅ System validation completed: {system_score:.1f}% score")
-            return result
-            
-        except Exception as e:
-            logger.error(f"❌ System validation failed: {e}")
-            return {
-                "is_valid": False,
-                "system_score": 0.0,
-                "error": str(e),
-                "timestamp": time.time()
-            }
+startup_validator = NetflixStartupValidator()
     
     async def _validate_system_resources(self):
         """Validate system resource availability"""
