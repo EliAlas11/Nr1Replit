@@ -773,6 +773,111 @@ async def get_perfect_ten_status():
     """Get perfect 10/10 achievement status"""
     return await perfect_ten_engine.get_perfect_ten_status()
 
+@app.on_event("startup")
+async def startup_event():
+    """Production startup with Netflix-grade validation and monitoring"""
+    logger.info("🚀 Starting ViralClip Pro v10.0 Production...")
+
+    try:
+        # Phase 1: Core System Validation
+        from .startup_validator import StartupValidator
+        validator = StartupValidator()
+
+        validation_report = await validator.perform_complete_validation()
+
+        # Phase 2: Initialize Alert System
+        from .alert_config import alert_manager, AlertSeverity
+
+        if validation_report["validation_status"] == "PASSED":
+            logger.info(f"✅ Startup validation PASSED - Grade: {validation_report['netflix_grade']}")
+            await alert_manager.send_alert(
+                AlertSeverity.LOW,
+                "System Startup Successful",
+                f"ViralClip Pro v10.0 started successfully with grade: {validation_report['netflix_grade']}",
+                {
+                    "validation_time": validation_report.get("validation_time_seconds"),
+                    "boot_validated": validation_report.get("boot_sequence_validated"),
+                    "production_ready": validation_report.get("ready_for_production")
+                }
+            )
+        else:
+            logger.error(f"❌ Startup validation issues detected - Grade: {validation_report['netflix_grade']}")
+
+            # Send critical startup alert
+            await alert_manager.send_alert(
+                AlertSeverity.CRITICAL,
+                "System Startup Issues Detected",
+                f"Startup validation failed with grade: {validation_report['netflix_grade']}",
+                {
+                    "critical_errors": validation_report.get("issues", {}).get("critical_errors", []),
+                    "warnings": validation_report.get("issues", {}).get("warnings", []),
+                    "production_ready": validation_report.get("ready_for_production", False)
+                }
+            )
+
+            # Log critical errors
+            for error in validation_report.get("issues", {}).get("critical_errors", []):
+                logger.error(f"Critical: {error}")
+
+        # Phase 3: Initialize Health Monitoring
+        from .netflix_health_monitor import health_monitor
+        await health_monitor.initialize()
+        logger.info("🏥 Netflix Health Monitor v10.0 initialized")
+
+        # Phase 4: Initialize Recovery System
+        from .netflix_recovery_system import recovery_system
+        await recovery_system.start_monitoring()
+        logger.info("🛡️ Netflix Recovery System active")
+
+        # Phase 5: Initialize Perfection Systems
+        try:
+            from .ultimate_perfection_system import ultimate_perfection_system
+            from .perfect_ten_validator import perfect_ten_validator
+            logger.info("🌟 Ultimate Perfection System loaded")
+        except ImportError as e:
+            logger.warning(f"Perfection systems not available: {e}")
+
+        # Phase 6: Test Alert System
+        try:
+            test_results = await alert_manager.test_alerts()
+            logger.info(f"📢 Alert system test results: {test_results}")
+        except Exception as e:
+            logger.warning(f"Alert system test failed: {e}")
+
+        # Phase 7: Final Health Check
+        final_health = await health_monitor.get_health_summary()
+        logger.info(f"🎯 Final system health: {final_health['status']} (Score: {final_health['health_score']}/10)")
+
+        # Send startup complete notification
+        await alert_manager.send_alert(
+            AlertSeverity.LOW,
+            "Production System Online",
+            f"ViralClip Pro v10.0 is now fully operational with health score: {final_health['health_score']}/10",
+            {
+                "system_status": final_health['status'],
+                "health_score": final_health['health_score'],
+                "active_metrics": final_health['active_metrics'],
+                "uptime": final_health['uptime']
+            }
+        )
+
+        logger.info("🎬 ViralClip Pro v10.0 ready for Netflix-grade performance!")
+
+    except Exception as e:
+        logger.critical(f"💥 Startup failed critically: {e}")
+
+        # Send critical failure alert
+        try:
+            from .alert_config import alert_manager, AlertSeverity
+            await alert_manager.send_critical_alert(
+                "System Startup Failure",
+                f"ViralClip Pro failed to start: {str(e)}",
+                {"error_type": type(e).__name__, "startup_phase": "initialization"}
+            )
+        except Exception:
+            pass  # Don't let alert failures prevent startup error logging
+
+        raise
 
 if __name__ == "__main__":
     uvicorn.run(

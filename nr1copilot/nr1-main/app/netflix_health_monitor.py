@@ -172,11 +172,14 @@ class NetflixHealthMonitor:
         logger.info("🏥 Health monitor shutdown complete")
 
     async def _background_monitoring(self) -> None:
-        """Background task for continuous health monitoring"""
+        """Background task for continuous health monitoring with alerting"""
         while True:
             try:
                 await asyncio.sleep(self.check_interval)
-                await self.perform_health_check()
+                health_result = await self.perform_health_check()
+                
+                # Check for critical health issues and send alerts
+                await self._check_and_send_alerts(health_result)
                 
                 # Capture system snapshot
                 snapshot = SystemSnapshot.capture()
@@ -186,6 +189,17 @@ class NetflixHealthMonitor:
                 break
             except Exception as e:
                 logger.error(f"Background monitoring error: {e}")
+                # Send critical alert for monitoring failure
+                try:
+                    from .alert_config import alert_manager, AlertSeverity
+                    await alert_manager.send_alert(
+                        AlertSeverity.CRITICAL,
+                        "Health Monitoring Failure",
+                        f"Background health monitoring encountered an error: {str(e)}",
+                        {"error_type": type(e).__name__, "monitoring_active": self._initialized}
+                    )
+                except Exception:
+                    pass  # Don't let alert failures crash monitoring
                 await asyncio.sleep(5)  # Brief pause before retrying
 
     def get_uptime(self) -> timedelta:
@@ -333,6 +347,64 @@ class NetflixHealthMonitor:
                     'bytes_sent': network.bytes_sent,
                     'bytes_recv': network.bytes_recv,
                     'packets_sent': network.packets_sent,
+
+
+    async def _check_and_send_alerts(self, health_result: Dict[str, Any]) -> None:
+        """Check health results and send alerts for critical issues"""
+        try:
+            from .alert_config import alert_manager, AlertSeverity
+            
+            overall_status = health_result.get("status", "unknown")
+            
+            # Critical system alerts
+            if overall_status == HealthStatus.CRITICAL.value:
+                await alert_manager.send_alert(
+                    AlertSeverity.CRITICAL,
+                    "System Health Critical",
+                    "System health has degraded to critical status",
+                    {
+                        "health_score": health_result.get("overall_score", 0),
+                        "failed_components": [
+                            name for name, component in health_result.get("components", {}).items()
+                            if component.get("status") == HealthStatus.CRITICAL.value
+                        ]
+                    }
+                )
+            
+            # Memory alerts
+            memory_metric = self.metrics.get("memory")
+            if memory_metric and memory_metric.value > 90:
+                await alert_manager.send_alert(
+                    AlertSeverity.HIGH,
+                    "High Memory Usage",
+                    f"Memory usage at {memory_metric.value:.1f}%",
+                    {"memory_percent": memory_metric.value, "threshold": 90}
+                )
+            
+            # CPU alerts
+            cpu_metric = self.metrics.get("cpu")
+            if cpu_metric and cpu_metric.value > 85:
+                await alert_manager.send_alert(
+                    AlertSeverity.HIGH,
+                    "High CPU Usage",
+                    f"CPU usage at {cpu_metric.value:.1f}%",
+                    {"cpu_percent": cpu_metric.value, "threshold": 85}
+                )
+            
+            # Disk alerts
+            disk_metric = self.metrics.get("disk")
+            if disk_metric and disk_metric.value > 90:
+                await alert_manager.send_alert(
+                    AlertSeverity.CRITICAL,
+                    "Critical Disk Usage",
+                    f"Disk usage at {disk_metric.value:.1f}%",
+                    {"disk_percent": disk_metric.value, "threshold": 90}
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to check/send alerts: {e}")
+
+
                     'packets_recv': network.packets_recv
                 },
                 status=HealthStatus.HEALTHY,
