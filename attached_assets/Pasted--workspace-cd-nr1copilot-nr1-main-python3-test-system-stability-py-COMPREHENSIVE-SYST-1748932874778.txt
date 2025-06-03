@@ -1,0 +1,67 @@
+~/workspace$ cd nr1copilot/nr1-main && python3 ../../test_system_stability.py
+🔍 COMPREHENSIVE SYSTEM STABILITY TEST
+============================================================
+Test started at: 2025-06-03 06:39:58.911734
+
+🏥 TESTING HEALTH CHECK ENDPOINTS
+==================================================
+❌ Health endpoints test failed: No module named 'app'
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/../../test_system_stability.py", line 30, in test_health_check_endpoints
+    from app.routes.health_endpoints import health_monitor, router
+ModuleNotFoundError: No module named 'app'
+
+
+🎯 Health Check Endpoints Score: 3/10
+
+🛡️ TESTING CRASH RECOVERY SYSTEM
+==================================================
+❌ Crash recovery test failed: No module named 'app'
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/../../test_system_stability.py", line 81, in test_crash_recovery_system
+    from app.crash_recovery_manager import crash_recovery_manager
+ModuleNotFoundError: No module named 'app'
+
+
+🎯 Crash Recovery Score: 4/10
+
+🔧 TESTING DEPENDENCY VALIDATION
+==================================================
+❌ Dependency validation failed: No module named 'app'
+Traceback (most recent call last):
+  File "/home/runner/workspace/nr1copilot/nr1-main/../../test_system_stability.py", line 140, in test_dependency_validation
+    from app.startup_validator import startup_validator
+ModuleNotFoundError: No module named 'app'
+
+
+🎯 Dependency Validation Score: 3/10
+
+⚙️ TESTING ADDITIONAL STABILITY FEATURES
+==================================================
+⚠️ Netflix Recovery System: No module named 'app'
+⚠️ Database Health Monitor: No module named 'app'
+✅ System monitoring: 82.9% memory, 55.8% CPU
+
+🎯 Additional Features Score: 1/5
+
+============================================================
+📊 FINAL STABILITY TEST RESULTS:
+============================================================
+1. Health Check Endpoints:     3/10
+2. Crash Recovery & Auto-restart: 4/10
+3. Dependency Validation:      3/10
+   Additional Features:       1/5
+
+🎯 OVERALL STABILITY SCORE: 10/30
+Grade: ❌ CRITICAL - Major stability issues detected
+
+📋 COMPONENT ANALYSIS:
+Health Check Endpoints: 3/10 - ❌ CRITICAL
+   → Critical for monitoring system health
+Crash Recovery: 4/10 - ❌ CRITICAL
+   → Essential for automatic failure recovery
+Dependency Validation: 3/10 - ❌ CRITICAL
+   → Required for reliable system startup
+
+Test completed at: 2025-06-03 06:39:59.015487
+~/.../nr1copilot/nr1-main$ 
