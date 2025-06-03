@@ -10,6 +10,7 @@ import traceback
 import signal
 import os
 import psutil
+import gc
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
