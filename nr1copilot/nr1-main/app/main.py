@@ -529,34 +529,41 @@ app.include_router(storage.router, prefix="/api/v1", tags=["Storage"])
 # Health endpoints
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Ultra-fast health check for Netflix-grade monitoring"""
-    start_time = time.time()
+    """Comprehensive health check endpoint"""
+    from app.netflix_health_monitor import health_monitor
+    from app.database.health import health_monitor as db_health_monitor
+    from app.production_health import health_monitor as prod_health_monitor
 
     try:
-        status = "healthy" if services.is_healthy() else "degraded"
-        response_time = round((time.time() - start_time) * 1000, 2)
+        # Get comprehensive health status
+        system_health = await health_monitor.get_comprehensive_health()
+        db_health = await db_health_monitor.get_health_summary()
+        prod_health = await prod_health_monitor.comprehensive_health_check()
 
-        optimizer.metrics.request_count += 1
+        overall_status = "healthy"
+        if any(h.get("status") in ["critical", "unhealthy"] for h in [system_health, db_health, prod_health]):
+            overall_status = "unhealthy"
+        elif any(h.get("status") in ["warning", "degraded"] for h in [system_health, db_health, prod_health]):
+            overall_status = "degraded"
 
-        return Response(
-            content=f'{{"status":"{status}","response_time_ms":{response_time},"version":"14.0.0"}}',
-            media_type="application/json",
-            status_code=200 if status == "healthy" else 503,
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "X-Health-Check": "netflix-grade-v14",
-                "X-Version": "14.0.0"
-            }
-        )
-
+        return {
+            "status": overall_status,
+            "timestamp": datetime.utcnow(),
+            "services": {
+                "system": system_health,
+                "database": db_health,
+                "production": prod_health
+            },
+            "version": "14.0.0",
+            "environment": "production"
+        }
     except Exception as e:
-        optimizer.metrics.error_count += 1
         logger.error(f"Health check failed: {e}")
-        return Response(
-            content='{"status":"error","error":"health_check_failed"}',
-            media_type="application/json",
-            status_code=503
-        )
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.utcnow(),
+            "error": str(e)
+        }
 
 
 @app.get("/perfection", tags=["Perfection"])
@@ -634,7 +641,7 @@ def _generate_dashboard() -> str:
     <html lang="en">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=width, initial-scale=1">
         <title>{APPLICATION_INFO['name']} - Netflix-Grade Enterprise Dashboard</title>
         <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}

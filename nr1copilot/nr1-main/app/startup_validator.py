@@ -348,7 +348,7 @@ class StartupValidator:
             self.validation_results["system_resources"] = {"status": "FAILED", "error": str(e)}
 
     async def _validate_dependencies(self):
-        """Enhanced dependency validation with version checking"""
+        """Enhanced dependency validation with database and storage checks"""
         required_packages = [
             ("fastapi", "0.100.0", True),
             ("uvicorn", "0.20.0", True),
@@ -358,6 +358,9 @@ class StartupValidator:
             ("python-multipart", None, False),
             ("websockets", None, False)
         ]
+        
+        # Validate external dependencies
+        await self._validate_external_dependencies()
         
         dependency_status = {}
         missing_critical = []
@@ -432,6 +435,62 @@ class StartupValidator:
             self.info_messages.append(f"Package conflict check failed: {e}")
         
         return conflicts
+
+    async def _validate_external_dependencies(self):
+        """Validate external dependencies like database, storage, etc."""
+        external_deps = {}
+        
+        try:
+            # Database connectivity check
+            try:
+                from app.database.connection import db_manager
+                pool_stats = await db_manager.get_pool_stats()
+                if pool_stats.get("status") == "healthy":
+                    external_deps["database"] = {"status": "PASSED", "connection": "healthy"}
+                else:
+                    self.critical_errors.append("Database connection failed")
+                    external_deps["database"] = {"status": "FAILED", "error": "Connection unhealthy"}
+            except Exception as e:
+                self.critical_errors.append(f"Database validation failed: {e}")
+                external_deps["database"] = {"status": "FAILED", "error": str(e)}
+            
+            # Storage system check
+            try:
+                import os
+                storage_paths = ["./uploads", "./temp", "./output", "./cache"]
+                storage_accessible = True
+                for path in storage_paths:
+                    if not os.path.exists(path):
+                        os.makedirs(path, exist_ok=True)
+                    # Test write access
+                    test_file = os.path.join(path, ".storage_test")
+                    with open(test_file, "w") as f:
+                        f.write("test")
+                    os.remove(test_file)
+                
+                external_deps["storage"] = {"status": "PASSED", "paths_accessible": len(storage_paths)}
+            except Exception as e:
+                self.critical_errors.append(f"Storage system validation failed: {e}")
+                external_deps["storage"] = {"status": "FAILED", "error": str(e)}
+            
+            # Network connectivity check
+            try:
+                import socket
+                sock = socket.create_connection(("8.8.8.8", 53), timeout=5)
+                sock.close()
+                external_deps["network"] = {"status": "PASSED", "connectivity": "available"}
+            except Exception as e:
+                self.warnings.append(f"Network connectivity check failed: {e}")
+                external_deps["network"] = {"status": "WARNING", "error": str(e)}
+            
+            self.validation_results["external_dependencies"] = {
+                "dependencies": external_deps,
+                "status": "PASSED" if len([d for d in external_deps.values() if d["status"] == "FAILED"]) == 0 else "FAILED"
+            }
+            
+        except Exception as e:
+            self.critical_errors.append(f"External dependency validation failed: {e}")
+            self.validation_results["external_dependencies"] = {"status": "FAILED", "error": str(e)}
 
     async def _validate_service_integration(self):
         """Validate service integration and communication"""
