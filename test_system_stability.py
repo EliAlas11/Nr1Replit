@@ -1,18 +1,18 @@
-#!/usr/bin/env python3
-"""
-🔍 COMPREHENSIVE SYSTEM STABILITY TEST
-Netflix-Grade Health Check Validation System
-"""
-
-import asyncio
+# Analyzing the code and applying the requested changes to fix import paths and test execution directory.
 import sys
 import os
 import time
+import asyncio
 import traceback
 from datetime import datetime
 
-# Add the app directory to Python path
-sys.path.insert(0, os.path.join(os.getcwd(), 'nr1copilot/nr1-main'))
+# Add the correct app directory to Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+app_dir = os.path.join(current_dir, 'nr1copilot', 'nr1-main')
+sys.path.insert(0, app_dir)
+
+# Change to the correct working directory
+os.chdir(app_dir)
 
 def test_health_check_endpoints():
     """Test health check endpoints availability"""
